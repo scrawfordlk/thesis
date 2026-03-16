@@ -60,24 +60,7 @@ Currently still uses `u8` (unsigned 8-bit integers) for alignment reasons.
 ```rust
 #![no_main]
 #[unsafe(no_mangle)]
-fn main(argc: u64, argv: *mut *mut u8) -> u64 {
-    let mut i: u64 = 0;
-    while i < argc {
-        let current = (argv as u64 + i * 8) as *mut *mut u8;
-
-        unsafe {
-            let mut raw: *mut u8 = *current;
-
-            while *raw != 0 {
-                println!("{}", *raw as u64)
-                raw = (raw as u64 + 1) as *mut u8;
-            }
-        }
-
-        i = i + 1;
-    }
-    0
-}
+fn main(argc: u64, argv: *mut *mut u8) -> u64 {}
 ```
 
 ## Memory cleanup (open design choice)
