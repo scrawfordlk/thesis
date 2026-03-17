@@ -33,8 +33,6 @@ fn main(argc: u64, argv: *mut *mut u8) -> u64 {
     0
 }
 
-const WORDSIZE: u64 = 8;
-
 // String
 
 enum Str {
