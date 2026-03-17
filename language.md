@@ -25,11 +25,11 @@
 - Arithmetic: `+`, `-`, `*`, `/`
 - Comparison: `<`, `<=`, `==`, `>`, `>=`
 - Memory: `*` (deref), `&`, `&mut`
-- Cast: `as`
+- Cast: `as` (necessary for e.g. pointer arithmetic)
 
 ### Literals
 
-- `u64` integer literals
+- integer literals
 - string literals (immediately casted into raw pointers) (might require `u8` type due to alignment)
 
 ```rust
@@ -42,6 +42,12 @@ The alternative would be to support the type `&str`, which is the type of a stri
 
 ```rust
 let s: &str = "Hello World";
+```
+
+But a `&str` is treated as a slice, meaning that you would need to use methods to e.g. get the length:
+
+```rust
+let length: u64 = "some string".len() as u64;
 ```
 
 ### Data structures
