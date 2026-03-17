@@ -60,6 +60,10 @@ let length: u64 = "some string".len() as u64;
 - Destructuring (for enums)
 - `unsafe` blocks
 
+### Other ideas
+
+- Having methods on enums would improve readability with low complexity, though they aren't necessary
+
 ## Entrypoint
 
 Currently still uses `u8` (unsigned 8-bit integers) for alignment reasons.
