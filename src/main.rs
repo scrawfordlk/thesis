@@ -9,9 +9,9 @@ fn main(argc: u64, argv: *mut *mut u8) -> u64 {
         return 1;
     }
 
-    let raw_str_ptr: *mut u64 = "Hello" as *const str as *mut u64;
+    let raw_str_ptr: *mut u8 = "Hello" as *const str as *mut u8;
     let mut s1: Str = str_allocate(raw_str_ptr, 5);
-    let raw_str_ptr: *mut u64 = ", World!" as *const str as *mut u64;
+    let raw_str_ptr: *mut u8 = ", World!" as *const str as *mut u8;
     str_print(&s1);
     println!();
 
@@ -195,13 +195,13 @@ fn str_double_capacity(string: &mut Str) {
     *ptr = new_string;
 }
 
-fn str_allocate(str: *mut u64, len: u64) -> Str {
+fn str_allocate(str: *mut u8, len: u64) -> Str {
     let ptr = malloc_u64(len);
     let mut i = 0;
     while i < len {
         unsafe {
             let character: *mut u64 = ptr_add(ptr, i);
-            *character = get_byte(str, i);
+            *character = *((str as u64 + i) as *mut u8) as u64;
         }
 
         i = i + 1;
@@ -219,6 +219,9 @@ fn str_ptr_add(ptr: *mut Str, offset: u64) -> *mut Str {
     (ptr as u64 + offset * size_of::<Str>() as u64) as *mut Str
 }
 
+// My try on extracting bytes using only u64. While
+// this does works, it causes alignment issues, when
+// dereferencing loads invalid parts of memory.
 fn get_byte(data: *mut u64, i: u64) -> u64 {
     let word_index: u64 = i / 8;
     let byte_index: u64 = i % 8;
@@ -232,7 +235,7 @@ fn get_byte(data: *mut u64, i: u64) -> u64 {
     }
 }
 
-// Math Operations
+// Math Operations used in get_byte()
 
 fn shift_left(bits: u64, shift: u64) -> u64 {
     bits * pow(2, shift)
