@@ -4,7 +4,8 @@
 
 ### Types
 
-- `u64` (unsigned 64-bit integer)
+- `u64` (unsigned 64-bit integer) or `usize` (unsigned, platform dependant size)
+  - `u8` might be necessary for byte handling
 - `bool` (necessary for `if` and `while`)
 
 #### Pointers
