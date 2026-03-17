@@ -71,7 +71,7 @@ fn str_list_get<'a>(list: &'a StrList, i: u64) -> StrRefOption<'a> {
 
     unsafe {
         let str: &Str = &*str_ptr_add(ptr, i);
-        StrRefOption::Some(&str)
+        StrRefOption::Some(str)
     }
 }
 
@@ -222,7 +222,7 @@ fn get_byte(data: *mut u64, i: u64) -> u64 {
     let word_ptr: *mut u64 = ptr_add(data, word_index);
     unsafe {
         let word: u64 = *word_ptr;
-        let mask: u64 = shift_left(255, byte_index * WORDSIZE); // 255 = 0xFF
+        let mask: u64 = shift_left(255, byte_index * 8); // 255 = 0xFF
         let filtered_byte: u64 = word & mask;
         shift_right(filtered_byte, byte_index * 8)
     }
