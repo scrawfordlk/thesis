@@ -40,7 +40,7 @@ enum Str {
     Str(*mut u64, u64, u64),
 }
 
-enum StrOption<'a> {
+enum StrRefOption<'a> {
     Some(&'a Str),
     None,
 }
@@ -67,16 +67,16 @@ fn str_list_push(list: &mut StrList, string: Str) {
     *len = *len + 1;
 }
 
-fn str_list_get<'a>(list: &'a StrList, i: u64) -> StrOption<'a> {
+fn str_list_get<'a>(list: &'a StrList, i: u64) -> StrRefOption<'a> {
     if i >= str_list_len(list) {
-        return StrOption::None;
+        return StrRefOption::None;
     }
 
     let &StrList::Init(ptr, _, _) = list;
 
     unsafe {
         let str: &Str = &*str_ptr_add(ptr, i);
-        StrOption::Some(&str)
+        StrRefOption::Some(&str)
     }
 }
 
@@ -86,7 +86,7 @@ fn str_list_print(list: &StrList) {
     let mut i = 0;
     while i < len {
         match str_list_get(list, i) {
-            StrOption::Some(str) => {
+            StrRefOption::Some(str) => {
                 str_print(str);
                 println!();
             }
