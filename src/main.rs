@@ -121,15 +121,6 @@ fn ptr_add(ptr: *mut u64, bytes: u64) -> *mut u64 {
     (ptr as u64 + bytes * 8) as *mut u64
 }
 
-fn malloc_u64(len: u64) -> *mut u64 {
-    unsafe {
-        std::alloc::alloc(std::alloc::Layout::from_size_align_unchecked(
-            (len * 8) as usize,
-            8,
-        )) as *mut u64
-    }
-}
-
 fn get_byte(data: *mut u64, i: u64) -> u64 {
     let word_index: u64 = i / 8;
     let byte_index: u64 = i % 8;
@@ -158,5 +149,31 @@ fn pow(base: u64, exp: u64) -> u64 {
         1
     } else {
         base * pow(base, exp - 1)
+    }
+}
+
+// Heap allocation
+//
+// Not well thought out at the moment
+// Missing:
+//  Checking for overflows
+//  Checking for allocation failure
+//  Initialising memory
+
+fn malloc_u64(len: u64) -> *mut u64 {
+    unsafe {
+        std::alloc::alloc(std::alloc::Layout::from_size_align_unchecked(
+            len as usize * size_of::<Str>(),
+            std::mem::align_of::<Str>(),
+        )) as *mut u64
+    }
+}
+
+fn malloc_str(len: u64) -> *mut Str {
+    unsafe {
+        std::alloc::alloc(std::alloc::Layout::from_size_align_unchecked(
+            len as usize * size_of::<Str>(),
+            std::mem::align_of::<Str>(),
+        )) as *mut Str
     }
 }
