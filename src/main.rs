@@ -22,6 +22,14 @@ fn main(argc: u64, argv: *mut *mut u8) -> u64 {
     str_push_str(&mut s1, &s2);
     str_print(&s1);
     println!();
+
+    println!("-----");
+
+    let mut list: StrList = str_list_new();
+    str_list_push(&mut list, s1);
+    str_list_push(&mut list, s2);
+    str_list_print(&list);
+
     0
 }
 
@@ -34,8 +42,93 @@ enum Str {
     Str(*mut u64, u64, u64),
 }
 
+enum StrOption<'a> {
+    Some(&'a Str),
+    None,
+}
+
+enum StrList {
+    // pointer to start, length, capacity
+    Init(*mut Str, u64, u64),
+}
+
+fn str_list_new() -> StrList {
+    let ptr: *mut Str = malloc_str(10);
+    StrList::Init(ptr, 0, 10)
+}
+
+fn str_list_push(list: &mut StrList, string: Str) {
+    if str_list_len(list) + 1 > str_list_capacity(list) {
+        str_list_double_capacity(list);
+    }
+
+    let StrList::Init(ptr, len, _) = list;
+    unsafe {
+        *str_ptr_add(*ptr, *len) = string;
+    }
+    *len = *len + 1;
+}
+
+fn str_list_get<'a>(list: &'a StrList, i: u64) -> StrOption<'a> {
+    if i >= str_list_len(list) {
+        return StrOption::None;
+    }
+
+    let &StrList::Init(ptr, _, _) = list;
+
+    unsafe {
+        let str: &Str = &*str_ptr_add(ptr, i);
+        StrOption::Some(&str)
+    }
+}
+
+fn str_list_print(list: &StrList) {
+    let len = str_list_len(list);
+
+    let mut i = 0;
+    while i < len {
+        match str_list_get(list, i) {
+            StrOption::Some(str) => {
+                str_print(str);
+                println!();
+            }
+            _ => panic!(),
+        }
+
+        i = i + 1;
+    }
+}
+
+fn str_list_len(list: &StrList) -> u64 {
+    let &StrList::Init(_, len, _) = list;
+    len
+}
+
+fn str_list_capacity(list: &StrList) -> u64 {
+    let &StrList::Init(_, _, capacity) = list;
+    capacity
+}
+
+fn str_list_double_capacity(list: &mut StrList) {
+    let StrList::Init(ptr, len, capacity) = list;
+    *capacity = *capacity * 2;
+
+    let new_list: *mut Str = malloc_str(*capacity);
+
+    let mut i: u64 = 0;
+    while i < *len {
+        unsafe {
+            let str: Str = std::ptr::read(str_ptr_add(*ptr, i));
+            *str_ptr_add(new_list, i) = str;
+        }
+
+        i = i + 1;
+    }
+}
+
 fn str_print(string: &Str) {
     let len = str_len(string);
+
     let mut i = 0;
     while i < len {
         let character = ptr_add(str_ptr(string), i);
@@ -88,6 +181,7 @@ fn str_double_capacity(string: &mut Str) {
     *capacity = *capacity * 2;
 
     let new_string = malloc_u64(*capacity);
+
     let mut i = 0;
     while i < *len {
         unsafe {
@@ -119,6 +213,10 @@ fn str_allocate(str: *mut u64, len: u64) -> Str {
 
 fn ptr_add(ptr: *mut u64, offset: u64) -> *mut u64 {
     (ptr as u64 + offset * 8) as *mut u64
+}
+
+fn str_ptr_add(ptr: *mut Str, offset: u64) -> *mut Str {
+    (ptr as u64 + offset * size_of::<Str>() as u64) as *mut Str
 }
 
 fn get_byte(data: *mut u64, i: u64) -> u64 {
