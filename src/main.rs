@@ -117,8 +117,8 @@ fn str_allocate(str: *mut u64, len: u64) -> Str {
 
 // Memory
 
-fn ptr_add(ptr: *mut u64, bytes: u64) -> *mut u64 {
-    (ptr as u64 + bytes * 8) as *mut u64
+fn ptr_add(ptr: *mut u64, offset: u64) -> *mut u64 {
+    (ptr as u64 + offset * 8) as *mut u64
 }
 
 fn get_byte(data: *mut u64, i: u64) -> u64 {
