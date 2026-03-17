@@ -4,17 +4,12 @@
 #![no_main]
 #[unsafe(no_mangle)]
 fn main(argc: u64, argv: *mut *mut u8) -> u64 {
-    if argc <= 1 {
-        println!("No args");
-        return 1;
-    }
-
     let raw_str_ptr: *mut u8 = "Hello" as *const str as *mut u8;
     let mut s1: Str = str_allocate(raw_str_ptr, 5);
-    let raw_str_ptr: *mut u8 = ", World!" as *const str as *mut u8;
     str_print(&s1);
     println!();
 
+    let raw_str_ptr: *mut u8 = ", World!" as *const str as *mut u8;
     let s2: Str = str_allocate(raw_str_ptr, 8);
     str_print(&s2);
     println!();
