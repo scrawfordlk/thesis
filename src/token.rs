@@ -1,4 +1,3 @@
-// TODO: You may not use derive macros, except for Debug (during development)
 #[derive(Clone, Debug, PartialEq)]
 pub enum Token {
     // Keywords
@@ -33,15 +32,4 @@ pub enum Token {
 
     // End of File
     EOF,
-}
-
-// TODO: remove unnecessary examples
-impl Token {
-    // Example method for enum (allowed now)
-    pub fn is_eof(&self) -> bool {
-        match self {
-            Token::EOF => true,
-            _ => false,
-        }
-    }
 }

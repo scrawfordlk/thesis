@@ -1,24 +1,21 @@
 use crate::token::Token;
 
-// TODO: You may not use derive macros other than Debug (for development)
-
 // The purpose of this file is to wrap standard library features that are not
 // directly supported by the subset (e.g. Vec<T> due to generics).
-// String is now considered supported natively, so Text wrapper was removed.
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Debug)]
 pub enum OptionToken {
     Some(Token),
     None,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Debug)]
 pub enum OptionChar {
     Some(char),
     None,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct TokenList {
     inner: Vec<Token>,
 }
