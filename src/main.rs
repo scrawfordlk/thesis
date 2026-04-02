@@ -1,3 +1,5 @@
+#![allow(clippy::assign_op_pattern)]
+
 fn main() {
     let mut str: String = string_new();
     string_push_str(&mut str, "Hello, World!");
