@@ -86,12 +86,13 @@ fn string_push(string: &mut String, character: char) {
 fn string_accomodate_extra_space(string: &mut String, space: usize) {
     let len = string_len(string);
     let capacity = string_capacity(string);
-    if capacity < len + 1 {
+    if capacity < len + space {
         let String::String(string_ptr, len, capacity): &mut String = string;
         *capacity = *capacity * 2;
         let new_ptr: *mut u8 = alloc(*capacity, 1);
         memcopy(new_ptr, *string_ptr, *len);
         *string_ptr = new_ptr;
+        string_accomodate_extra_space(string, space);
     }
 }
 
