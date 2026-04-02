@@ -67,7 +67,7 @@ fn string_push_str(string: &mut String, str: &str) {
 
     let str_ptr: *mut u8 = str.as_ptr() as *mut u8;
 
-    let String::String(string_ptr, len, _) = string;
+    let String::String(string_ptr, len, _): &mut String = string;
     let string_end: *mut u8 = ptr_add(*string_ptr, *len);
     memcopy(string_end, str_ptr, str_len);
 
@@ -76,7 +76,7 @@ fn string_push_str(string: &mut String, str: &str) {
 
 fn string_push(string: &mut String, character: char) {
     string_accomodate_extra_space(string, 1);
-    let String::String(ptr, len, _) = string;
+    let String::String(ptr, len, _): &mut String = string;
     unsafe {
         *ptr_add(*ptr, *len) = character as u8;
     }
@@ -86,8 +86,8 @@ fn string_push(string: &mut String, character: char) {
 /// Ensure the string can additionally store (apart from the string itself)
 /// the given space in bytes.
 fn string_accomodate_extra_space(string: &mut String, space: usize) {
-    let len = string_len(string);
-    let capacity = string_capacity(string);
+    let len: usize = string_len(string);
+    let capacity: usize = string_capacity(string);
     if capacity < len + space {
         let String::String(string_ptr, len, capacity): &mut String = string;
         *capacity = *capacity * 2;
@@ -98,14 +98,14 @@ fn string_accomodate_extra_space(string: &mut String, space: usize) {
     }
 }
 
-// ------------------------- MEMORY -------------------------------
+// ------------------------- Memory -------------------------------
 
 /// Copy n bytes from source to destination
 ///
 /// It must hold: forall 0 <= i < n, dest[i] can be written
 /// and src[i] can be read safely.
 fn memcopy(dest: *mut u8, src: *mut u8, n: usize) {
-    let mut i = 0;
+    let mut i: usize = 0;
     while i < n {
         unsafe {
             *ptr_add(dest, i) = *ptr_add(src, i);
