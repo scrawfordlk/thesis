@@ -197,3 +197,9 @@ fn ptr_add(ptr: *mut u8, n: usize) -> *mut u8 {
 fn alloc(size: usize, align: usize) -> *mut u8 {
     unsafe { std::alloc::alloc_zeroed(std::alloc::Layout::from_size_align_unchecked(size, align)) }
 }
+
+// -----------------------------------------------------------------
+// -------------------------- Tests --------------------------------
+// -----------------------------------------------------------------
+
+include!("tests.rs");
