@@ -11,6 +11,72 @@ fn main() {
 }
 
 // -----------------------------------------------------------------
+// ------------------------- Compiler ------------------------------
+// -----------------------------------------------------------------
+
+// ---------------------- Lexical Analysis -------------------------
+
+enum Token {
+    Keyword(Keyword),       // "fn", ...
+    LBrace,                 // "{"
+    RBrace,                 // "}"
+    LParen,                 // "("
+    RParen,                 // ")"
+    Colon,                  // ":"
+    DoubleColon,            // "::"
+    SemiColon,              // ";"
+    Comma,                  // ","
+    Assign,                 // "="
+    Comparison(Comparison), // "==", ...
+    ArmArrow,               // "=>"
+    Plus,                   // "+"
+    Minus,                  // "-"
+    Star,                   // "*"
+    Slash,                  // "/"
+    Remainder,              // "%"
+    Type(Type),             // "usize", ...
+    TypeArrow,              // "->"
+    SizeOf(usize),          // TODO: probably unnecessary
+    Identifier(String),
+    Literal(Literal),
+    Eof,
+}
+
+enum Comparison {
+    Eq,  // "=="
+    Neq, // "!="
+    Gt,  // ">"
+    Lt,  // "<"
+    Geq, // ">="
+    Leq, // "<="
+}
+
+enum Keyword {
+    Fn,     // "fn"
+    Enum,   // "enum"
+    Let,    // "let"
+    If,     // "if"
+    Else,   // "else"
+    While,  // "while"
+    Return, // "return"
+    Match,  // "match"
+    As,     // "as"
+}
+
+enum Type {
+    Usize,                // "usize"
+    U8,                   // "u8"
+    Char,                 // "char"
+    Str,                  // "&str"
+    MutRawPtr(*mut Type), // "*mut T"
+}
+
+enum Literal {
+    Integer(usize),
+    Character(char),
+    String(String),
+}
+
 // ------------------------- Library -------------------------------
 // -----------------------------------------------------------------
 
