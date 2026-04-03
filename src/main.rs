@@ -17,7 +17,15 @@ fn main() {
 // ---------------------- Lexical Analysis -------------------------
 
 enum Token {
-    Keyword(Keyword),       // "fn", ...
+    Fn,                     // "fn"
+    Enum,                   // "enum"
+    Let,                    // "let"
+    If,                     // "if"
+    Else,                   // "else"
+    While,                  // "while"
+    Return,                 // "return"
+    Match,                  // "match"
+    As,                     // "as"
     LBrace,                 // "{"
     RBrace,                 // "}"
     LParen,                 // "("
@@ -51,18 +59,6 @@ enum Comparison {
     Leq, // "<="
 }
 
-enum Keyword {
-    Fn,     // "fn"
-    Enum,   // "enum"
-    Let,    // "let"
-    If,     // "if"
-    Else,   // "else"
-    While,  // "while"
-    Return, // "return"
-    Match,  // "match"
-    As,     // "as"
-}
-
 enum Type {
     Usize,                // "usize"
     U8,                   // "u8"
@@ -76,7 +72,6 @@ enum Literal {
     Character(char),
     String(String),
 }
-
 
 // -----------------------------------------------------------------
 // ------------------------- Library -------------------------------
