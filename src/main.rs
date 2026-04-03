@@ -60,11 +60,11 @@ enum Comparison {
 }
 
 enum Type {
-    Usize,                // "usize"
-    U8,                   // "u8"
-    Char,                 // "char"
-    Str,                  // "&str"
-    MutRawPtr(*mut Type), // "*mut T"
+    Usize,             // "usize"
+    U8,                // "u8"
+    Char,              // "char"
+    Str,               // "&str"
+    MutRawPtr(String), // "*mut T"
 }
 
 enum Literal {
