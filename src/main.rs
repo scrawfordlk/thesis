@@ -170,6 +170,34 @@ fn string_accomodate_extra_space(string: &mut String, space: usize) {
     }
 }
 
+/// Create a string from a string slice.
+fn string_from_str(str: &str) -> String {
+    let mut s: String = string_new();
+    string_push_str(&mut s, str);
+    s
+}
+
+/// Check if two strings are equal.
+fn string_eq(s1: &String, s2: &String) -> bool {
+    let len: usize = string_len(s1);
+    if len != string_len(s2) {
+        return false;
+    }
+
+    let mut i: usize = 0;
+    while i < len {
+        let c1: char = unwrap_char(string_get(s1, i));
+        let c2: char = unwrap_char(string_get(s2, i));
+        if c1 != c2 {
+            return false;
+        }
+
+        i = i + 1;
+    }
+
+    true
+}
+
 // ------------------------- Memory -------------------------------
 
 /// Copy n bytes from src to dest.
