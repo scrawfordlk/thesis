@@ -78,6 +78,18 @@ enum Literal {
 // ------------------------- Library -------------------------------
 // -----------------------------------------------------------------
 
+// -------------------------- bool ---------------------------------
+
+/// Logical AND of two booleans.
+fn and(a: bool, b: bool) -> bool {
+    if a { b } else { false }
+}
+
+/// Logical OR of two booleans.
+fn or(a: bool, b: bool) -> bool {
+    if a { true } else { b }
+}
+
 // -------------------------- char ---------------------------------
 
 enum CharOption {
