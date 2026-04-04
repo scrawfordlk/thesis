@@ -99,23 +99,28 @@ enum String {
     String(*mut u8, usize, usize),
 }
 
+/// Get the pointer to the start of the string data.
 fn string_ptr(String::String(ptr, _, _): &String) -> *mut u8 {
     *ptr
 }
 
+/// Get the length of the string.
 fn string_len(String::String(_, len, _): &String) -> usize {
     *len
 }
 
+/// Get the capacity of the string.
 fn string_capacity(String::String(_, _, capacity): &String) -> usize {
     *capacity
 }
 
+/// Create a new empty string.
 fn string_new() -> String {
     let ptr: *mut u8 = alloc(1, size_of::<u8>());
     String::String(ptr, 0, 1)
 }
 
+/// Get the character at the given index.
 fn string_get(string: &String, index: usize) -> CharOption {
     if index >= string_len(string) {
         CharOption::None
@@ -125,6 +130,7 @@ fn string_get(string: &String, index: usize) -> CharOption {
     }
 }
 
+/// Append a string slice to the string.
 fn string_push_str(string: &mut String, str: &str) {
     let str_len: usize = str.len();
     string_accomodate_extra_space(string, str_len);
@@ -138,6 +144,7 @@ fn string_push_str(string: &mut String, str: &str) {
     *len = *len + str_len;
 }
 
+/// Append a character to the string.
 fn string_push(string: &mut String, character: char) {
     string_accomodate_extra_space(string, 1);
     let String::String(ptr, len, _): &mut String = string;
@@ -147,8 +154,7 @@ fn string_push(string: &mut String, character: char) {
     *len = *len + 1;
 }
 
-/// Ensure the string can additionally store (apart from the string itself)
-/// the given space in bytes.
+/// Ensure the string has space for additional bytes.
 fn string_accomodate_extra_space(string: &mut String, space: usize) {
     let len: usize = string_len(string);
     let capacity: usize = string_capacity(string);
@@ -164,7 +170,7 @@ fn string_accomodate_extra_space(string: &mut String, space: usize) {
 
 // ------------------------- Memory -------------------------------
 
-/// Copy n bytes from source to destination
+/// Copy n bytes from src to dest.
 ///
 /// It must hold: forall 0 <= i < n, dest[i] can be written
 /// and src[i] can be read safely.
@@ -178,16 +184,16 @@ fn memcopy(dest: *mut u8, src: *mut u8, n: usize) {
     }
 }
 
-/// Increment a pointer by n
+/// Increment a pointer by n. This is standard arithmetic, not pointer arithmetic.
 ///
-/// It must hold: ptr + n is safe to dereference
+/// It must hold: ptr + n is safe to dereference.
 fn ptr_add(ptr: *mut u8, n: usize) -> *mut u8 {
     (ptr as usize + n) as *mut u8
 }
 
 /// Heap-allocate memory for the given size and alignment.
 ///
-/// Cast the returned pointer to whatever the actual data is supposed to be.
+/// The caller should cast the returned pointer to the desired type.
 ///
 /// TODO: Check this for safety
 fn alloc(size: usize, align: usize) -> *mut u8 {
