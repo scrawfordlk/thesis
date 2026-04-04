@@ -164,7 +164,7 @@ fn string_accomodate_extra_space(string: &mut String, space: usize) {
         let String::String(string_ptr, len, capacity): &mut String = string;
         *capacity = *capacity * 2;
         let new_ptr: *mut u8 = alloc(*capacity, 1);
-        memcopy(new_ptr, *string_ptr, *len);
+        unsafe { memcopy(new_ptr, *string_ptr, *len) };
         *string_ptr = new_ptr;
         string_accomodate_extra_space(string, space);
     }
