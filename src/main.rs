@@ -187,8 +187,6 @@ unsafe fn memcopy(dest: *mut u8, src: *mut u8, n: usize) {
 }
 
 /// Increment a pointer by n. This is standard arithmetic, not pointer arithmetic.
-///
-/// It must hold: ptr + n is safe to dereference.
 fn ptr_add(ptr: *mut u8, n: usize) -> *mut u8 {
     (ptr as usize + n) as *mut u8
 }
