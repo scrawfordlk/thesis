@@ -194,9 +194,10 @@ fn ptr_add(ptr: *mut u8, n: usize) -> *mut u8 {
 /// Heap-allocate memory for the given size and alignment.
 ///
 /// The caller should cast the returned pointer to the desired type.
-///
-/// TODO: Check this for safety
 fn alloc(size: usize, align: usize) -> *mut u8 {
+    // TODO:
+    // is power of 2
+    // isize::MAX as usize + 1
     unsafe { std::alloc::alloc_zeroed(std::alloc::Layout::from_size_align_unchecked(size, align)) }
 }
 
