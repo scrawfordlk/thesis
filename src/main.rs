@@ -138,8 +138,10 @@ fn string_push_str(string: &mut String, str: &str) {
     let str_ptr: *mut u8 = str.as_ptr() as *mut u8;
 
     let String::String(string_ptr, len, _): &mut String = string;
-    let string_end: *mut u8 = ptr_add(*string_ptr, *len);
-    memcopy(string_end, str_ptr, str_len);
+    unsafe {
+        let string_end: *mut u8 = ptr_add(*string_ptr, *len);
+        memcopy(string_end, str_ptr, str_len)
+    };
 
     *len = *len + str_len;
 }
@@ -174,7 +176,7 @@ fn string_accomodate_extra_space(string: &mut String, space: usize) {
 ///
 /// It must hold: forall 0 <= i < n, dest[i] can be written
 /// and src[i] can be read safely.
-fn memcopy(dest: *mut u8, src: *mut u8, n: usize) {
+unsafe fn memcopy(dest: *mut u8, src: *mut u8, n: usize) {
     let mut i: usize = 0;
     while i < n {
         unsafe {
