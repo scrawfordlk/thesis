@@ -104,6 +104,24 @@ fn unwrap_char(char_opt: CharOption) -> char {
     }
 }
 
+fn is_whitespace(c: char) -> bool {
+    or(or(c == ' ', c == '\t'), or(c == '\n', c == '\r'))
+}
+
+fn is_digit(c: char) -> bool {
+    and(c >= '0', c <= '9')
+}
+
+fn is_alpha(c: char) -> bool {
+    let lower: bool = and(c >= 'a', c <= 'z');
+    let upper: bool = and(c >= 'A', c <= 'Z');
+    or(or(lower, upper), c == '_')
+}
+
+fn is_alphanumeric(c: char) -> bool {
+    or(is_alpha(c), is_digit(c))
+}
+
 // ------------------------- String -------------------------------
 
 enum String {
