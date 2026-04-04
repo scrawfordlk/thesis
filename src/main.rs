@@ -26,6 +26,8 @@ enum Token {
     Return,                 // "return"
     Match,                  // "match"
     As,                     // "as"
+    Mut,                    // "mut"
+    Ampersand,              // "&"
     LBrace,                 // "{"
     RBrace,                 // "}"
     LParen,                 // "("
@@ -60,11 +62,10 @@ enum Comparison {
 }
 
 enum Type {
-    Usize,             // "usize"
-    U8,                // "u8"
-    Char,              // "char"
-    Str,               // "&str"
-    MutRawPtr(String), // "*mut T"
+    Usize, // "usize"
+    U8,    // "u8"
+    Char,  // "char"
+    Str,   // "str"
 }
 
 enum Literal {
