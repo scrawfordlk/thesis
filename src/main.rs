@@ -1,4 +1,5 @@
 #![allow(clippy::assign_op_pattern)]
+#![allow(while_true)]
 
 fn main() {
     let mut str: String = string_new();
