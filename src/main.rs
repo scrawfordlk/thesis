@@ -227,7 +227,7 @@ fn identifier_to_token(ident: String) -> Token {
 /// TODO: check for too large integer
 fn scan_integer(lexer: &mut Lexer) -> usize {
     let mut value: usize = 0;
-    while true {d
+    while true {
         match lexer_peek(lexer) {
             CharOption::Some(c) => {
                 if is_digit(c) {
