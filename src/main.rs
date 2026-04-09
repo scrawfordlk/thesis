@@ -74,6 +74,74 @@ enum Literal {
     String(String),
 }
 
+enum Lexer {
+    // source file, current token
+    Lexer(SourceFile, Token),
+}
+
+enum SourceFile {
+    // content, current character index, current location
+    SourceFile(String, usize, SourceLocation),
+}
+
+enum SourceLocation {
+    // line, column
+    Coords(usize, usize),
+}
+
+fn lexer_sourcefile(lexer: &Lexer) -> &SourceFile {
+    let Lexer::Lexer(source, _): &Lexer = lexer;
+    source
+}
+
+/// Get the current source location.
+fn lexer_location(lexer: &Lexer) -> &SourceLocation {
+    let SourceFile::SourceFile(_, _, location): &SourceFile = lexer_sourcefile(lexer);
+    location
+}
+
+/// Peek at the current character without consuming it.
+fn lexer_peek(lexer: &Lexer) -> CharOption {
+    let SourceFile::SourceFile(content, index, _): &SourceFile = lexer_sourcefile(lexer);
+    string_get(content, *index)
+}
+
+/// Consume and return the current character.
+fn lexer_consume(lexer: &mut Lexer) -> CharOption {
+    let Lexer::Lexer(source, _): &mut Lexer = lexer;
+    let SourceFile::SourceFile(content, index, location): &mut SourceFile = source;
+
+    let current: CharOption = string_get(content, *index);
+    *index = *index + 1;
+
+    match current {
+        CharOption::Some(c) => {
+            let SourceLocation::Coords(line, col): &mut SourceLocation = location;
+            if c == '\n' {
+                *line = *line + 1;
+                *col = 1;
+            } else {
+                *col = *col + 1;
+            }
+        }
+        CharOption::None => {}
+    }
+    current
+}
+
+/// Consume the next character, erroring if it doesn't match expected.
+fn lexer_expect_char(lexer: &mut Lexer, expected: char) {
+    match lexer_consume(lexer) {
+        CharOption::Some(c) => {
+            if c != expected {
+                lexer_error(lexer, "unexpected character");
+            }
+        }
+        CharOption::None => lexer_error(lexer, "unexpected end of input"),
+    }
+}
+
+// ---------------------- Lexer ----------------------
 // -----------------------------------------------------------------
 // ------------------------- Library -------------------------------
 // -----------------------------------------------------------------
