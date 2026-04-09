@@ -143,9 +143,280 @@ fn lexer_expect_char(lexer: &mut Lexer, expected: char) {
 }
 
 // ---------------------- Lexer ----------------------
+
+/// Consume and return the next token.
+fn next_token(lexer: &mut Lexer) -> Token {
+    skip_whitespace(lexer);
+
+    match lexer_peek(lexer) {
+        CharOption::Some(c) => {
+            if is_alpha(c) {
+                let ident: String = scan_identifier(lexer);
+                identifier_to_token(ident)
+            } else if is_digit(c) {
+                let value: usize = scan_integer(lexer);
+                Token::Literal(Literal::Integer(value))
+            } else if c == '\'' {
+                let ch: char = scan_char_literal(lexer);
+                Token::Literal(Literal::Character(ch))
+            } else if c == '"' {
+                let s: String = scan_string_literal(lexer);
+                Token::Literal(Literal::String(s))
+            } else {
+                scan_symbol(lexer)
+            }
+        }
+        CharOption::None => Token::Eof,
+    }
+}
+
+/// Scan an identifier or keyword.
+fn scan_identifier(lexer: &mut Lexer) -> String {
+    let mut ident: String = string_new();
+    while true {
+        match lexer_peek(lexer) {
+            CharOption::Some(c) => {
+                if is_alphanumeric(c) {
+                    lexer_consume(lexer);
+                    string_push(&mut ident, c);
+                } else {
+                    return ident;
+                }
+            }
+            CharOption::None => return ident,
+        }
+    }
+    ident // satisfy compiler
+}
+
+/// Convert an identifier to a keyword token if applicable.
+fn identifier_to_token(ident: String) -> Token {
+    if string_eq(&ident, &string_from_str("fn")) {
+        Token::Fn
+    } else if string_eq(&ident, &string_from_str("enum")) {
+        Token::Enum
+    } else if string_eq(&ident, &string_from_str("let")) {
+        Token::Let
+    } else if string_eq(&ident, &string_from_str("if")) {
+        Token::If
+    } else if string_eq(&ident, &string_from_str("else")) {
+        Token::Else
+    } else if string_eq(&ident, &string_from_str("while")) {
+        Token::While
+    } else if string_eq(&ident, &string_from_str("return")) {
+        Token::Return
+    } else if string_eq(&ident, &string_from_str("match")) {
+        Token::Match
+    } else if string_eq(&ident, &string_from_str("as")) {
+        Token::As
+    } else if string_eq(&ident, &string_from_str("mut")) {
+        Token::Mut
+    } else if string_eq(&ident, &string_from_str("usize")) {
+        Token::Type(Type::Usize)
+    } else if string_eq(&ident, &string_from_str("u8")) {
+        Token::Type(Type::U8)
+    } else if string_eq(&ident, &string_from_str("char")) {
+        Token::Type(Type::Char)
+    } else if string_eq(&ident, &string_from_str("str")) {
+        Token::Type(Type::Str)
+    } else {
+        Token::Identifier(ident)
+    }
+}
+
+/// TODO: check for too large integer
+fn scan_integer(lexer: &mut Lexer) -> usize {
+    let mut value: usize = 0;
+    while true {d
+        match lexer_peek(lexer) {
+            CharOption::Some(c) => {
+                if is_digit(c) {
+                    value = value * 10 + (c as usize) - ('0' as usize);
+                    lexer_consume(lexer);
+                } else {
+                    return value;
+                }
+            }
+            CharOption::None => return value,
+        }
+    }
+    value // satisfy compiler
+}
+
+fn scan_char_literal(lexer: &mut Lexer) -> char {
+    lexer_expect_char(lexer, '\'');
+    let c: char = match lexer_consume(lexer) {
+        CharOption::Some('\\') => scan_escape_char(lexer),
+        CharOption::Some(ch) => ch,
+        CharOption::None => lexer_error(lexer, "unexpected end of char literal"),
+    };
+    lexer_expect_char(lexer, '\'');
+    c
+}
+
+fn scan_string_literal(lexer: &mut Lexer) -> String {
+    lexer_expect_char(lexer, '"');
+    let mut s: String = string_new();
+    while true {
+        match lexer_consume(lexer) {
+            CharOption::Some('"') => return s,
+            CharOption::Some('\\') => string_push(&mut s, scan_escape_char(lexer)),
+            CharOption::Some(c) => string_push(&mut s, c),
+            CharOption::None => lexer_error(lexer, "unexpected end of string literal"),
+        }
+    }
+    s // satisfy compiler
+}
+
+/// Scan an escape sequence after backslash.
+fn scan_escape_char(lexer: &mut Lexer) -> char {
+    match lexer_consume(lexer) {
+        CharOption::Some('n') => '\n',
+        CharOption::Some('t') => '\t',
+        CharOption::Some('r') => '\r',
+        CharOption::Some('0') => '\0',
+        CharOption::Some(c) => c,
+        CharOption::None => lexer_error(lexer, "unexpected end of escape sequence"),
+    }
+}
+
+/// Scan a symbol token.
+fn scan_symbol(lexer: &mut Lexer) -> Token {
+    match unwrap_char(lexer_consume(lexer)) {
+        '{' => Token::LBrace,
+        '}' => Token::RBrace,
+        '(' => Token::LParen,
+        ')' => Token::RParen,
+        ';' => Token::SemiColon,
+        ',' => Token::Comma,
+        '+' => Token::Plus,
+        '*' => Token::Star,
+        '/' => scan_slash(lexer),
+        '%' => Token::Remainder,
+        '&' => Token::Ampersand,
+        ':' => scan_colon(lexer),
+        '=' => scan_equals(lexer),
+        '-' => scan_minus(lexer),
+        '!' => scan_bang(lexer),
+        '<' => scan_less(lexer),
+        '>' => scan_greater(lexer),
+        _ => lexer_error(lexer, "unexpected character"),
+    }
+}
+
+fn scan_slash(lexer: &mut Lexer) -> Token {
+    match lexer_peek(lexer) {
+        CharOption::Some('/') => {
+            lexer_consume(lexer);
+            skip_line_comment(lexer);
+            next_token(lexer)
+        }
+        _ => Token::Slash,
+    }
+}
+
+fn scan_colon(lexer: &mut Lexer) -> Token {
+    match lexer_peek(lexer) {
+        CharOption::Some(':') => {
+            lexer_consume(lexer);
+            Token::DoubleColon
+        }
+        _ => Token::Colon,
+    }
+}
+
+fn scan_equals(lexer: &mut Lexer) -> Token {
+    match lexer_peek(lexer) {
+        CharOption::Some('=') => {
+            lexer_consume(lexer);
+            Token::Comparison(Comparison::Eq)
+        }
+        CharOption::Some('>') => {
+            lexer_consume(lexer);
+            Token::ArmArrow
+        }
+        _ => Token::Assign,
+    }
+}
+
+fn scan_minus(lexer: &mut Lexer) -> Token {
+    match lexer_peek(lexer) {
+        CharOption::Some('>') => {
+            lexer_consume(lexer);
+            Token::TypeArrow
+        }
+        _ => Token::Minus,
+    }
+}
+
+fn scan_bang(lexer: &mut Lexer) -> Token {
+    match lexer_peek(lexer) {
+        CharOption::Some('=') => {
+            lexer_consume(lexer);
+            Token::Comparison(Comparison::Neq)
+        }
+        _ => lexer_error(lexer, "expected '=' after '!'"),
+    }
+}
+
+fn scan_less(lexer: &mut Lexer) -> Token {
+    match lexer_peek(lexer) {
+        CharOption::Some('=') => {
+            lexer_consume(lexer);
+            Token::Comparison(Comparison::Leq)
+        }
+        _ => Token::Comparison(Comparison::Lt),
+    }
+}
+
+fn scan_greater(lexer: &mut Lexer) -> Token {
+    match lexer_peek(lexer) {
+        CharOption::Some('=') => {
+            lexer_consume(lexer);
+            Token::Comparison(Comparison::Geq)
+        }
+        _ => Token::Comparison(Comparison::Gt),
+    }
+}
+
+fn skip_whitespace(lexer: &mut Lexer) {
+    while true {
+        match lexer_peek(lexer) {
+            CharOption::Some(c) => {
+                if is_whitespace(c) {
+                    lexer_consume(lexer);
+                } else {
+                    return;
+                }
+            }
+            CharOption::None => return,
+        }
+    }
+}
+
+fn skip_line_comment(lexer: &mut Lexer) {
+    while true {
+        match lexer_consume(lexer) {
+            CharOption::Some('\n') => return,
+            CharOption::Some(_) => (),
+            CharOption::None => return,
+        }
+    }
+}
+
 // -----------------------------------------------------------------
 // ------------------------- Library -------------------------------
 // -----------------------------------------------------------------
+
+// -------------------------- error --------------------------------
+
+/// Report an error message with source location and exit.
+/// TODO: not subset-conform
+fn lexer_error(lexer: &Lexer, message: &str) -> ! {
+    let SourceLocation::Coords(line, col): &SourceLocation = lexer_location(lexer);
+    eprintln!("error at {}:{}: {}", line, col, message);
+    std::process::exit(1);
+}
 
 // -------------------------- bool ---------------------------------
 
@@ -166,6 +437,8 @@ enum CharOption {
     None,
 }
 
+/// Returns the value wrapped in Some.
+/// If the option is None, end the program.
 fn unwrap_char(char_opt: CharOption) -> char {
     match char_opt {
         CharOption::Some(c) => c,
