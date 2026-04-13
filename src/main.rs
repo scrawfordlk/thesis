@@ -45,7 +45,10 @@ enum Token {
     Star,                   // "*"
     Slash,                  // "/"
     Remainder,              // "%"
-    Type(Type),             // "usize", ...
+    Usize,                  // "usize"
+    U8,                     // "u8"
+    Char,                   // "char"
+    Str,                    // "str"
     TypeArrow,              // "->"
     SizeOf(usize),          // TODO: probably unnecessary
     Identifier(String),
@@ -60,13 +63,6 @@ enum Comparison {
     Lt,  // "<"
     Geq, // ">="
     Leq, // "<="
-}
-
-enum Type {
-    Usize, // "usize"
-    U8,    // "u8"
-    Char,  // "char"
-    Str,   // "str"
 }
 
 enum Literal {

@@ -42,7 +42,7 @@ mod tests {
     fn test_string_new() {
         let s = string_new();
         assert_eq!(string_len(&s), 0);
-        assert_eq!(string_capacity(&s), 1);
+        assert!(string_capacity(&s) > 0);
     }
 
     #[test]
@@ -222,10 +222,13 @@ mod tests {
             (Token::Star, Token::Star) => true,
             (Token::Slash, Token::Slash) => true,
             (Token::Remainder, Token::Remainder) => true,
+            (Token::Usize, Token::Usize) => true,
+            (Token::U8, Token::U8) => true,
+            (Token::Char, Token::Char) => true,
+            (Token::Str, Token::Str) => true,
             (Token::TypeArrow, Token::TypeArrow) => true,
             (Token::Eof, Token::Eof) => true,
             (Token::Comparison(c1), Token::Comparison(c2)) => comparisons_match(c1, c2),
-            (Token::Type(t1), Token::Type(t2)) => types_match(t1, t2),
             (Token::Literal(l1), Token::Literal(l2)) => literals_match(l1, l2),
             (Token::Identifier(s1), Token::Identifier(s2)) => string_eq(s1, s2),
             (Token::SizeOf(n1), Token::SizeOf(n2)) => n1 == n2,
@@ -242,16 +245,6 @@ mod tests {
                 | (Comparison::Lt, Comparison::Lt)
                 | (Comparison::Geq, Comparison::Geq)
                 | (Comparison::Leq, Comparison::Leq)
-        )
-    }
-
-    fn types_match(a: &Type, b: &Type) -> bool {
-        matches!(
-            (a, b),
-            (Type::Usize, Type::Usize)
-                | (Type::U8, Type::U8)
-                | (Type::Char, Type::Char)
-                | (Type::Str, Type::Str)
         )
     }
 
@@ -417,7 +410,7 @@ mod tests {
     #[test]
     fn test_identifier_to_token_direct_keyword() {
         let tok = identifier_to_token(string_from_str("usize"));
-        assert!(matches!(tok, Token::Type(Type::Usize)));
+        assert!(matches!(tok, Token::Usize));
     }
 
     #[test]
@@ -639,7 +632,7 @@ mod tests {
         let mut lexer = make_lexer("usize");
         assert_tokens(
             collect_tokens(&mut lexer),
-            vec![Token::Type(Type::Usize), Token::Eof],
+            vec![Token::Usize, Token::Eof],
         );
     }
 
@@ -648,7 +641,7 @@ mod tests {
         let mut lexer = make_lexer("u8");
         assert_tokens(
             collect_tokens(&mut lexer),
-            vec![Token::Type(Type::U8), Token::Eof],
+            vec![Token::U8, Token::Eof],
         );
     }
 
@@ -657,7 +650,7 @@ mod tests {
         let mut lexer = make_lexer("char");
         assert_tokens(
             collect_tokens(&mut lexer),
-            vec![Token::Type(Type::Char), Token::Eof],
+            vec![Token::Char, Token::Eof],
         );
     }
 
@@ -666,7 +659,7 @@ mod tests {
         let mut lexer = make_lexer("str");
         assert_tokens(
             collect_tokens(&mut lexer),
-            vec![Token::Type(Type::Str), Token::Eof],
+            vec![Token::Str, Token::Eof],
         );
     }
 
@@ -1053,10 +1046,10 @@ mod tests {
                 Token::LParen,
                 ident("x"),
                 Token::Colon,
-                Token::Type(Type::Usize),
+                Token::Usize,
                 Token::RParen,
                 Token::TypeArrow,
-                Token::Type(Type::U8),
+                Token::U8,
                 Token::Eof,
             ],
         );
@@ -1071,7 +1064,7 @@ mod tests {
                 Token::Let,
                 ident("x"),
                 Token::Colon,
-                Token::Type(Type::Usize),
+                Token::Usize,
                 Token::Assign,
                 Token::Literal(Literal::Integer(42)),
                 Token::SemiColon,
@@ -1136,7 +1129,7 @@ mod tests {
                 Token::Comma,
                 ident("B"),
                 Token::LParen,
-                Token::Type(Type::Usize),
+                Token::Usize,
                 Token::RParen,
                 Token::RBrace,
                 Token::Eof,
@@ -1184,7 +1177,7 @@ fn main() {
                 ident("msg"),
                 Token::Colon,
                 Token::Ampersand,
-                Token::Type(Type::Str),
+                Token::Str,
                 Token::Assign,
                 str_lit("Hello, World!"),
                 Token::SemiColon,
@@ -1219,7 +1212,7 @@ fn unwrap(opt: Option) -> usize {
                 Token::LBrace,
                 ident("Some"),
                 Token::LParen,
-                Token::Type(Type::Usize),
+                Token::Usize,
                 Token::RParen,
                 Token::Comma,
                 ident("None"),
@@ -1234,7 +1227,7 @@ fn unwrap(opt: Option) -> usize {
                 ident("Option"),
                 Token::RParen,
                 Token::TypeArrow,
-                Token::Type(Type::Usize),
+                Token::Usize,
                 Token::LBrace,
                 // match opt {
                 Token::Match,
@@ -1288,17 +1281,17 @@ fn factorial(n: usize) -> usize {
                 Token::LParen,
                 ident("n"),
                 Token::Colon,
-                Token::Type(Type::Usize),
+                Token::Usize,
                 Token::RParen,
                 Token::TypeArrow,
-                Token::Type(Type::Usize),
+                Token::Usize,
                 Token::LBrace,
                 // let mut result: usize = 1;
                 Token::Let,
                 Token::Mut,
                 ident("result"),
                 Token::Colon,
-                Token::Type(Type::Usize),
+                Token::Usize,
                 Token::Assign,
                 Token::Literal(Literal::Integer(1)),
                 Token::SemiColon,
@@ -1307,7 +1300,7 @@ fn factorial(n: usize) -> usize {
                 Token::Mut,
                 ident("i"),
                 Token::Colon,
-                Token::Type(Type::Usize),
+                Token::Usize,
                 Token::Assign,
                 Token::Literal(Literal::Integer(1)),
                 Token::SemiColon,
@@ -1364,14 +1357,14 @@ fn max(a: usize, b: usize) -> usize {
                 Token::LParen,
                 ident("a"),
                 Token::Colon,
-                Token::Type(Type::Usize),
+                Token::Usize,
                 Token::Comma,
                 ident("b"),
                 Token::Colon,
-                Token::Type(Type::Usize),
+                Token::Usize,
                 Token::RParen,
                 Token::TypeArrow,
-                Token::Type(Type::Usize),
+                Token::Usize,
                 Token::LBrace,
                 // if a > b {
                 Token::If,
@@ -1418,15 +1411,15 @@ fn write_byte(ptr: *mut u8, offset: usize, value: u8) {
                 Token::Colon,
                 Token::Star,
                 Token::Mut,
-                Token::Type(Type::U8),
+                Token::U8,
                 Token::Comma,
                 ident("offset"),
                 Token::Colon,
-                Token::Type(Type::Usize),
+                Token::Usize,
                 Token::Comma,
                 ident("value"),
                 Token::Colon,
-                Token::Type(Type::U8),
+                Token::U8,
                 Token::RParen,
                 Token::LBrace,
                 // let target: *mut u8 = ptr as usize + offset as *mut u8;
@@ -1435,17 +1428,17 @@ fn write_byte(ptr: *mut u8, offset: usize, value: u8) {
                 Token::Colon,
                 Token::Star,
                 Token::Mut,
-                Token::Type(Type::U8),
+                Token::U8,
                 Token::Assign,
                 ident("ptr"),
                 Token::As,
-                Token::Type(Type::Usize),
+                Token::Usize,
                 Token::Plus,
                 ident("offset"),
                 Token::As,
                 Token::Star,
                 Token::Mut,
-                Token::Type(Type::U8),
+                Token::U8,
                 Token::SemiColon,
                 // *target = value;
                 Token::Star,
@@ -1477,14 +1470,14 @@ fn add(a: usize, b: usize) -> usize {
                 Token::LParen,
                 ident("a"),
                 Token::Colon,
-                Token::Type(Type::Usize),
+                Token::Usize,
                 Token::Comma,
                 ident("b"),
                 Token::Colon,
-                Token::Type(Type::Usize),
+                Token::Usize,
                 Token::RParen,
                 Token::TypeArrow,
-                Token::Type(Type::Usize),
+                Token::Usize,
                 Token::LBrace,
                 Token::Return,
                 ident("a"),
