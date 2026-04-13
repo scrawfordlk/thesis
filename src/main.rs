@@ -488,8 +488,13 @@ fn string_capacity(String::String(_, _, capacity): &String) -> usize {
 
 /// Create a new empty string.
 fn string_new() -> String {
-    let ptr: *mut u8 = alloc(1, size_of::<u8>());
-    String::String(ptr, 0, 1)
+    string_with_capacity(10)
+}
+
+/// Create a new string with the specified capacity
+fn string_with_capacity(initial_capacity: usize) -> String {
+    let ptr: *mut u8 = alloc(initial_capacity, size_of::<u8>());
+    String::String(ptr, 0, initial_capacity)
 }
 
 /// Get the character at the given index.
