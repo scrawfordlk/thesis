@@ -533,6 +533,19 @@ fn string_push(string: &mut String, character: char) {
     *len = *len + 1;
 }
 
+fn string_clone(string: &String) -> String {
+    let len: usize = string_len(string);
+
+    let mut clone: String = string_with_capacity(len);
+    let mut i: usize = 0;
+    while i < len {
+        let character: char = unwrap_char(string_get(string, i));
+        string_push(&mut clone, character);
+        i = i + 1;
+    }
+    clone
+}
+
 /// Ensure the string has space for additional bytes.
 fn string_accomodate_extra_space(string: &mut String, space: usize) {
     let len: usize = string_len(string);
