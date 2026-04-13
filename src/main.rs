@@ -208,13 +208,13 @@ fn identifier_to_token(ident: String) -> Token {
     } else if string_eq(&ident, &string_from_str("mut")) {
         Token::Mut
     } else if string_eq(&ident, &string_from_str("usize")) {
-        Token::Type(Type::Usize)
+        Token::Usize
     } else if string_eq(&ident, &string_from_str("u8")) {
-        Token::Type(Type::U8)
+        Token::U8
     } else if string_eq(&ident, &string_from_str("char")) {
-        Token::Type(Type::Char)
+        Token::Char
     } else if string_eq(&ident, &string_from_str("str")) {
-        Token::Type(Type::Str)
+        Token::Str
     } else {
         Token::Identifier(ident)
     }
