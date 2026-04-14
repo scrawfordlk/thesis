@@ -28,12 +28,13 @@ term -> factor { ( "*" | "/" | "%" ) factor } .
 factor -> [ "-" ] [ "*" ] [ "&" [ "mut" ] ]
             ( literal | identifier | call | "(" expression ")" | block | if | match )
 
-block -> "{" expression "}"
+block -> "{" { statement } "}"
 
 if -> "if" expression block [ "else" [ if | block ] ]
 
-match -> "match" expression "{"
-           expression "=>" expression "," { expression "=>" expression "," } "}"
+match -> "match" expression "{" arms "}"
+
+arms -> expression "=>" expression "," { expression "=>" expression "," }
 
 call -> identifier "(" { expression "," } ")"
 
