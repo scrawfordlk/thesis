@@ -26,7 +26,7 @@ arithmetic -> term { ( "+" | "-" ) term } .
 term -> factor { ( "*" | "/" | "%" ) factor } .
 
 factor -> [ "-" ] [ "*" ] [ "&" [ "mut" ] ]
-            ( literal | identifier | call | "(" expression ")" ) | block ) | if | match
+            ( literal | identifier | call | "(" expression ")" | block | if | match )
 
 block -> "{" expression "}"
 
