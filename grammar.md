@@ -57,8 +57,7 @@ return -> "return" expression ";"
 ```
 language -> ( function | enum ) { function | enum }
 
-function -> "fn" identifier "(" [ variable { "," variable } ] ")" [ "->" type ]
-              "{" expression "}"
+function -> "fn" identifier "(" [ variable { "," variable } ] ")" [ "->" type ] block
 
 enum -> "enum" identifier "{" variant "," { variant "," } "}"
 
