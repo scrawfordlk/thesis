@@ -468,17 +468,20 @@ enum String {
 }
 
 /// Get the pointer to the start of the string data.
-fn string_ptr(String::String(ptr, _, _): &String) -> *mut u8 {
+fn string_ptr(string: &String) -> *mut u8 {
+    let String::String(ptr, _, _): &String = string;
     *ptr
 }
 
 /// Get the length of the string.
-fn string_len(String::String(_, len, _): &String) -> usize {
+fn string_len(string: &String) -> usize {
+    let String::String(_, len, _): &String = string;
     *len
 }
 
 /// Get the capacity of the string.
-fn string_capacity(String::String(_, _, capacity): &String) -> usize {
+fn string_capacity(string: &String) -> usize {
+    let String::String(_, _, capacity): &String = string;
     *capacity
 }
 
