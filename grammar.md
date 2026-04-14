@@ -26,11 +26,17 @@ arithmetic -> term { ( "+" | "-" ) term } .
 term -> factor { ( "*" | "/" | "%" ) factor } .
 
 factor -> [ "-" ] [ "*" ] [ "&" [ "mut" ] ]
-          ( literal | identifier | call | "(" expression ")" ) | block ) | if | match
+            ( literal | identifier | call | "(" expression ")" ) | block ) | if | match
 
 block -> "{" expression "}"
 
 if -> "if" expression block [ "else" [ if | block ] ]
+
+match -> "match" expression "{"
+           expression "=>" expression "," { expression "=>" expression "," } "}"
+
+call -> identifier "(" { expression "," } ")"
+
 ```
 
 ## Language constructs
