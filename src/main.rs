@@ -71,16 +71,19 @@ enum Literal {
     String(String),
 }
 
+/// A type that encapsulates the state of the lexer
 enum Lexer {
     // source file, current token
     Lexer(SourceFile, Token),
 }
 
+/// A type that manages the source file
 enum SourceFile {
     // content, current character index, current location
     SourceFile(String, usize, SourceLocation),
 }
 
+/// A type that tracks the location in the source code
 enum SourceLocation {
     // line, column
     Coords(usize, usize),
@@ -91,7 +94,6 @@ fn lexer_sourcefile(lexer: &Lexer) -> &SourceFile {
     source
 }
 
-/// Get the current source location.
 fn lexer_location(lexer: &Lexer) -> &SourceLocation {
     let SourceFile::SourceFile(_, _, location): &SourceFile = lexer_sourcefile(lexer);
     location
@@ -427,6 +429,7 @@ fn or(a: bool, b: bool) -> bool {
 
 // -------------------------- char ---------------------------------
 
+/// Option type for the type char
 enum CharOption {
     Some(char),
     None,
@@ -461,6 +464,7 @@ fn is_alphanumeric(c: char) -> bool {
 
 // ------------------------- String -------------------------------
 
+/// A growable ASCII string.
 enum String {
     // start, length, capacity
     String(*mut u8, usize, usize),
