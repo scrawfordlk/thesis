@@ -489,7 +489,7 @@ fn string_new() -> String {
 
 /// Create a new string with the specified capacity
 fn string_with_capacity(initial_capacity: usize) -> String {
-    let ptr: *mut u8 = alloc(initial_capacity, size_of::<u8>());
+    let ptr: *mut u8 = alloc(initial_capacity, std::mem::size_of::<u8>());
     String::String(ptr, 0, initial_capacity)
 }
 
