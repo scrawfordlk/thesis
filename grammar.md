@@ -28,7 +28,7 @@ term -> factor { ( "*" | "/" | "%" ) factor } .
 factor -> [ "-" ] [ "*" ] [ "&" [ "mut" ] ]
             ( literal | identifier | call | "(" expression ")" | block | if | match )
 
-block -> "{" { statement } "}"
+block -> "{" expression "}"
 
 if -> "if" expression block [ "else" [ if | block ] ]
 
