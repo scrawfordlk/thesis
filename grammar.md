@@ -26,9 +26,9 @@ arithmetic -> term { ( "+" | "-" ) term } .
 term -> factor { ( "*" | "/" | "%" ) factor } .
 
 factor -> [ "-" ] [ "*" ] [ "&" [ "mut" ] ]
-            ( literal | identifier | call | "(" expression ")" | block | if | match )
+            ( literal | identifier | call | "(" expression ")" | block | if | while | match )
 
-block -> "{" expression "}"
+block -> "{" { statement | expression [ ";" ] } "}"
 
 if -> "if" expression block [ "else" [ if | block ] ]
 
@@ -52,7 +52,7 @@ variable -> identifier ":" type
 
 binding -> "let" [ "mut" ] variable "=" expression ";"
 
-statement -> binding | return | expression ";"
+statement -> binding | return
 
 while -> "while" expression block
 
