@@ -13,7 +13,9 @@ character -> "'" printable_character "'"
 
 string -> """ { printable_character } """
 
-literal -> integer | string | character | "true" | "false"
+boolean -> "true" | "false"
+
+literal -> integer | string | character | boolean
 ```
 
 ## Expression
