@@ -60,7 +60,7 @@ enum Token {
     Boolean(bool), // "true", "false"
     Integer(usize),
     String(String),
-    CharacterLiteral(char),
+    Character(char),
     Identifier(String),
     SizeOf(usize), // TODO: probably unnecessary
     Eof,
