@@ -18,41 +18,51 @@ fn main() {
 // ---------------------- Lexical Analysis -------------------------
 
 enum Token {
-    Fn,                     // "fn"
-    Enum,                   // "enum"
-    Let,                    // "let"
-    If,                     // "if"
-    Else,                   // "else"
-    While,                  // "while"
-    Return,                 // "return"
-    Match,                  // "match"
-    As,                     // "as"
-    Mut,                    // "mut"
-    Ampersand,              // "&"
-    LBrace,                 // "{"
-    RBrace,                 // "}"
-    LParen,                 // "("
-    RParen,                 // ")"
-    Colon,                  // ":"
-    DoubleColon,            // "::"
-    SemiColon,              // ";"
-    Comma,                  // ","
-    Assign,                 // "="
-    Comparison(Comparison), // "==", ...
-    ArmArrow,               // "=>"
-    Plus,                   // "+"
-    Minus,                  // "-"
-    Star,                   // "*"
-    Slash,                  // "/"
-    Remainder,              // "%"
-    Usize,                  // "usize"
-    U8,                     // "u8"
-    Char,                   // "char"
-    Str,                    // "str"
-    TypeArrow,              // "->"
-    SizeOf(usize),          // TODO: probably unnecessary
+    Fn,            // "fn"
+    Enum,          // "enum"
+    Let,           // "let"
+    If,            // "if"
+    Else,          // "else"
+    While,         // "while"
+    Return,        // "return"
+    Match,         // "match"
+    As,            // "as"
+    Unsafe,        // "unsafe"
+    Mut,           // "mut"
+    Ampersand,     // "&"
+    LBrace,        // "{"
+    RBrace,        // "}"
+    LParen,        // "("
+    RParen,        // ")"
+    Colon,         // ":"
+    DoubleColon,   // "::"
+    SemiColon,     // ";"
+    Comma,         // ","
+    Assign,        // "="
+    Eq,            // "=="
+    Neq,           // "!="
+    Gt,            // ">"
+    Lt,            // "<"
+    Geq,           // ">="
+    Leq,           // "<="
+    ArmArrow,      // "=>"
+    Plus,          // "+"
+    Minus,         // "-"
+    Star,          // "*"
+    Slash,         // "/"
+    Remainder,     // "%"
+    Usize,         // "usize"
+    U8,            // "u8"
+    Bool,          // "bool"
+    Char,          // "char"
+    Str,           // "str"
+    TypeArrow,     // "->"
+    Boolean(bool), // "true", "false"
+    Integer(usize),
+    String(String),
+    CharacterLiteral(char),
     Identifier(String),
-    Literal(Literal),
+    SizeOf(usize), // TODO: probably unnecessary
     Eof,
 }
 
@@ -153,13 +163,13 @@ fn next_token(lexer: &mut Lexer) -> Token {
                 identifier_to_token(ident)
             } else if is_digit(c) {
                 let value: usize = scan_integer(lexer);
-                Token::Literal(Literal::Integer(value))
+                Token::Integer(value)
             } else if c == '\'' {
                 let ch: char = scan_char_literal(lexer);
-                Token::Literal(Literal::Character(ch))
+                Token::Character(ch)
             } else if c == '"' {
                 let s: String = scan_string_literal(lexer);
-                Token::Literal(Literal::String(s))
+                Token::String(s)
             } else {
                 scan_symbol(lexer)
             }
@@ -189,7 +199,9 @@ fn scan_identifier(lexer: &mut Lexer) -> String {
 
 /// Convert an identifier to a keyword token if applicable.
 fn identifier_to_token(ident: String) -> Token {
-    if string_eq(&ident, &string_from_str("fn")) {
+    if string_eq(&ident, &string_from_str("unsafe")) {
+        Token::Unsafe
+    } else if string_eq(&ident, &string_from_str("fn")) {
         Token::Fn
     } else if string_eq(&ident, &string_from_str("enum")) {
         Token::Enum
@@ -207,16 +219,24 @@ fn identifier_to_token(ident: String) -> Token {
         Token::Match
     } else if string_eq(&ident, &string_from_str("as")) {
         Token::As
+    } else if string_eq(&ident, &string_from_str("unsafe")) {
+        Token::Unsafe
     } else if string_eq(&ident, &string_from_str("mut")) {
         Token::Mut
     } else if string_eq(&ident, &string_from_str("usize")) {
         Token::Usize
     } else if string_eq(&ident, &string_from_str("u8")) {
         Token::U8
+    } else if string_eq(&ident, &string_from_str("bool")) {
+        Token::Bool
     } else if string_eq(&ident, &string_from_str("char")) {
         Token::Char
     } else if string_eq(&ident, &string_from_str("str")) {
         Token::Str
+    } else if string_eq(&ident, &string_from_str("true")) {
+        Token::Boolean(true)
+    } else if string_eq(&ident, &string_from_str("false")) {
+        Token::Boolean(false)
     } else {
         Token::Identifier(ident)
     }
@@ -326,7 +346,7 @@ fn scan_equals(lexer: &mut Lexer) -> Token {
     match lexer_peek_char(lexer) {
         CharOption::Some('=') => {
             lexer_consume_char(lexer);
-            Token::Comparison(Comparison::Eq)
+            Token::Eq
         }
         CharOption::Some('>') => {
             lexer_consume_char(lexer);
@@ -350,7 +370,7 @@ fn scan_bang(lexer: &mut Lexer) -> Token {
     match lexer_peek_char(lexer) {
         CharOption::Some('=') => {
             lexer_consume_char(lexer);
-            Token::Comparison(Comparison::Neq)
+            Token::Neq
         }
         _ => lexer_error(lexer, "expected '=' after '!'"),
     }
@@ -360,9 +380,9 @@ fn scan_less(lexer: &mut Lexer) -> Token {
     match lexer_peek_char(lexer) {
         CharOption::Some('=') => {
             lexer_consume_char(lexer);
-            Token::Comparison(Comparison::Leq)
+            Token::Leq
         }
-        _ => Token::Comparison(Comparison::Lt),
+        _ => Token::Lt,
     }
 }
 
@@ -370,9 +390,9 @@ fn scan_greater(lexer: &mut Lexer) -> Token {
     match lexer_peek_char(lexer) {
         CharOption::Some('=') => {
             lexer_consume_char(lexer);
-            Token::Comparison(Comparison::Geq)
+            Token::Geq
         }
-        _ => Token::Comparison(Comparison::Gt),
+        _ => Token::Gt,
     }
 }
 
