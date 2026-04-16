@@ -12,7 +12,7 @@ enum     -> "enum" identifier "{" variant "," { variant "," } "}"
 
 variant  -> identifier [ "(" type { "," type } ")" ]
 
-block    -> "{" { statement | expression [ ";" ] } "}"
+block    -> "{" { statement } "}"
 ```
 
 ## Statement
