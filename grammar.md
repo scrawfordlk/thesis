@@ -78,5 +78,5 @@ character -> "'" printable_character "'"
 
 boolean   -> "true" | "false"
 
-digit     -> 0 | ... | 9
+digit     -> "" | ... | "9"
 ```
