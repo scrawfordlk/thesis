@@ -43,7 +43,9 @@ expression -> arithmetic [ ( "==" | "!=" | "<" | ">" | "<=" | ">=" ) arithmetic 
 
 arithmetic -> term { ( "+" | "-" ) term } .
 
-term       -> factor { ( "*" | "/" | "%" ) factor } .
+term       -> cast { ( "*" | "/" | "%" ) cast } .
+
+cast       -> factor { "as" type }
 
 factor     -> [ "-" ] [ "*" ] [ "&" [ "mut" ] ] ( literal | identifier |
                   call | "(" expression ")" | [ "unsafe" ]  block | if | while | match )
