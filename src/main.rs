@@ -41,6 +41,7 @@ enum Token {
     Assign,        // "="
     Eq,            // "=="
     Neq,           // "!="
+    Bang,          // "!"
     Gt,            // ">"
     Lt,            // "<"
     Geq,           // ">="
@@ -91,6 +92,7 @@ fn token_clone(token: &Token) -> Token {
         Token::Assign => Token::Assign,
         Token::Eq => Token::Eq,
         Token::Neq => Token::Neq,
+        Token::Bang => Token::Bang,
         Token::Gt => Token::Gt,
         Token::Lt => Token::Lt,
         Token::Geq => Token::Geq,
@@ -414,7 +416,7 @@ fn scan_bang(lexer: &mut Lexer) -> Token {
             lexer_consume_char(lexer);
             Token::Neq
         }
-        _ => lexer_error(lexer, "expected '=' after '!'"),
+        _ => Token::Bang,
     }
 }
 
@@ -694,6 +696,7 @@ enum Type {
     Bool,
     Char,
     Unit, // ()
+    Never,
     Custom(String),
 }
 
@@ -704,6 +707,7 @@ fn type_clone(t: &Type) -> Type {
         Type::Bool => Type::Bool,
         Type::Char => Type::Char,
         Type::Unit => Type::Unit,
+        Type::Never => Type::Never,
         Type::Custom(name) => Type::Custom(string_clone(name)),
     }
 }
