@@ -3,7 +3,7 @@
 ## Top-level definitions
 
 ```
-language -> ( function | enum ) { function | enum }
+language -> { function | enum }
 
 function -> [ "unsafe" ] fn" identifier
                 "(" [ variable { "," variable } [ "," ] ] ")" [ "->" type ] block
