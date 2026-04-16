@@ -84,6 +84,13 @@ enum SourceLocation {
     Coords(usize, usize),
 }
 
+fn lexer_new(source: String) -> Lexer {
+    let source_file: SourceFile = SourceFile::SourceFile(source, 0, SourceLocation::Coords(1, 1));
+    let mut lexer: Lexer = Lexer::Lexer(source_file, Token::Eof);
+    next_token(&mut lexer);
+    lexer
+}
+
 fn lexer_sourcefile(lexer: &Lexer) -> &SourceFile {
     let Lexer::Lexer(source, _): &Lexer = lexer;
     source
