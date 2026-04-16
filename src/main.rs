@@ -783,12 +783,13 @@ fn lexer_error(lexer: &Lexer, message: &str) -> ! {
 
 /// Logical AND of two booleans.
 fn and(a: bool, b: bool) -> bool {
-    if a { b } else { false }
+    a as u8 + b as u8 == 2
 }
 
 /// Logical OR of two booleans.
 fn or(a: bool, b: bool) -> bool {
-    if a { true } else { b }
+    a as u8 + b as u8 > 0
+}
 }
 
 // -------------------------- char ---------------------------------
