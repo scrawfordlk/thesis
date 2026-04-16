@@ -6,7 +6,7 @@
 language -> ( function | enum ) { function | enum }
 
 function -> "fn" identifier "(" [ variable { "," variable } [ "," ] ] ")"
-              [ "->" type ] block
+                [ "->" type ] block
 
 enum     -> "enum" identifier "{" variant "," { variant "," } "}"
 
@@ -37,7 +37,7 @@ arithmetic -> term { ( "+" | "-" ) term } .
 term       -> factor { ( "*" | "/" | "%" ) factor } .
 
 factor     -> [ "-" ] [ "*" ] [ "&" [ "mut" ] ] ( literal | identifier |
-                call | "(" expression ")" | block | if | while | match )
+                  call | "(" expression ")" | block | if | while | match )
 ```
 
 ## Remaining Control Flow
@@ -74,7 +74,7 @@ digit     -> 0 | ... | 9
 
 ```
 type       -> "u8"  | "usize" | "bool" | "char" | "&str" | identifier |
-                ( "&" [ "mut" ] | "*mut" ) type
+                  ( "&" [ "mut" ] | "*mut" ) type
 
 identifier -> letter { letter | digit | "_" }
 
