@@ -790,6 +790,10 @@ fn and(a: bool, b: bool) -> bool {
 fn or(a: bool, b: bool) -> bool {
     a as u8 + b as u8 > 0
 }
+
+/// Logical NOT of one boolean.
+fn not(a: bool) -> bool {
+    a as u8 == 0
 }
 
 // -------------------------- char ---------------------------------
