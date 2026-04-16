@@ -1,21 +1,30 @@
 # Grammar
 
-## Literals
+## Top-level definitions
 
 ```
-digit -> 0 | ... | 9
+language -> ( function | enum ) { function | enum }
 
-letter -> "a" | ... | "z" | "A" ... "Z"
+function -> "fn" identifier "(" [ variable { "," variable } [ "," ] ] ")"
+              [ "->" type ] block
 
-integer -> digit { digit }
+enum -> "enum" identifier "{" variant "," { variant "," } "}"
 
-character -> "'" printable_character "'"
+variant -> identifier [ "(" type { "," type } ")" ]
 
-string -> """ { printable_character } """
+block -> "{" { statement | expression [ ";" ] } "}"
+```
 
-boolean -> "true" | "false"
+## Statement
 
-literal -> integer | string | character | boolean
+```
+statement -> binding | return
+
+binding -> "let" [ "mut" ] variable "=" expression ";"
+
+variable -> identifier ":" type
+
+return -> "return" [ expression ] ";"
 ```
 
 ## Expression
@@ -27,48 +36,47 @@ arithmetic -> term { ( "+" | "-" ) term } .
 
 term -> factor { ( "*" | "/" | "%" ) factor } .
 
-factor -> [ "-" ] [ "*" ] [ "&" [ "mut" ] ]
-            ( literal | identifier | call | "(" expression ")" | block | if | while | match )
+factor -> [ "-" ] [ "*" ] [ "&" [ "mut" ] ] ( literal | identifier |
+            call | "(" expression ")" | block | if | while | match )
+```
 
-block -> "{" { statement | expression [ ";" ] } "}"
+## Remaining Control Flow
 
+```
 if -> "if" expression block [ "else" [ if | block ] ]
+
+while -> "while" expression block
 
 match -> "match" expression "{" arms "}"
 
 arms -> expression "=>" expression "," { expression "=>" expression "," }
 
-call -> identifier "(" { expression "," } ")"
-
+call -> identifier "(" [ expression { "," expression } ] ")"
 ```
 
-## Language constructs
+## Literals
 
 ```
-identifier -> letter { letter | digit | "_" }
+literal -> integer | string | character | boolean
 
+integer -> digit { digit }
+
+string -> """ { printable_character } """
+
+character -> "'" printable_character "'"
+
+boolean -> "true" | "false"
+
+digit -> 0 | ... | 9
+```
+
+## Rest
+
+```
 type -> "u8"  | "usize" | "bool" | "char" | "&str" | identifier |
           ( "&" [ "mut" ] | "*mut" ) type
 
-variable -> identifier ":" type
+identifier -> letter { letter | digit | "_" }
 
-binding -> "let" [ "mut" ] variable "=" expression ";"
-
-statement -> binding | return
-
-while -> "while" expression block
-
-return -> "return" expression ";"
-```
-
-## Rust
-
-```
-language -> ( function | enum ) { function | enum }
-
-function -> "fn" identifier "(" { variable "," } ")" [ "->" type ] block
-
-enum -> "enum" identifier "{" variant "," { variant "," } "}"
-
-variant -> identifier [ "(" type { "," type } ")" ]
+letter -> "a" | ... | "z" | "A" ... "Z"
 ```
