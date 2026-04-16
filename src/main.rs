@@ -139,7 +139,7 @@ enum SourceLocation {
 fn lexer_new(source: String) -> Lexer {
     let source_file: SourceFile = SourceFile::SourceFile(source, 0, SourceLocation::Coords(1, 1));
     let mut lexer: Lexer = Lexer::Lexer(source_file, Token::Eof);
-    next_token(&mut lexer);
+    lexer_next_token(&mut lexer);
     lexer
 }
 
@@ -197,10 +197,10 @@ fn lexer_expect_char(lexer: &mut Lexer, expected: char) {
 // ---------------------- Lexer ----------------------
 
 /// Consume and return the next token.
-fn next_token(lexer: &mut Lexer) -> Token {
+fn lexer_next_token(lexer: &mut Lexer) -> Token {
     skip_whitespace(lexer);
 
-    match lexer_peek_char(lexer) {
+    let token: Token = match lexer_peek_char(lexer) {
         CharOption::Some(c) => {
             if is_alpha(c) {
                 let ident: String = scan_identifier(lexer);
@@ -219,7 +219,12 @@ fn next_token(lexer: &mut Lexer) -> Token {
             }
         }
         CharOption::None => Token::Eof,
-    }
+    };
+
+    let returned_token: Token = token_clone(&token);
+    let Lexer::Lexer(_, current_token) = lexer;
+    *current_token = token;
+    returned_token
 }
 
 /// Scan an identifier or keyword.
@@ -368,7 +373,7 @@ fn scan_slash(lexer: &mut Lexer) -> Token {
         CharOption::Some('/') => {
             lexer_consume_char(lexer);
             skip_line_comment(lexer);
-            next_token(lexer)
+            lexer_next_token(lexer)
         }
         _ => Token::Slash,
     }
