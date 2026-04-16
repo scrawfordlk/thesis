@@ -28,8 +28,8 @@ variable  -> identifier ":" type
 
 return    -> "return" [ expression ] ";"
 
-type       -> "u8"  | "usize" | "bool" | "char" | "&str" | identifier |
-                  ( "&" [ "mut" ] | "*mut" ) type
+type       -> { "&" [ "mut" ] | "*mut" }
+                  "u8"  | "usize" | "bool" | "char" | "&str" | identifier
 
 identifier -> letter { letter | digit | "_" }
 
