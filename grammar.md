@@ -5,7 +5,7 @@
 ```
 language -> { function | enum }
 
-function -> [ "unsafe" ] fn" identifier
+function -> [ "unsafe" ] "fn" identifier
                 "(" [ variable { "," variable } [ "," ] ] ")" [ "->" type ] block
 
 enum     -> "enum" identifier "{" variant "," { variant "," } "}"
