@@ -33,7 +33,7 @@ type       -> { "&" [ "mut" ] | "*" "mut" }
 
 identifier -> ( letter | "_" ) { letter | digit | "_" }
 
-letter     -> "a" | ... | "z" | "A" ... "Z"
+letter     -> "a" | ... | "z" | "A" | ... | "Z"
 ```
 
 ## Expression
