@@ -47,8 +47,9 @@ term       -> cast { ( "*" | "/" | "%" ) cast } .
 
 cast       -> factor { "as" type }
 
-factor     -> [ "-" ] [ "*" ] [ "&" [ "mut" ] ] ( literal | identifier |
-                  call | "(" expression ")" | [ "unsafe" ]  block | if | while | match )
+factor     -> { "-" | "*" | ( "&" [ "mut" ] ) }
+                  ( literal | identifier | call | "(" expression ")"
+                  | [ "unsafe" ]  block | if | while | match )
 ```
 
 ## Remaining Control Flow
