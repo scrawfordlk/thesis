@@ -80,3 +80,9 @@ boolean   -> "true" | "false"
 
 digit     -> "" | ... | "9"
 ```
+
+## TODO
+
+- Currently, this grammar does not have any rules for anything related to `::`, use in
+  - enum instances (e.g. `Token::Let`)
+  - boostrapped functions (e.g. `std::mem::size_of`)
