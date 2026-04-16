@@ -25,6 +25,13 @@ binding   -> "let" [ "mut" ] variable "=" expression ";"
 variable  -> identifier ":" type
 
 return    -> "return" [ expression ] ";"
+
+type       -> "u8"  | "usize" | "bool" | "char" | "&str" | identifier |
+                  ( "&" [ "mut" ] | "*mut" ) type
+
+identifier -> letter { letter | digit | "_" }
+
+letter     -> "a" | ... | "z" | "A" ... "Z"
 ```
 
 ## Expression
@@ -68,15 +75,4 @@ character -> "'" printable_character "'"
 boolean   -> "true" | "false"
 
 digit     -> 0 | ... | 9
-```
-
-## Rest
-
-```
-type       -> "u8"  | "usize" | "bool" | "char" | "&str" | identifier |
-                  ( "&" [ "mut" ] | "*mut" ) type
-
-identifier -> letter { letter | digit | "_" }
-
-letter     -> "a" | ... | "z" | "A" ... "Z"
 ```
