@@ -243,9 +243,7 @@ fn scan_identifier(lexer: &mut Lexer) -> String {
 
 /// Convert an identifier to a keyword token if applicable.
 fn identifier_to_token(ident: String) -> Token {
-    if string_eq(&ident, &string_from_str("unsafe")) {
-        Token::Unsafe
-    } else if string_eq(&ident, &string_from_str("fn")) {
+    if string_eq(&ident, &string_from_str("fn")) {
         Token::Fn
     } else if string_eq(&ident, &string_from_str("enum")) {
         Token::Enum
