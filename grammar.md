@@ -31,7 +31,7 @@ return    -> "return" [ expression ] ";"
 type       -> { "&" [ "mut" ] | "*mut" }
                   "u8"  | "usize" | "bool" | "char" | "&str" | identifier
 
-identifier -> letter { letter | digit | "_" }
+identifier -> ( letter | "_" ) { letter | digit | "_" }
 
 letter     -> "a" | ... | "z" | "A" ... "Z"
 ```
