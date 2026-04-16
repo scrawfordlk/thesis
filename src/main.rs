@@ -66,21 +66,6 @@ enum Token {
     Eof,
 }
 
-enum Comparison {
-    Eq,  // "=="
-    Neq, // "!="
-    Gt,  // ">"
-    Lt,  // "<"
-    Geq, // ">="
-    Leq, // "<="
-}
-
-enum Literal {
-    Integer(usize),
-    Character(char),
-    String(String),
-}
-
 /// A type that encapsulates the state of the lexer
 enum Lexer {
     // source file, current token
