@@ -79,7 +79,7 @@ character -> "'" printable_character "'"
 
 boolean   -> "true" | "false"
 
-digit     -> "" | ... | "9"
+digit     -> "0" | ... | "9"
 ```
 
 ## TODO
