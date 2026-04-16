@@ -18,9 +18,11 @@ block    -> "{" { statement | expression [ ";" ] } "}"
 ## Statement
 
 ```
-statement -> binding | return
+statement -> binding | assign | return
 
 binding   -> "let" [ "mut" ] variable "=" expression ";"
+
+assign    -> [ "*" ] identifier "=" expression ";"
 
 variable  -> identifier ":" type
 
