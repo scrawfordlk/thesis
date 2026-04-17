@@ -12,17 +12,15 @@ enum     -> "enum" identifier "{" variant "," { variant "," } "}"
 
 variant  -> identifier [ "(" type { "," type } ")" ]
 
-block    -> "{" { statement } [ expression [ ";" ] ] "}"
+block    -> "{" { statement ";" } [ expression ] "}"
 ```
 
 ## Statement
 
 ```
-statement -> binding | assign | return
+statement -> binding | expression
 
-binding   -> "let" variable "=" expression ";"
-
-assign    -> [ "*" ] identifier "=" expression ";"
+binding   -> "let" variable "=" expression
 
 variable  -> [ "mut" ] identifier ":" type
 
@@ -39,7 +37,11 @@ letter     -> "a" | ... | "z" | "A" | ... | "Z"
 ## Expression
 
 ```
-expression -> arithmetic [ ( "==" | "!=" | "<" | ">" | "<=" | ">=" ) arithmetic ]
+expression -> [ "return" [ expression ] ] | assignment
+
+assignment -> factor "=" comparison
+
+comparison -> arithmetic [ ( "==" | "!=" | "<" | ">" | "<=" | ">=" ) arithmetic ]
 
 arithmetic -> term { ( "+" | "-" ) term } .
 
