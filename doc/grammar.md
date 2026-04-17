@@ -12,14 +12,12 @@ enum     -> "enum" identifier "{" variant "," { variant "," } "}"
 
 variant  -> identifier [ "(" type { "," type } ")" ]
 
-block    -> "{" { statement ";" } [ expression ] "}"
+block    -> "{" { ( binding | expression ) ";" } [ expression ] "}"
 ```
 
 ## Statement
 
 ```
-statement -> binding | expression
-
 binding   -> "let" variable "=" expression
 
 variable  -> [ "mut" ] identifier ":" type
