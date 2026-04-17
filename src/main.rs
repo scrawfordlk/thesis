@@ -526,14 +526,14 @@ fn symtable_insert_variable(
     name: String,
     variable_type: Type,
     mutable: bool,
-) -> bool {
+) {
     let SymTable::Table(_, local_stack): &mut SymTable = symtable;
     match local_stack {
         LocalSymTableStack::Cons(local, _) => {
             local_symtable_insert_variable(local, name, variable_type, mutable)
         }
-        LocalSymTableStack::Nil => false,
-    }
+        LocalSymTableStack::Nil => (),
+    };
 }
 
 /// Global symbol table represented as a linked cons list.
@@ -664,14 +664,9 @@ fn local_symtable_insert_variable(
     name: String,
     variable_type: Type,
     mutable: bool,
-) -> bool {
-    if local_symtable_contains(symtable, &name) {
-        return false;
-    }
-
+) {
     let entry: SymTableEntry = SymTableEntry::Variable(name, variable_type, mutable);
     local_symtable_prepend(symtable, entry);
-    true
 }
 
 /// Symbol table entry for functions, enums, and variables.
