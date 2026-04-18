@@ -24,8 +24,7 @@ variable  -> [ "mut" ] pattern ":" type
 
 return    -> "return" [ expression ] ";"
 
-type       -> { "&" [ "mut" ] | "*" "mut" }
-                  ( "u8"  | "usize" | "bool" | "char" | "&" "str" | identifier )
+type       -> "u8"  | "usize" | "bool" | "char" | "&" "str" | identifier | ( "&" [ "mut" ] | "*" "mut" ) type
 
 identifier -> ( letter | "_" ) { letter | digit | "_" }
 
