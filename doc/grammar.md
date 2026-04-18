@@ -20,7 +20,7 @@ block    -> "{" { ( binding | expression ) ";" } [ expression ] "}"
 ```
 binding   -> "let" variable "=" expression
 
-variable  -> [ "mut" ] identifier ":" type
+variable  -> [ "mut" ] pattern ":" type
 
 return    -> "return" [ expression ] ";"
 
@@ -55,15 +55,18 @@ factor     -> { "-" | "*" | ( "&" [ "mut" ] ) }
 ## Remaining Control Flow
 
 ```
-if    -> "if" expression block [ "else" [ if | block ] ]
+if      -> "if" expression block [ "else" [ if | block ] ]
 
-while -> "while" expression block
+while   -> "while" expression block
 
-match -> "match" expression "{" arms "}"
+match   -> "match" expression "{" arms "}"
 
-arms  -> expression "=>" expression "," { expression "=>" expression "," }
+arms    -> pattern "=>" expression "," { expression "=>" expression "," }
 
-call  -> identifier "(" [ expression { "," expression } ] ")"
+pattern -> { "&" [ "mut" ] } ( literal | identifier
+               | identifier "::" identifier [ "(" pattern { "," pattern } ")" ] )
+
+call    -> identifier "(" [ expression { "," expression } ] ")"
 ```
 
 ## Literals
