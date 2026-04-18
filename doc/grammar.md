@@ -74,6 +74,7 @@ arms    -> pattern "=>" expression "," { expression "=>" expression "," }
 pattern -> literal
              | identifier
              | identifier "::" identifier [ "(" pattern { "," pattern } ")" ] )
+             | "_"
 
 call    -> identifier "(" [ expression { "," expression } [ "," ] ] ")"
 ```
