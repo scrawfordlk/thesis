@@ -65,8 +65,9 @@ match   -> "match" expression "{" arms "}"
 
 arms    -> pattern "=>" expression "," { expression "=>" expression "," }
 
-pattern -> { "&" [ "mut" ] } ( literal | identifier
-               | identifier "::" identifier [ "(" pattern { "," pattern } ")" ] )
+pattern -> literal
+          | identifier
+          | identifier "::" identifier [ "(" pattern { "," pattern } ")" ] )
 
 call    -> identifier "(" [ expression { "," expression } [ "," ] ] ")"
 ```
