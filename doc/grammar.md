@@ -24,7 +24,10 @@ variable  -> [ "mut" ] pattern ":" type
 
 return    -> "return" [ expression ] ";"
 
-type       -> "u8"  | "usize" | "bool" | "char" | "&" "str" | identifier | ( "&" [ "mut" ] | "*" "mut" ) type
+type       -> "u8"  | "usize" | "bool" | "char"
+                  | "&" "str"
+                  | identifier
+                  | ( "&" [ "mut" ] | "*" "mut" ) type
 
 identifier -> ( letter | "_" ) { letter | digit | "_" }
 
@@ -65,7 +68,7 @@ arms    -> pattern "=>" expression "," { expression "=>" expression "," }
 pattern -> { "&" [ "mut" ] } ( literal | identifier
                | identifier "::" identifier [ "(" pattern { "," pattern } ")" ] )
 
-call    -> identifier "(" [ expression { "," expression } ] ")"
+call    -> identifier "(" [ expression { "," expression } [ "," ] ] ")"
 ```
 
 ## Literals
