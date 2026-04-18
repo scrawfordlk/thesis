@@ -6,7 +6,7 @@
 language -> { function | enum }
 
 function -> [ "unsafe" ] "fn" identifier
-                "(" [ variable { "," variable } [ "," ] ] ")" [ "->" type ] block
+              "(" [ variable { "," variable } [ "," ] ] ")" [ "->" type ] block
 
 enum     -> "enum" identifier "{" variant "," { variant "," } "}"
 
@@ -25,9 +25,9 @@ variable  -> [ "mut" ] pattern ":" type
 return    -> "return" [ expression ] ";"
 
 type       -> "u8"  | "usize" | "bool" | "char"
-                  | "&" "str"
-                  | identifier
-                  | ( "&" [ "mut" ] | "*" "mut" ) type
+                | "&" "str"
+                | identifier
+                | ( "&" [ "mut" ] | "*" "mut" ) type
 
 identifier -> ( letter | "_" ) { letter | digit | "_" }
 
@@ -72,8 +72,8 @@ match   -> "match" expression "{" arms "}"
 arms    -> pattern "=>" expression "," { expression "=>" expression "," }
 
 pattern -> literal
-          | identifier
-          | identifier "::" identifier [ "(" pattern { "," pattern } ")" ] )
+             | identifier
+             | identifier "::" identifier [ "(" pattern { "," pattern } ")" ] )
 
 call    -> identifier "(" [ expression { "," expression } [ "," ] ] ")"
 ```
