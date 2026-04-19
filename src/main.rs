@@ -1465,6 +1465,24 @@ enum String {
     String(*mut u8, usize, usize),
 }
 
+/// Create a new empty string.
+fn string_new() -> String {
+    string_with_capacity(10)
+}
+
+/// Create a new string with the specified capacity
+fn string_with_capacity(initial_capacity: usize) -> String {
+    let ptr: *mut u8 = alloc(initial_capacity, std::mem::size_of::<u8>());
+    String::String(ptr, 0, initial_capacity)
+}
+
+/// Create a string from a string slice.
+fn string_from_str(str: &str) -> String {
+    let mut s: String = string_new();
+    string_push_str(&mut s, str);
+    s
+}
+
 /// Get the pointer to the start of the string data.
 fn string_ptr(string: &String) -> *mut u8 {
     let String::String(ptr, _, _): &String = string;
@@ -1483,17 +1501,6 @@ fn string_capacity(string: &String) -> usize {
     *capacity
 }
 
-/// Create a new empty string.
-fn string_new() -> String {
-    string_with_capacity(10)
-}
-
-/// Create a new string with the specified capacity
-fn string_with_capacity(initial_capacity: usize) -> String {
-    let ptr: *mut u8 = alloc(initial_capacity, std::mem::size_of::<u8>());
-    String::String(ptr, 0, initial_capacity)
-}
-
 /// Get the character at the given index.
 fn string_get(string: &String, index: usize) -> CharOption {
     if index >= string_len(string) {
@@ -1504,6 +1511,14 @@ fn string_get(string: &String, index: usize) -> CharOption {
     }
 }
 
+/// Append a character to the string.
+fn string_push(string: &mut String, character: char) {
+    string_accomodate_extra_space(string, 1);
+    let String::String(ptr, len, _): &mut String = string;
+    unsafe { *ptr_add(*ptr, *len) = character as u8 }
+    *len = *len + 1;
+}
+
 /// Append a string slice to the string.
 fn string_push_str(string: &mut String, str: &str) {
     let str_len: usize = str.len();
@@ -1512,22 +1527,24 @@ fn string_push_str(string: &mut String, str: &str) {
     let str_ptr: *mut u8 = str.as_ptr() as *mut u8;
 
     let String::String(string_ptr, len, _): &mut String = string;
-    unsafe {
-        let string_end: *mut u8 = ptr_add(*string_ptr, *len);
-        memcopy(string_end, str_ptr, str_len)
-    };
+    let string_end: *mut u8 = ptr_add(*string_ptr, *len);
 
+    unsafe { memcopy(string_end, str_ptr, str_len) }
     *len = *len + str_len;
 }
 
-/// Append a character to the string.
-fn string_push(string: &mut String, character: char) {
-    string_accomodate_extra_space(string, 1);
+/// Push a string onto another string.
+fn string_push_string(string: &mut String, other: &String) {
+    let other_len: usize = string_len(other);
+    string_accomodate_extra_space(string, other_len);
+
+    let other_ptr: *mut u8 = string_ptr(string);
+
     let String::String(ptr, len, _): &mut String = string;
-    unsafe {
-        *ptr_add(*ptr, *len) = character as u8;
-    }
-    *len = *len + 1;
+    let ptr: *mut u8 = ptr_add(*ptr, *len);
+
+    unsafe { memcopy(ptr, other_ptr, other_len) }
+    *len = *len + other_len;
 }
 
 fn string_clone(string: &String) -> String {
@@ -1541,27 +1558,6 @@ fn string_clone(string: &String) -> String {
         i = i + 1;
     }
     clone
-}
-
-/// Ensure the string has space for additional bytes.
-fn string_accomodate_extra_space(string: &mut String, space: usize) {
-    let len: usize = string_len(string);
-    let capacity: usize = string_capacity(string);
-    if capacity < len + space {
-        let String::String(string_ptr, len, capacity): &mut String = string;
-        *capacity = *capacity * 2;
-        let new_ptr: *mut u8 = alloc(*capacity, 1);
-        unsafe { memcopy(new_ptr, *string_ptr, *len) };
-        *string_ptr = new_ptr;
-        string_accomodate_extra_space(string, space);
-    }
-}
-
-/// Create a string from a string slice.
-fn string_from_str(str: &str) -> String {
-    let mut s: String = string_new();
-    string_push_str(&mut s, str);
-    s
 }
 
 /// Check if two strings are equal.
@@ -1583,6 +1579,20 @@ fn string_eq(s1: &String, s2: &String) -> bool {
     }
 
     true
+}
+
+/// Ensure the string has space for additional bytes.
+fn string_accomodate_extra_space(string: &mut String, space: usize) {
+    let len: usize = string_len(string);
+    let capacity: usize = string_capacity(string);
+    if capacity < len + space {
+        let String::String(string_ptr, len, capacity): &mut String = string;
+        *capacity = *capacity * 2;
+        let new_ptr: *mut u8 = alloc(*capacity, 1);
+        unsafe { memcopy(new_ptr, *string_ptr, *len) };
+        *string_ptr = new_ptr;
+        string_accomodate_extra_space(string, space);
+    }
 }
 
 // ------------------------- Memory -------------------------------
