@@ -478,6 +478,19 @@ fn skip_line_comment(lexer: &mut Lexer) {
 
 // -------------------------- Parser -------------------------------
 
+enum Parser {
+    // lexer, llvm code, symbol table, current function return type
+    Parser(Lexer, String, SymTable, Type),
+}
+
+fn parser_new(source: String) -> Parser {
+    Parser::Parser(lexer_new(source), string_new(), symTable_new(), Type::Unit)
+}
+
+fn parser_from_str(source: &str) -> Parser {
+    parser_new(string_from_str(source))
+}
+
 /// Data structure that manages a global symbol table and (multiple) local symbol tables.
 enum SymTable {
     Table(GlobalSymTable, LocalSymTableStack),
