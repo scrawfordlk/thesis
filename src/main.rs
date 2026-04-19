@@ -920,6 +920,31 @@ fn local_symtable_box_clone(ptr: &LocalSymTableBox) -> LocalSymTableBox {
     local_symtable_box_new(cloned)
 }
 
+/// Box-like type that is a pointer to an owned heap-allocated Type.
+enum TypeBox {
+    Ptr(*mut Type),
+}
+
+/// Allocate and box a Type value on the heap.
+fn type_box_new(ty: Type) -> TypeBox {
+    let ptr_u8: *mut u8 = alloc(std::mem::size_of::<Type>(), std::mem::size_of::<usize>());
+    let ptr: *mut Type = ptr_u8 as *mut Type;
+    unsafe { *ptr = ty };
+    TypeBox::Ptr(ptr)
+}
+
+/// Dereference a Type box.
+fn type_box_deref(ptr_wrap: &TypeBox) -> &Type {
+    let TypeBox::Ptr(ptr): &TypeBox = ptr_wrap;
+    unsafe { &**ptr }
+}
+
+/// Clone a Type box and its heap-owned value.
+fn type_box_clone(ptr: &TypeBox) -> TypeBox {
+    let cloned: Type = type_clone(type_box_deref(ptr));
+    type_box_new(cloned)
+}
+
 /// Box-like type that is a pointer to an owned heap-allocated Types.
 enum TypesBox {
     Ptr(*mut Types),
