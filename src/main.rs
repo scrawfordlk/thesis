@@ -491,6 +491,54 @@ fn parser_from_str(source: &str) -> Parser {
     parser_new(string_from_str(source))
 }
 
+fn parser_lexer(parser: &Parser) -> &Lexer {
+    let Parser::Parser(lexer, _, _, _): &Parser = parser;
+    lexer
+}
+
+fn parser_lexer_mut(parser: &mut Parser) -> &mut Lexer {
+    let Parser::Parser(lexer, _, _, _): &mut Parser = parser;
+    lexer
+}
+
+fn parser_llvm(parser: &Parser) -> &String {
+    let Parser::Parser(_, llvm, _, _): &Parser = parser;
+    llvm
+}
+
+fn parser_llvm_mut(parser: &mut Parser) -> &mut String {
+    let Parser::Parser(_, llvm, _, _): &mut Parser = parser;
+    llvm
+}
+
+fn parser_symtable(parser: &Parser) -> &SymTable {
+    let Parser::Parser(_, _, symTable, _): &Parser = parser;
+    symTable
+}
+
+fn parser_symtable_mut(parser: &mut Parser) -> &mut SymTable {
+    let Parser::Parser(_, _, symTable, _): &mut Parser = parser;
+    symTable
+}
+
+fn parser_current_fn_return_type(parser: &Parser) -> &Type {
+    let Parser::Parser(_, _, _, return_type): &Parser = parser;
+    return_type
+}
+
+fn parser_set_current_fn_return_type(parser: &mut Parser, ty: Type) {
+    let Parser::Parser(_, _, _, return_type): &mut Parser = parser;
+    *return_type = ty;
+}
+
+fn parser_current_token(parser: &Parser) -> &Token {
+    lexer_current_token(parser_lexer(parser))
+}
+
+fn parser_next_token(parser: &mut Parser) {
+    lexer_next_token(parser_lexer_mut(parser));
+}
+
 /// Data structure that manages a global symbol table and (multiple) local symbol tables.
 enum SymTable {
     Table(GlobalSymTable, LocalSymTableStack),
