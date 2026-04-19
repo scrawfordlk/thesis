@@ -117,6 +117,201 @@ fn token_clone(token: &Token) -> Token {
         Token::Eof => Token::Eof,
     }
 }
+
+/// Check if two tokens are equal.
+fn token_eq(a: &Token, b: &Token) -> bool {
+    match a {
+        Token::Unsafe => match b {
+            Token::Unsafe => true,
+            _ => false,
+        },
+        Token::Fn => match b {
+            Token::Fn => true,
+            _ => false,
+        },
+        Token::Enum => match b {
+            Token::Enum => true,
+            _ => false,
+        },
+        Token::Let => match b {
+            Token::Let => true,
+            _ => false,
+        },
+        Token::If => match b {
+            Token::If => true,
+            _ => false,
+        },
+        Token::Else => match b {
+            Token::Else => true,
+            _ => false,
+        },
+        Token::While => match b {
+            Token::While => true,
+            _ => false,
+        },
+        Token::Return => match b {
+            Token::Return => true,
+            _ => false,
+        },
+        Token::Match => match b {
+            Token::Match => true,
+            _ => false,
+        },
+        Token::As => match b {
+            Token::As => true,
+            _ => false,
+        },
+        Token::Mut => match b {
+            Token::Mut => true,
+            _ => false,
+        },
+        Token::Ampersand => match b {
+            Token::Ampersand => true,
+            _ => false,
+        },
+        Token::LBrace => match b {
+            Token::LBrace => true,
+            _ => false,
+        },
+        Token::RBrace => match b {
+            Token::RBrace => true,
+            _ => false,
+        },
+        Token::LParen => match b {
+            Token::LParen => true,
+            _ => false,
+        },
+        Token::RParen => match b {
+            Token::RParen => true,
+            _ => false,
+        },
+        Token::Colon => match b {
+            Token::Colon => true,
+            _ => false,
+        },
+        Token::DoubleColon => match b {
+            Token::DoubleColon => true,
+            _ => false,
+        },
+        Token::SemiColon => match b {
+            Token::SemiColon => true,
+            _ => false,
+        },
+        Token::Comma => match b {
+            Token::Comma => true,
+            _ => false,
+        },
+        Token::Assign => match b {
+            Token::Assign => true,
+            _ => false,
+        },
+        Token::Eq => match b {
+            Token::Eq => true,
+            _ => false,
+        },
+        Token::Neq => match b {
+            Token::Neq => true,
+            _ => false,
+        },
+        Token::Bang => match b {
+            Token::Bang => true,
+            _ => false,
+        },
+        Token::Gt => match b {
+            Token::Gt => true,
+            _ => false,
+        },
+        Token::Lt => match b {
+            Token::Lt => true,
+            _ => false,
+        },
+        Token::Geq => match b {
+            Token::Geq => true,
+            _ => false,
+        },
+        Token::Leq => match b {
+            Token::Leq => true,
+            _ => false,
+        },
+        Token::ArmArrow => match b {
+            Token::ArmArrow => true,
+            _ => false,
+        },
+        Token::Plus => match b {
+            Token::Plus => true,
+            _ => false,
+        },
+        Token::Minus => match b {
+            Token::Minus => true,
+            _ => false,
+        },
+        Token::Star => match b {
+            Token::Star => true,
+            _ => false,
+        },
+        Token::Slash => match b {
+            Token::Slash => true,
+            _ => false,
+        },
+        Token::Remainder => match b {
+            Token::Remainder => true,
+            _ => false,
+        },
+        Token::Usize => match b {
+            Token::Usize => true,
+            _ => false,
+        },
+        Token::U8 => match b {
+            Token::U8 => true,
+            _ => false,
+        },
+        Token::Bool => match b {
+            Token::Bool => true,
+            _ => false,
+        },
+        Token::Char => match b {
+            Token::Char => true,
+            _ => false,
+        },
+        Token::Str => match b {
+            Token::Str => true,
+            _ => false,
+        },
+        Token::TypeArrow => match b {
+            Token::TypeArrow => true,
+            _ => false,
+        },
+        Token::SizeOf(left) => match b {
+            Token::SizeOf(right) => left == right,
+            _ => false,
+        },
+        Token::Identifier(left) => match b {
+            Token::Identifier(right) => string_eq(left, right),
+            _ => false,
+        },
+        Token::Integer(left) => match b {
+            Token::Integer(right) => left == right,
+            _ => false,
+        },
+        Token::String(left) => match b {
+            Token::String(right) => string_eq(left, right),
+            _ => false,
+        },
+        Token::Character(left) => match b {
+            Token::Character(right) => left == right,
+            _ => false,
+        },
+        Token::Boolean(left) => match b {
+            Token::Boolean(right) => left == right,
+            _ => false,
+        },
+        Token::Eof => match b {
+            Token::Eof => true,
+            _ => false,
+        },
+    }
+}
+
 /// A type that encapsulates the state of the lexer
 enum Lexer {
     // source file, current token
