@@ -681,10 +681,9 @@ fn localSymTableStack_lookup_variable_type(
         LocalSymTableStack::Cons(local, tail) => {
             match localSymTable_lookup_variable_type(local, name) {
                 TypeOption::Some(variable_type) => TypeOption::Some(variable_type),
-                TypeOption::None => localSymTableStack_lookup_variable_type(
-                    localSymTableStackBox_deref(tail),
-                    name,
-                ),
+                TypeOption::None => {
+                    localSymTableStack_lookup_variable_type(localSymTableStackBox_deref(tail), name)
+                }
             }
         }
         LocalSymTableStack::Nil => TypeOption::None,
@@ -1114,8 +1113,7 @@ fn localSymTableStackBox_deref(ptr_wrap: &LocalSymTableStackBox) -> &LocalSymTab
 
 /// Clone a LocalSymTableStack box and its heap-owned value.
 fn localSymTableStackBox_clone(ptr: &LocalSymTableStackBox) -> LocalSymTableStackBox {
-    let cloned: LocalSymTableStack =
-        localSymTableStack_clone(localSymTableStackBox_deref(ptr));
+    let cloned: LocalSymTableStack = localSymTableStack_clone(localSymTableStackBox_deref(ptr));
     localSymTableStackBox_new(cloned)
 }
 
