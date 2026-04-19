@@ -147,6 +147,16 @@ fn lexer_sourcefile(lexer: &Lexer) -> &SourceFile {
     source
 }
 
+fn lexer_current_token(lexer: &Lexer) -> &Token {
+    let Lexer::Lexer(_, token): &Lexer = lexer;
+    token
+}
+
+fn lexer_current_token_mut(lexer: &mut Lexer) -> &mut Token {
+    let Lexer::Lexer(_, token): &mut Lexer = lexer;
+    token
+}
+
 fn lexer_location(lexer: &Lexer) -> &SourceLocation {
     let SourceFile::SourceFile(_, _, location): &SourceFile = lexer_sourcefile(lexer);
     location
@@ -221,8 +231,7 @@ fn lexer_next_token(lexer: &mut Lexer) -> Token {
     };
 
     let returned_token: Token = token_clone(&token);
-    let Lexer::Lexer(_, current_token) = lexer;
-    *current_token = token;
+    *lexer_current_token_mut(lexer) = token;
     returned_token
 }
 
