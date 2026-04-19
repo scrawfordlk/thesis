@@ -990,6 +990,13 @@ fn lexer_error(lexer: &Lexer, message: &str) -> ! {
     std::process::exit(1);
 }
 
+/// Emit an error at the parser current location and abort.
+fn parser_error(parser: &Parser, message: &str) -> ! {
+    lexer_error(parser_lexer(parser), message)
+}
+
+/// Check whether the parser current token equals an expected token.
+
 // -------------------------- bool ---------------------------------
 
 /// Logical AND of two booleans.
