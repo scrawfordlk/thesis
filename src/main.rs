@@ -1,4 +1,4 @@
-#![allow(clippy::assign_op_pattern, while_true)]
+#![allow(clippy::assign_op_pattern, while_true, non_snake_case)]
 
 fn main() {
     let mut str: String = string_new();
@@ -484,65 +484,65 @@ enum SymTable {
 }
 
 /// Create an empty symbol table.
-fn symtable_new() -> SymTable {
+fn symTable_new() -> SymTable {
     let global: GlobalSymTable = GlobalSymTable::Nil;
     let local: LocalSymTableStack = LocalSymTableStack::Nil;
     SymTable::Table(global, local)
 }
 
 /// Check whether a symbol exists in local scopes or globals.
-fn symtable_contains(symtable: &SymTable, name: &String) -> bool {
+fn symTable_contains(symtable: &SymTable, name: &String) -> bool {
     let SymTable::Table(global, local): &SymTable = symtable;
     or(
-        local_symtable_stack_contains(local, name),
-        global_symtable_contains(global, name),
+        localSymTableStack_contains(local, name),
+        globalSymTable_contains(global, name),
     )
 }
 
 /// Lookup a variable type in local scopes.
-fn symtable_lookup_variable_type(symtable: &SymTable, name: &String) -> TypeOption {
+fn symTable_lookup_variable_type(symtable: &SymTable, name: &String) -> TypeOption {
     let SymTable::Table(_, local): &SymTable = symtable;
-    local_symtable_stack_lookup_variable_type(local, name)
+    localSymTableStack_lookup_variable_type(local, name)
 }
 
 /// Lookup a function signature in the global symbol table.
-fn symtable_lookup_function_signature(symtable: &SymTable, name: &String) -> FnSignatureOption {
+fn symTable_lookup_function_signature(symtable: &SymTable, name: &String) -> FnSignatureOption {
     let SymTable::Table(global, _): &SymTable = symtable;
-    global_symtable_lookup_function_signature(global, name)
+    globalSymTable_lookup_function_signature(global, name)
 }
 
 /// Enter a new local scope.
-fn symtable_enter_scope(symtable: &mut SymTable) {
+fn symTable_enter_scope(symtable: &mut SymTable) {
     let SymTable::Table(_, local): &mut SymTable = symtable;
-    local_symtable_stack_push(local);
+    localSymTableStack_push(local);
 }
 
 /// Leave the current local scope.
-fn symtable_leave_scope(symtable: &mut SymTable) -> bool {
+fn symTable_leave_scope(symtable: &mut SymTable) -> bool {
     let SymTable::Table(_, local_stack): &mut SymTable = symtable;
-    local_symtable_stack_pop(local_stack)
+    localSymTableStack_pop(local_stack)
 }
 
 /// Insert a function into the global table.
-fn symtable_insert_function(
+fn symTable_insert_function(
     symtable: &mut SymTable,
     name: String,
     parameter_types: Types,
     return_type: Type,
 ) -> bool {
     let SymTable::Table(global, _) = symtable;
-    global_symtable_insert_function(global, name, parameter_types, return_type)
+    globalSymTable_insert_function(global, name, parameter_types, return_type)
 }
 
 /// Insert an enum into the global table.
 /// Return true, if the name is not taken else false.
-fn symtable_insert_enum(symtable: &mut SymTable, name: String, variants: Types) -> bool {
+fn symTable_insert_enum(symtable: &mut SymTable, name: String, variants: Types) -> bool {
     let SymTable::Table(global, _) = symtable;
-    global_symtable_insert_enum(global, name, variants)
+    globalSymTable_insert_enum(global, name, variants)
 }
 
 /// Insert a variable into the current local scope.
-fn symtable_insert_variable(
+fn symTable_insert_variable(
     symtable: &mut SymTable,
     name: String,
     variable_type: Type,
@@ -551,7 +551,7 @@ fn symtable_insert_variable(
     let SymTable::Table(_, local_stack): &mut SymTable = symtable;
     match local_stack {
         LocalSymTableStack::Cons(local, _) => {
-            local_symtable_insert_variable(local, name, variable_type, mutable)
+            localSymTable_insert_variable(local, name, variable_type, mutable)
         }
         LocalSymTableStack::Nil => (),
     };
@@ -564,21 +564,21 @@ enum GlobalSymTable {
 }
 
 /// Prepend an entry to the global table.
-fn global_symtable_prepend(symtable: &mut GlobalSymTable, entry: SymTableEntry) {
-    let old_copy: GlobalSymTable = global_symtable_clone(symtable);
-    let tail: GlobalSymTableBox = global_symtable_box_new(old_copy);
+fn globalSymTable_prepend(symtable: &mut GlobalSymTable, entry: SymTableEntry) {
+    let old_copy: GlobalSymTable = globalSymTable_clone(symtable);
+    let tail: GlobalSymTableBox = globalSymTableBox_new(old_copy);
     *symtable = GlobalSymTable::Cons(entry, tail);
 }
 
 /// Check whether a name exists in the global table.
-fn global_symtable_contains(symtable: &GlobalSymTable, name: &String) -> bool {
+fn globalSymTable_contains(symtable: &GlobalSymTable, name: &String) -> bool {
     match symtable {
         GlobalSymTable::Cons(head, tail) => {
-            let entry_name: &String = symtable_entry_name(&head);
+            let entry_name: &String = symTableEntry_name(&head);
             let matches: bool = string_eq(entry_name, name);
             or(
                 matches,
-                global_symtable_contains(global_symtable_box_deref(tail), name),
+                globalSymTable_contains(globalSymTableBox_deref(tail), name),
             )
         }
         GlobalSymTable::Nil => false,
@@ -586,53 +586,54 @@ fn global_symtable_contains(symtable: &GlobalSymTable, name: &String) -> bool {
 }
 
 /// Lookup a function signature in globals.
-fn global_symtable_lookup_function_signature(
+fn globalSymTable_lookup_function_signature(
     symtable: &GlobalSymTable,
     name: &String,
 ) -> FnSignatureOption {
     match symtable {
         GlobalSymTable::Cons(entry, tail) => match entry {
-            SymTableEntry::Function(entry_name, parameter_types, return_type) => {
+            SymTableEntry::Function(entry_name, signature) => {
                 if string_eq(entry_name, name) {
-                    FnSignatureOption::Some(types_clone(parameter_types), type_clone(return_type))
+                    FnSignatureOption::Some(fnSignature_clone(signature))
                 } else {
-                    global_symtable_lookup_function_signature(global_symtable_box_deref(tail), name)
+                    globalSymTable_lookup_function_signature(globalSymTableBox_deref(tail), name)
                 }
             }
-            _ => global_symtable_lookup_function_signature(global_symtable_box_deref(tail), name),
+            _ => globalSymTable_lookup_function_signature(globalSymTableBox_deref(tail), name),
         },
         GlobalSymTable::Nil => FnSignatureOption::None,
     }
 }
 
 /// Insert a function entry into globals, returning false on duplicate name.
-fn global_symtable_insert_function(
+fn globalSymTable_insert_function(
     symtable: &mut GlobalSymTable,
     name: String,
     parameter_types: Types,
     return_type: Type,
 ) -> bool {
-    if global_symtable_contains(symtable, &name) {
+    if globalSymTable_contains(symtable, &name) {
         return false;
     }
 
-    let entry: SymTableEntry = SymTableEntry::Function(name, parameter_types, return_type);
-    global_symtable_prepend(symtable, entry);
+    let signature: FnSignature = FnSignature::Fn(parameter_types, return_type);
+    let entry: SymTableEntry = SymTableEntry::Function(name, signature);
+    globalSymTable_prepend(symtable, entry);
     true
 }
 
 /// Insert an enum entry into globals, returning false on duplicate name.
-fn global_symtable_insert_enum(
+fn globalSymTable_insert_enum(
     symtable: &mut GlobalSymTable,
     name: String,
     variants: Types,
 ) -> bool {
-    if global_symtable_contains(symtable, &name) {
+    if globalSymTable_contains(symtable, &name) {
         return false;
     }
 
     let entry: SymTableEntry = SymTableEntry::Enum(name, variants);
-    global_symtable_prepend(symtable, entry);
+    globalSymTable_prepend(symtable, entry);
     true
 }
 
@@ -643,17 +644,17 @@ enum LocalSymTableStack {
 }
 
 /// Push a new empty local scope onto the stack.
-fn local_symtable_stack_push(stack: &mut LocalSymTableStack) {
-    let old_copy: LocalSymTableStack = local_symtable_stack_clone(stack);
-    let tail: LocalSymTableStackBox = local_symtable_stack_box_new(old_copy);
+fn localSymTableStack_push(stack: &mut LocalSymTableStack) {
+    let old_copy: LocalSymTableStack = localSymTableStack_clone(stack);
+    let tail: LocalSymTableStackBox = localSymTableStackBox_new(old_copy);
     *stack = LocalSymTableStack::Cons(LocalSymTable::Nil, tail);
 }
 
 /// Pop the top local scope from the stack.
-fn local_symtable_stack_pop(stack: &mut LocalSymTableStack) -> bool {
+fn localSymTableStack_pop(stack: &mut LocalSymTableStack) -> bool {
     match stack {
         LocalSymTableStack::Cons(_, tail) => {
-            *stack = local_symtable_stack_clone(local_symtable_stack_box_deref(tail));
+            *stack = localSymTableStack_clone(localSymTableStackBox_deref(tail));
             true
         }
         LocalSymTableStack::Nil => false,
@@ -661,27 +662,27 @@ fn local_symtable_stack_pop(stack: &mut LocalSymTableStack) -> bool {
 }
 
 /// Check whether a name exists in any local scope.
-fn local_symtable_stack_contains(stack: &LocalSymTableStack, name: &String) -> bool {
+fn localSymTableStack_contains(stack: &LocalSymTableStack, name: &String) -> bool {
     match stack {
         LocalSymTableStack::Cons(local, tail) => or(
-            local_symtable_contains(local, name),
-            local_symtable_stack_contains(local_symtable_stack_box_deref(tail), name),
+            localSymTable_contains(local, name),
+            localSymTableStack_contains(localSymTableStackBox_deref(tail), name),
         ),
         LocalSymTableStack::Nil => false,
     }
 }
 
 /// Lookup a variable type in any local scope.
-fn local_symtable_stack_lookup_variable_type(
+fn localSymTableStack_lookup_variable_type(
     stack: &LocalSymTableStack,
     name: &String,
 ) -> TypeOption {
     match stack {
         LocalSymTableStack::Cons(local, tail) => {
-            match local_symtable_lookup_variable_type(local, name) {
+            match localSymTable_lookup_variable_type(local, name) {
                 TypeOption::Some(variable_type) => TypeOption::Some(variable_type),
-                TypeOption::None => local_symtable_stack_lookup_variable_type(
-                    local_symtable_stack_box_deref(tail),
+                TypeOption::None => localSymTableStack_lookup_variable_type(
+                    localSymTableStackBox_deref(tail),
                     name,
                 ),
             }
@@ -697,21 +698,21 @@ enum LocalSymTable {
 }
 
 /// Prepend an entry to a local scope.
-fn local_symtable_prepend(symtable: &mut LocalSymTable, entry: SymTableEntry) {
-    let old_copy: LocalSymTable = local_symtable_clone(symtable);
-    let tail: LocalSymTableBox = local_symtable_box_new(old_copy);
+fn localSymTable_prepend(symtable: &mut LocalSymTable, entry: SymTableEntry) {
+    let old_copy: LocalSymTable = localSymTable_clone(symtable);
+    let tail: LocalSymTableBox = localSymTableBox_new(old_copy);
     *symtable = LocalSymTable::Cons(entry, tail);
 }
 
 /// Check whether a name exists in a local scope.
-fn local_symtable_contains(symtable: &LocalSymTable, name: &String) -> bool {
+fn localSymTable_contains(symtable: &LocalSymTable, name: &String) -> bool {
     match symtable {
         LocalSymTable::Cons(head, tail) => {
-            let entry_name: &String = symtable_entry_name(head);
+            let entry_name: &String = symTableEntry_name(head);
             let matches: bool = string_eq(entry_name, name);
             or(
                 matches,
-                local_symtable_contains(local_symtable_box_deref(tail), name),
+                localSymTable_contains(localSymTableBox_deref(tail), name),
             )
         }
         LocalSymTable::Nil => false,
@@ -719,37 +720,37 @@ fn local_symtable_contains(symtable: &LocalSymTable, name: &String) -> bool {
 }
 
 /// Lookup a variable type in a single local scope.
-fn local_symtable_lookup_variable_type(symtable: &LocalSymTable, name: &String) -> TypeOption {
+fn localSymTable_lookup_variable_type(symtable: &LocalSymTable, name: &String) -> TypeOption {
     match symtable {
         LocalSymTable::Cons(entry, tail) => match entry {
             SymTableEntry::Variable(entry_name, variable_type, _) => {
                 if string_eq(entry_name, name) {
                     TypeOption::Some(type_clone(variable_type))
                 } else {
-                    local_symtable_lookup_variable_type(local_symtable_box_deref(tail), name)
+                    localSymTable_lookup_variable_type(localSymTableBox_deref(tail), name)
                 }
             }
-            _ => local_symtable_lookup_variable_type(local_symtable_box_deref(tail), name),
+            _ => localSymTable_lookup_variable_type(localSymTableBox_deref(tail), name),
         },
         LocalSymTable::Nil => TypeOption::None,
     }
 }
 
 /// Insert a variable entry into a single local scope.
-fn local_symtable_insert_variable(
+fn localSymTable_insert_variable(
     symtable: &mut LocalSymTable,
     name: String,
     variable_type: Type,
     mutable: bool,
 ) {
     let entry: SymTableEntry = SymTableEntry::Variable(name, variable_type, mutable);
-    local_symtable_prepend(symtable, entry);
+    localSymTable_prepend(symtable, entry);
 }
 
 /// Symbol table entry for functions, enums, and variables.
 enum SymTableEntry {
-    // name, parameter types, return type
-    Function(String, Types, Type),
+    // name, signature
+    Function(String, FnSignature),
     // name, variants
     Enum(String, Types),
     // name, type, mutable
@@ -757,21 +758,19 @@ enum SymTableEntry {
 }
 
 /// Get the name associated with a symbol table entry.
-fn symtable_entry_name(entry: &SymTableEntry) -> &String {
+fn symTableEntry_name(entry: &SymTableEntry) -> &String {
     match entry {
-        SymTableEntry::Function(name, _, _) => name,
+        SymTableEntry::Function(name, _) => name,
         SymTableEntry::Enum(name, _) => name,
         SymTableEntry::Variable(name, _, _) => name,
     }
 }
 
-fn symtable_entry_clone(entry: &SymTableEntry) -> SymTableEntry {
+fn symTableEntry_clone(entry: &SymTableEntry) -> SymTableEntry {
     match entry {
-        SymTableEntry::Function(name, parameter_types, return_type) => SymTableEntry::Function(
-            string_clone(name),
-            types_clone(parameter_types),
-            type_clone(return_type),
-        ),
+        SymTableEntry::Function(name, signature) => {
+            SymTableEntry::Function(string_clone(name), fnSignature_clone(signature))
+        }
         SymTableEntry::Enum(name, variants) => {
             SymTableEntry::Enum(string_clone(name), types_clone(variants))
         }
@@ -781,32 +780,44 @@ fn symtable_entry_clone(entry: &SymTableEntry) -> SymTableEntry {
     }
 }
 
-fn global_symtable_clone(symtable: &GlobalSymTable) -> GlobalSymTable {
+fn globalSymTable_clone(symtable: &GlobalSymTable) -> GlobalSymTable {
     match symtable {
         GlobalSymTable::Nil => GlobalSymTable::Nil,
         GlobalSymTable::Cons(head, tail) => {
-            GlobalSymTable::Cons(symtable_entry_clone(head), global_symtable_box_clone(tail))
+            GlobalSymTable::Cons(symTableEntry_clone(head), globalSymTableBox_clone(tail))
         }
     }
 }
 
-fn local_symtable_clone(symtable: &LocalSymTable) -> LocalSymTable {
+fn localSymTable_clone(symtable: &LocalSymTable) -> LocalSymTable {
     match symtable {
         LocalSymTable::Nil => LocalSymTable::Nil,
         LocalSymTable::Cons(head, tail) => {
-            LocalSymTable::Cons(symtable_entry_clone(head), local_symtable_box_clone(tail))
+            LocalSymTable::Cons(symTableEntry_clone(head), localSymTableBox_clone(tail))
         }
     }
 }
 
-fn local_symtable_stack_clone(stack: &LocalSymTableStack) -> LocalSymTableStack {
+fn localSymTableStack_clone(stack: &LocalSymTableStack) -> LocalSymTableStack {
     match stack {
         LocalSymTableStack::Nil => LocalSymTableStack::Nil,
         LocalSymTableStack::Cons(local, tail) => LocalSymTableStack::Cons(
-            local_symtable_clone(local),
-            local_symtable_stack_box_clone(tail),
+            localSymTable_clone(local),
+            localSymTableStackBox_clone(tail),
         ),
     }
+}
+
+/// A type that represents the (type) signature of a function
+enum FnSignature {
+    // parameter types, return type
+    Fn(Types, Type),
+}
+
+/// Lookup result for function signature resolution.
+enum FnSignatureOption {
+    Some(FnSignature),
+    None,
 }
 
 enum Type {
@@ -837,9 +848,9 @@ fn type_clone(t: &Type) -> Type {
         Type::Unit => Type::Unit,
         Type::Never => Type::Never,
         Type::Custom(name) => Type::Custom(string_clone(name)),
-        Type::Reference(inner) => Type::Reference(type_box_clone(inner)),
-        Type::ReferenceMut(inner) => Type::ReferenceMut(type_box_clone(inner)),
-        Type::RawPointerMut(inner) => Type::RawPointerMut(type_box_clone(inner)),
+        Type::Reference(inner) => Type::Reference(typeBox_clone(inner)),
+        Type::ReferenceMut(inner) => Type::ReferenceMut(typeBox_clone(inner)),
+        Type::RawPointerMut(inner) => Type::RawPointerMut(typeBox_clone(inner)),
     }
 }
 
@@ -875,15 +886,15 @@ fn type_eq(a: &Type, b: &Type) -> bool {
             _ => false,
         },
         Type::Reference(left) => match b {
-            Type::Reference(right) => type_eq(type_box_deref(left), type_box_deref(right)),
+            Type::Reference(right) => type_eq(typeBox_deref(left), typeBox_deref(right)),
             _ => false,
         },
         Type::ReferenceMut(left) => match b {
-            Type::ReferenceMut(right) => type_eq(type_box_deref(left), type_box_deref(right)),
+            Type::ReferenceMut(right) => type_eq(typeBox_deref(left), typeBox_deref(right)),
             _ => false,
         },
         Type::RawPointerMut(left) => match b {
-            Type::RawPointerMut(right) => type_eq(type_box_deref(left), type_box_deref(right)),
+            Type::RawPointerMut(right) => type_eq(typeBox_deref(left), typeBox_deref(right)),
             _ => false,
         },
     }
@@ -940,7 +951,7 @@ fn types_new() -> Types {
 fn types_clone(types: &Types) -> Types {
     match types {
         Types::Nil => Types::Nil,
-        Types::Cons(head, tail) => Types::Cons(type_clone(head), types_box_clone(tail)),
+        Types::Cons(head, tail) => Types::Cons(type_clone(head), typesBox_clone(tail)),
     }
 }
 
@@ -951,10 +962,10 @@ fn types_append(list: &mut Types, ty: Type) {
     while true {
         match current {
             Types::Nil => {
-                *current = Types::Cons(ty, types_box_new(Types::Nil));
+                *current = Types::Cons(ty, typesBox_new(Types::Nil));
                 return;
             }
-            Types::Cons(_, tail) => current = types_box_deref_mut(tail),
+            Types::Cons(_, tail) => current = typesBox_deref_mut(tail),
         }
     }
 }
@@ -969,7 +980,7 @@ fn types_eq(left: &Types, right: &Types) -> bool {
         Types::Cons(lhead, ltail) => match right {
             Types::Cons(rhead, rtail) => and(
                 type_eq(lhead, rhead),
-                types_eq(types_box_deref(ltail), types_box_deref(rtail)),
+                types_eq(typesBox_deref(ltail), typesBox_deref(rtail)),
             ),
             _ => false,
         },
@@ -1057,7 +1068,7 @@ enum GlobalSymTableBox {
 }
 
 /// Allocate and box a GlobalSymTable value on the heap.
-fn global_symtable_box_new(symtable: GlobalSymTable) -> GlobalSymTableBox {
+fn globalSymTableBox_new(symtable: GlobalSymTable) -> GlobalSymTableBox {
     let ptr_u8: *mut u8 = alloc(
         std::mem::size_of::<GlobalSymTable>(),
         std::mem::size_of::<usize>(),
@@ -1068,15 +1079,15 @@ fn global_symtable_box_new(symtable: GlobalSymTable) -> GlobalSymTableBox {
 }
 
 /// Dereference a GlobalSymTable box.
-fn global_symtable_box_deref(ptr_wrap: &GlobalSymTableBox) -> &GlobalSymTable {
+fn globalSymTableBox_deref(ptr_wrap: &GlobalSymTableBox) -> &GlobalSymTable {
     let GlobalSymTableBox::Ptr(ptr): &GlobalSymTableBox = ptr_wrap;
     unsafe { &**ptr }
 }
 
 /// Clone a GlobalSymTable box and its heap-owned value.
-fn global_symtable_box_clone(ptr: &GlobalSymTableBox) -> GlobalSymTableBox {
-    let cloned: GlobalSymTable = global_symtable_clone(global_symtable_box_deref(ptr));
-    global_symtable_box_new(cloned)
+fn globalSymTableBox_clone(ptr: &GlobalSymTableBox) -> GlobalSymTableBox {
+    let cloned: GlobalSymTable = globalSymTable_clone(globalSymTableBox_deref(ptr));
+    globalSymTableBox_new(cloned)
 }
 
 /// Box-like type that is a pointer to an owned heap-allocated LocalSymTableStack.
@@ -1085,7 +1096,7 @@ enum LocalSymTableStackBox {
 }
 
 /// Allocate and box a LocalSymTableStack value on the heap.
-fn local_symtable_stack_box_new(stack: LocalSymTableStack) -> LocalSymTableStackBox {
+fn localSymTableStackBox_new(stack: LocalSymTableStack) -> LocalSymTableStackBox {
     let ptr_u8: *mut u8 = alloc(
         std::mem::size_of::<LocalSymTableStack>(),
         std::mem::size_of::<usize>(),
@@ -1096,16 +1107,16 @@ fn local_symtable_stack_box_new(stack: LocalSymTableStack) -> LocalSymTableStack
 }
 
 /// Dereference a LocalSymTableStack box.
-fn local_symtable_stack_box_deref(ptr_wrap: &LocalSymTableStackBox) -> &LocalSymTableStack {
+fn localSymTableStackBox_deref(ptr_wrap: &LocalSymTableStackBox) -> &LocalSymTableStack {
     let LocalSymTableStackBox::Ptr(ptr): &LocalSymTableStackBox = ptr_wrap;
     unsafe { &**ptr }
 }
 
 /// Clone a LocalSymTableStack box and its heap-owned value.
-fn local_symtable_stack_box_clone(ptr: &LocalSymTableStackBox) -> LocalSymTableStackBox {
+fn localSymTableStackBox_clone(ptr: &LocalSymTableStackBox) -> LocalSymTableStackBox {
     let cloned: LocalSymTableStack =
-        local_symtable_stack_clone(local_symtable_stack_box_deref(ptr));
-    local_symtable_stack_box_new(cloned)
+        localSymTableStack_clone(localSymTableStackBox_deref(ptr));
+    localSymTableStackBox_new(cloned)
 }
 
 /// Box-like type that is a pointer to an owned heap-allocated LocalSymTable.
@@ -1114,7 +1125,7 @@ enum LocalSymTableBox {
 }
 
 /// Allocate and box a LocalSymTable value on the heap.
-fn local_symtable_box_new(symtable: LocalSymTable) -> LocalSymTableBox {
+fn localSymTableBox_new(symtable: LocalSymTable) -> LocalSymTableBox {
     let ptr_u8: *mut u8 = alloc(
         std::mem::size_of::<LocalSymTable>(),
         std::mem::size_of::<usize>(),
@@ -1125,15 +1136,15 @@ fn local_symtable_box_new(symtable: LocalSymTable) -> LocalSymTableBox {
 }
 
 /// Dereference a LocalSymTable box.
-fn local_symtable_box_deref(ptr_wrap: &LocalSymTableBox) -> &LocalSymTable {
+fn localSymTableBox_deref(ptr_wrap: &LocalSymTableBox) -> &LocalSymTable {
     let LocalSymTableBox::Ptr(ptr): &LocalSymTableBox = ptr_wrap;
     unsafe { &**ptr }
 }
 
 /// Clone a LocalSymTable box and its heap-owned value.
-fn local_symtable_box_clone(ptr: &LocalSymTableBox) -> LocalSymTableBox {
-    let cloned: LocalSymTable = local_symtable_clone(local_symtable_box_deref(ptr));
-    local_symtable_box_new(cloned)
+fn localSymTableBox_clone(ptr: &LocalSymTableBox) -> LocalSymTableBox {
+    let cloned: LocalSymTable = localSymTable_clone(localSymTableBox_deref(ptr));
+    localSymTableBox_new(cloned)
 }
 
 /// Box-like type that is a pointer to an owned heap-allocated Type.
@@ -1142,7 +1153,7 @@ enum TypeBox {
 }
 
 /// Allocate and box a Type value on the heap.
-fn type_box_new(ty: Type) -> TypeBox {
+fn typeBox_new(ty: Type) -> TypeBox {
     let ptr_u8: *mut u8 = alloc(std::mem::size_of::<Type>(), std::mem::size_of::<usize>());
     let ptr: *mut Type = ptr_u8 as *mut Type;
     unsafe { *ptr = ty };
@@ -1150,15 +1161,15 @@ fn type_box_new(ty: Type) -> TypeBox {
 }
 
 /// Dereference a Type box.
-fn type_box_deref(ptr_wrap: &TypeBox) -> &Type {
+fn typeBox_deref(ptr_wrap: &TypeBox) -> &Type {
     let TypeBox::Ptr(ptr): &TypeBox = ptr_wrap;
     unsafe { &**ptr }
 }
 
 /// Clone a Type box and its heap-owned value.
-fn type_box_clone(ptr: &TypeBox) -> TypeBox {
-    let cloned: Type = type_clone(type_box_deref(ptr));
-    type_box_new(cloned)
+fn typeBox_clone(ptr: &TypeBox) -> TypeBox {
+    let cloned: Type = type_clone(typeBox_deref(ptr));
+    typeBox_new(cloned)
 }
 
 /// Box-like type that is a pointer to an owned heap-allocated Types.
@@ -1167,7 +1178,7 @@ enum TypesBox {
 }
 
 /// Allocate and box a Types value on the heap.
-fn types_box_new(types: Types) -> TypesBox {
+fn typesBox_new(types: Types) -> TypesBox {
     let ptr_u8: *mut u8 = alloc(std::mem::size_of::<Types>(), std::mem::size_of::<usize>());
     let ptr: *mut Types = ptr_u8 as *mut Types;
     unsafe { *ptr = types };
@@ -1175,21 +1186,21 @@ fn types_box_new(types: Types) -> TypesBox {
 }
 
 /// Dereference a Types box.
-fn types_box_deref(ptr_wrap: &TypesBox) -> &Types {
+fn typesBox_deref(ptr_wrap: &TypesBox) -> &Types {
     let TypesBox::Ptr(ptr): &TypesBox = ptr_wrap;
     unsafe { &**ptr }
 }
 
 /// Mutably dereference a Types box.
-fn types_box_deref_mut(ptr_wrap: &mut TypesBox) -> &mut Types {
+fn typesBox_deref_mut(ptr_wrap: &mut TypesBox) -> &mut Types {
     let TypesBox::Ptr(ptr): &mut TypesBox = ptr_wrap;
     unsafe { &mut **ptr }
 }
 
 /// Clone a Types box and its heap-owned value.
-fn types_box_clone(ptr: &TypesBox) -> TypesBox {
-    let cloned: Types = types_clone(types_box_deref(ptr));
-    types_box_new(cloned)
+fn typesBox_clone(ptr: &TypesBox) -> TypesBox {
+    let cloned: Types = types_clone(typesBox_deref(ptr));
+    typesBox_new(cloned)
 }
 
 // ------------------------- String -------------------------------
