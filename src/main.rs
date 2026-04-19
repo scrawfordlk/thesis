@@ -499,6 +499,18 @@ fn symtable_contains(symtable: &SymTable, name: &String) -> bool {
     )
 }
 
+/// Lookup a variable type in local scopes.
+fn symtable_lookup_variable_type(symtable: &SymTable, name: &String) -> TypeOption {
+    let SymTable::Table(_, local): &SymTable = symtable;
+    local_symtable_stack_lookup_variable_type(local, name)
+}
+
+/// Lookup a function signature in the global symbol table.
+fn symtable_lookup_function_signature(symtable: &SymTable, name: &String) -> FnSignatureOption {
+    let SymTable::Table(global, _): &SymTable = symtable;
+    global_symtable_lookup_function_signature(global, name)
+}
+
 /// Enter a new local scope.
 fn symtable_enter_scope(symtable: &mut SymTable) {
     let SymTable::Table(_, local): &mut SymTable = symtable;
@@ -523,6 +535,7 @@ fn symtable_insert_function(
 }
 
 /// Insert an enum into the global table.
+/// Return true, if the name is not taken else false.
 fn symtable_insert_enum(symtable: &mut SymTable, name: String, variants: Types) -> bool {
     let SymTable::Table(global, _) = symtable;
     global_symtable_insert_enum(global, name, variants)
@@ -569,6 +582,26 @@ fn global_symtable_contains(symtable: &GlobalSymTable, name: &String) -> bool {
             )
         }
         GlobalSymTable::Nil => false,
+    }
+}
+
+/// Lookup a function signature in globals.
+fn global_symtable_lookup_function_signature(
+    symtable: &GlobalSymTable,
+    name: &String,
+) -> FnSignatureOption {
+    match symtable {
+        GlobalSymTable::Cons(entry, tail) => match entry {
+            SymTableEntry::Function(entry_name, parameter_types, return_type) => {
+                if string_eq(entry_name, name) {
+                    FnSignatureOption::Some(types_clone(parameter_types), type_clone(return_type))
+                } else {
+                    global_symtable_lookup_function_signature(global_symtable_box_deref(tail), name)
+                }
+            }
+            _ => global_symtable_lookup_function_signature(global_symtable_box_deref(tail), name),
+        },
+        GlobalSymTable::Nil => FnSignatureOption::None,
     }
 }
 
@@ -638,6 +671,25 @@ fn local_symtable_stack_contains(stack: &LocalSymTableStack, name: &String) -> b
     }
 }
 
+/// Lookup a variable type in any local scope.
+fn local_symtable_stack_lookup_variable_type(
+    stack: &LocalSymTableStack,
+    name: &String,
+) -> TypeOption {
+    match stack {
+        LocalSymTableStack::Cons(local, tail) => {
+            match local_symtable_lookup_variable_type(local, name) {
+                TypeOption::Some(variable_type) => TypeOption::Some(variable_type),
+                TypeOption::None => local_symtable_stack_lookup_variable_type(
+                    local_symtable_stack_box_deref(tail),
+                    name,
+                ),
+            }
+        }
+        LocalSymTableStack::Nil => TypeOption::None,
+    }
+}
+
 /// Single local scope represented as a linked cons list.
 enum LocalSymTable {
     Cons(SymTableEntry, LocalSymTableBox),
@@ -663,6 +715,23 @@ fn local_symtable_contains(symtable: &LocalSymTable, name: &String) -> bool {
             )
         }
         LocalSymTable::Nil => false,
+    }
+}
+
+/// Lookup a variable type in a single local scope.
+fn local_symtable_lookup_variable_type(symtable: &LocalSymTable, name: &String) -> TypeOption {
+    match symtable {
+        LocalSymTable::Cons(entry, tail) => match entry {
+            SymTableEntry::Variable(entry_name, variable_type, _) => {
+                if string_eq(entry_name, name) {
+                    TypeOption::Some(type_clone(variable_type))
+                } else {
+                    local_symtable_lookup_variable_type(local_symtable_box_deref(tail), name)
+                }
+            }
+            _ => local_symtable_lookup_variable_type(local_symtable_box_deref(tail), name),
+        },
+        LocalSymTable::Nil => TypeOption::None,
     }
 }
 
@@ -693,41 +762,6 @@ fn symtable_entry_name(entry: &SymTableEntry) -> &String {
         SymTableEntry::Function(name, _, _) => name,
         SymTableEntry::Enum(name, _) => name,
         SymTableEntry::Variable(name, _, _) => name,
-    }
-}
-
-enum Type {
-    U8,
-    Usize,
-    Bool,
-    Char,
-    Unit, // ()
-    Never,
-    Custom(String),
-}
-
-fn type_clone(t: &Type) -> Type {
-    match t {
-        Type::U8 => Type::U8,
-        Type::Usize => Type::Usize,
-        Type::Bool => Type::Bool,
-        Type::Char => Type::Char,
-        Type::Unit => Type::Unit,
-        Type::Never => Type::Never,
-        Type::Custom(name) => Type::Custom(string_clone(name)),
-    }
-}
-
-enum Types {
-    Cons(Type, TypesBox),
-    Nil,
-}
-
-/// Clone a Types linked list.
-fn types_clone(types: &Types) -> Types {
-    match types {
-        Types::Nil => Types::Nil,
-        Types::Cons(head, tail) => Types::Cons(type_clone(head), types_box_clone(tail)),
     }
 }
 
@@ -772,6 +806,173 @@ fn local_symtable_stack_clone(stack: &LocalSymTableStack) -> LocalSymTableStack 
             local_symtable_clone(local),
             local_symtable_stack_box_clone(tail),
         ),
+    }
+}
+
+enum Type {
+    U8,
+    Usize,
+    Bool,
+    Char,
+    Unit,                   // ()
+    Never,                  // !
+    Custom(String),         // enums
+    Reference(TypeBox),     // &Type
+    ReferenceMut(TypeBox),  // &mut Type
+    RawPointerMut(TypeBox), // *mut Type
+}
+
+/// Lookup result for variable type resolution.
+enum TypeOption {
+    Some(Type),
+    None,
+}
+
+fn type_clone(t: &Type) -> Type {
+    match t {
+        Type::U8 => Type::U8,
+        Type::Usize => Type::Usize,
+        Type::Bool => Type::Bool,
+        Type::Char => Type::Char,
+        Type::Unit => Type::Unit,
+        Type::Never => Type::Never,
+        Type::Custom(name) => Type::Custom(string_clone(name)),
+        Type::Reference(inner) => Type::Reference(type_box_clone(inner)),
+        Type::ReferenceMut(inner) => Type::ReferenceMut(type_box_clone(inner)),
+        Type::RawPointerMut(inner) => Type::RawPointerMut(type_box_clone(inner)),
+    }
+}
+
+/// Compare two types.
+fn type_eq(a: &Type, b: &Type) -> bool {
+    match a {
+        Type::U8 => match b {
+            Type::U8 => true,
+            _ => false,
+        },
+        Type::Usize => match b {
+            Type::Usize => true,
+            _ => false,
+        },
+        Type::Bool => match b {
+            Type::Bool => true,
+            _ => false,
+        },
+        Type::Char => match b {
+            Type::Char => true,
+            _ => false,
+        },
+        Type::Unit => match b {
+            Type::Unit => true,
+            _ => false,
+        },
+        Type::Never => match b {
+            Type::Never => true,
+            _ => false,
+        },
+        Type::Custom(left) => match b {
+            Type::Custom(right) => string_eq(left, right),
+            _ => false,
+        },
+        Type::Reference(left) => match b {
+            Type::Reference(right) => type_eq(type_box_deref(left), type_box_deref(right)),
+            _ => false,
+        },
+        Type::ReferenceMut(left) => match b {
+            Type::ReferenceMut(right) => type_eq(type_box_deref(left), type_box_deref(right)),
+            _ => false,
+        },
+        Type::RawPointerMut(left) => match b {
+            Type::RawPointerMut(right) => type_eq(type_box_deref(left), type_box_deref(right)),
+            _ => false,
+        },
+    }
+}
+
+fn type_is_numeric(ty: &Type) -> bool {
+    match ty {
+        Type::U8 => true,
+        Type::Usize => true,
+        _ => false,
+    }
+}
+
+fn type_is_bool(ty: &Type) -> bool {
+    match ty {
+        Type::Bool => true,
+        _ => false,
+    }
+}
+
+fn type_is_unit(ty: &Type) -> bool {
+    match ty {
+        Type::Unit => true,
+        _ => false,
+    }
+}
+
+/// Convert type into a simple LLVM-IR type name.
+fn type_to_llvm_name(ty: &Type) -> String {
+    match ty {
+        Type::U8 => string_from_str("i8"),
+        Type::Usize => string_from_str("i64"), // assume 64-bit for now
+        Type::Bool => string_from_str("i1"),
+        Type::Char => string_from_str("i32"),
+        Type::Unit => string_from_str("void"),
+        Type::Never => string_from_str("void"),
+        Type::Custom(_) => string_from_str("i64"),
+        Type::Reference(_) => string_from_str("i64"),
+        Type::ReferenceMut(_) => string_from_str("i64"),
+        Type::RawPointerMut(_) => string_from_str("i64"),
+    }
+}
+
+enum Types {
+    Cons(Type, TypesBox),
+    Nil,
+}
+
+fn types_new() -> Types {
+    Types::Nil
+}
+
+/// Clone a Types linked list.
+fn types_clone(types: &Types) -> Types {
+    match types {
+        Types::Nil => Types::Nil,
+        Types::Cons(head, tail) => Types::Cons(type_clone(head), types_box_clone(tail)),
+    }
+}
+
+/// Append one type to a type list.
+fn types_append(list: &mut Types, ty: Type) {
+    let mut current: &mut Types = list;
+
+    while true {
+        match current {
+            Types::Nil => {
+                *current = Types::Cons(ty, types_box_new(Types::Nil));
+                return;
+            }
+            Types::Cons(_, tail) => current = types_box_deref_mut(tail),
+        }
+    }
+}
+
+/// Compare two type lists in order.
+fn types_eq(left: &Types, right: &Types) -> bool {
+    match left {
+        Types::Nil => match right {
+            Types::Nil => true,
+            _ => false,
+        },
+        Types::Cons(lhead, ltail) => match right {
+            Types::Cons(rhead, rtail) => and(
+                type_eq(lhead, rhead),
+                types_eq(types_box_deref(ltail), types_box_deref(rtail)),
+            ),
+            _ => false,
+        },
     }
 }
 
@@ -970,6 +1171,12 @@ fn types_box_new(types: Types) -> TypesBox {
 fn types_box_deref(ptr_wrap: &TypesBox) -> &Types {
     let TypesBox::Ptr(ptr): &TypesBox = ptr_wrap;
     unsafe { &**ptr }
+}
+
+/// Mutably dereference a Types box.
+fn types_box_deref_mut(ptr_wrap: &mut TypesBox) -> &mut Types {
+    let TypesBox::Ptr(ptr): &mut TypesBox = ptr_wrap;
+    unsafe { &mut **ptr }
 }
 
 /// Clone a Types box and its heap-owned value.
