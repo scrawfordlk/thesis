@@ -1246,6 +1246,52 @@ fn types_eq(left: &Types, right: &Types) -> bool {
 // ------------------------- Library -------------------------------
 // -----------------------------------------------------------------
 
+// ------------------------- LLVM-IR -------------------------------
+
+/// Append raw text to the LLVM-IR output buffer.
+fn llvm_emit_str(llvm: &mut String, str: &str) {
+    string_push_str(llvm, str);
+}
+
+/// Append a String value to the LLVM-IR output buffer.
+fn llvm_emit_string(llvm: &mut String, string: &String) {
+    string_push_string(llvm, string);
+}
+
+/// Append a single newline to the LLVM-IR output buffer.
+fn llvm_emit_newline(llvm: &mut String) {
+    string_push(llvm, '\n');
+}
+
+/// Append one full LLVM-IR line to the output buffer.
+fn llvm_emit_line(llvm: &mut String, text: &str) {
+    llvm_emit_str(llvm, text);
+    llvm_emit_newline(llvm);
+}
+
+/// Emit a function header.
+fn llvm_emit_function_header(llvm: &mut String, return_type_name: &String, fn_name: &String) {
+    llvm_emit_str(llvm, "define ");
+    llvm_emit_string(llvm, return_type_name);
+    llvm_emit_str(llvm, " @");
+    llvm_emit_string(llvm, fn_name);
+    llvm_emit_line(llvm, "() {");
+}
+
+/// Emit an enum comment line.
+fn llvm_emit_enum_comment(llvm: &mut String, enum_name: &String) {
+    llvm_emit_str(llvm, "; enum ");
+    llvm_emit_string(llvm, enum_name);
+    llvm_emit_newline(llvm);
+}
+
+/// Emit a let-binding comment line.
+fn llvm_emit_let_comment(llvm: &mut String, variable_name: &String) {
+    llvm_emit_str(llvm, "  ; let ");
+    llvm_emit_string(llvm, variable_name);
+    llvm_emit_newline(llvm);
+}
+
 // -------------------------- error --------------------------------
 
 /// Report an error message with source location and exit.
