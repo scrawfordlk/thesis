@@ -920,6 +920,7 @@ fn parse_enum(parser: &mut Parser) {
 
     while not(parser_current_token_eq(parser, &Token::RBrace)) {
         let variant_type: Type = parse_variant(parser);
+        // TODO: check for duplicate variants
         types_append(&mut variants, variant_type);
         parser_expect_token(parser, &Token::Comma);
     }
