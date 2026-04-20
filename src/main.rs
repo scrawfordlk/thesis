@@ -953,6 +953,30 @@ fn parse_variant(parser: &mut Parser) -> Type {
     Type::Custom(variant_name)
 }
 
+fn parse_block(parser: &mut Parser) -> Type {
+    parser_expect_token(parser, &Token::LBrace);
+
+    while not(parser_current_token_eq(parser, &Token::RBrace)) {
+        match parser_current_token(parser) {
+            Token::Let => {
+                parse_binding(parser);
+                parser_expect_token(parser, &Token::SemiColon);
+            }
+            _ => {
+                let expression_type: Type = parse_expression(parser);
+                if parser_try_consume(parser, &Token::SemiColon) {
+                    llvm_emit_line(parser_llvm_mut(parser), "  ; expression statement");
+                } else {
+                    parser_expect_token(parser, &Token::RBrace);
+                    return expression_type;
+                }
+            }
+        }
+    }
+
+    Type::Unit
+}
+
 /// Data structure that manages a global symbol table and (multiple) local symbol tables.
 enum SymTable {
     Table(GlobalSymTable, LocalSymTableStack),
