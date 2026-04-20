@@ -26,10 +26,6 @@ type       -> "u8"  | "usize" | "bool" | "char"
                 | "&" "str"
                 | identifier
                 | ( "&" [ "mut" ] | "*" "mut" ) type
-
-identifier -> ( letter | "_" ) { letter | digit | "_" }
-
-letter     -> "a" | ... | "z" | "A" | ... | "Z"
 ```
 
 ## Expression
@@ -91,6 +87,10 @@ character -> "'" printable_character "'"
 boolean   -> "true" | "false"
 
 digit     -> "0" | ... | "9"
+
+identifier -> ( letter | "_" ) { letter | digit | "_" }
+
+letter     -> "a" | ... | "z" | "A" | ... | "Z"
 ```
 
 ## TODO
