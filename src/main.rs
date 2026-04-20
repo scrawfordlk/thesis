@@ -1001,6 +1001,21 @@ fn parse_binding(parser: &mut Parser) {
         _ => llvm_emit_line(parser_llvm_mut(parser), "  ; let pattern"),
     }
 }
+
+/// Variable declaration payload parsed from source.
+enum Variable {
+    // pattern, type, is mutable
+    Var(Pattern, Type, bool),
+}
+
+fn parse_variable(parser: &mut Parser) -> Variable {
+    let mutable: bool = parser_try_consume(parser, &Token::Mut);
+    let pattern: Pattern = parse_pattern(parser);
+    parser_expect_token(parser, &Token::Colon);
+    let ty: Type = parse_type(parser);
+    Variable::Var(pattern, ty, mutable)
+}
+
 /// Data structure that manages a global symbol table and (multiple) local symbol tables.
 enum SymTable {
     Table(GlobalSymTable, LocalSymTableStack),
