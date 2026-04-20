@@ -974,6 +974,7 @@ fn parse_block(parser: &mut Parser) -> Type {
         }
     }
 
+    parser_expect_token(parser, &Token::RBrace);
     Type::Unit
 }
 
