@@ -66,6 +66,7 @@ enum Token {
     Eof,
 }
 
+/// Clone a token value.
 fn token_clone(token: &Token) -> Token {
     match token {
         Token::Unsafe => Token::Unsafe,
@@ -330,6 +331,7 @@ enum SourceLocation {
     Coords(usize, usize),
 }
 
+/// Create a lexer and prime it with the first token.
 fn lexer_new(source: String) -> Lexer {
     let source_file: SourceFile = SourceFile::SourceFile(source, 0, SourceLocation::Coords(1, 1));
     let mut lexer: Lexer = Lexer::Lexer(source_file, Token::Eof);
@@ -337,21 +339,25 @@ fn lexer_new(source: String) -> Lexer {
     lexer
 }
 
+/// Get immutable access to the lexer source file state.
 fn lexer_sourcefile(lexer: &Lexer) -> &SourceFile {
     let Lexer::Lexer(source, _): &Lexer = lexer;
     source
 }
 
+/// Get the current token from the lexer.
 fn lexer_current_token(lexer: &Lexer) -> &Token {
     let Lexer::Lexer(_, token): &Lexer = lexer;
     token
 }
 
+/// Get mutable access to the current lexer token slot.
 fn lexer_current_token_mut(lexer: &mut Lexer) -> &mut Token {
     let Lexer::Lexer(_, token): &mut Lexer = lexer;
     token
 }
 
+/// Get the current source location tracked by the lexer.
 fn lexer_location(lexer: &Lexer) -> &SourceLocation {
     let SourceFile::SourceFile(_, _, location): &SourceFile = lexer_sourcefile(lexer);
     location
@@ -673,19 +679,23 @@ fn skip_line_comment(lexer: &mut Lexer) {
 
 // -------------------------- Parser -------------------------------
 
+/// Type that encapsulates the parser's state..
 enum Parser {
     // lexer, llvm code, symbol table, current function return type
     Parser(Lexer, String, SymTable, Type),
 }
 
+/// Create a parser from a String.
 fn parser_new(source: String) -> Parser {
     Parser::Parser(lexer_new(source), string_new(), symTable_new(), Type::Unit)
 }
 
+/// Create a parser from a string slice.
 fn parser_from_str(source: &str) -> Parser {
     parser_new(string_from_str(source))
 }
 
+/// Get immutable access to the parser lexer.
 fn parser_lexer(parser: &Parser) -> &Lexer {
     let Parser::Parser(lexer, _, _, _): &Parser = parser;
     lexer
@@ -696,16 +706,19 @@ fn parser_lexer_mut(parser: &mut Parser) -> &mut Lexer {
     lexer
 }
 
+/// Get immutable access to the parser LLVM output buffer.
 fn parser_llvm(parser: &Parser) -> &String {
     let Parser::Parser(_, llvm, _, _): &Parser = parser;
     llvm
 }
 
+/// Get mutable access to the parser LLVM output buffer.
 fn parser_llvm_mut(parser: &mut Parser) -> &mut String {
     let Parser::Parser(_, llvm, _, _): &mut Parser = parser;
     llvm
 }
 
+/// Get immutable access to the parser symbol table.
 fn parser_symtable(parser: &Parser) -> &SymTable {
     let Parser::Parser(_, _, symTable, _): &Parser = parser;
     symTable
@@ -716,16 +729,19 @@ fn parser_symtable_mut(parser: &mut Parser) -> &mut SymTable {
     symTable
 }
 
+/// Get the expected return type of the current function.
 fn parser_current_fn_return_type(parser: &Parser) -> &Type {
     let Parser::Parser(_, _, _, return_type): &Parser = parser;
     return_type
 }
 
+/// Update the expected return type of the current function.
 fn parser_set_current_fn_return_type(parser: &mut Parser, ty: Type) {
     let Parser::Parser(_, _, _, return_type): &mut Parser = parser;
     *return_type = ty;
 }
 
+/// Get the parser current token.
 fn parser_current_token(parser: &Parser) -> &Token {
     lexer_current_token(parser_lexer(parser))
 }
@@ -813,7 +829,7 @@ fn symTable_insert_variable(
     };
 }
 
-/// Global symbol table represented as a linked cons list.
+/// Global symbol table represented as a cons list.
 enum GlobalSymTable {
     Cons(SymTableEntry, GlobalSymTableBox),
     Nil,
@@ -1021,6 +1037,7 @@ fn symTableEntry_name(entry: &SymTableEntry) -> &String {
     }
 }
 
+/// Clone a symbol table entry.
 fn symTableEntry_clone(entry: &SymTableEntry) -> SymTableEntry {
     match entry {
         SymTableEntry::Function(name, signature) => {
@@ -1035,6 +1052,7 @@ fn symTableEntry_clone(entry: &SymTableEntry) -> SymTableEntry {
     }
 }
 
+/// Clone the global symbol table list.
 fn globalSymTable_clone(symtable: &GlobalSymTable) -> GlobalSymTable {
     match symtable {
         GlobalSymTable::Nil => GlobalSymTable::Nil,
@@ -1044,6 +1062,7 @@ fn globalSymTable_clone(symtable: &GlobalSymTable) -> GlobalSymTable {
     }
 }
 
+/// Clone a local scope symbol table list.
 fn localSymTable_clone(symtable: &LocalSymTable) -> LocalSymTable {
     match symtable {
         LocalSymTable::Nil => LocalSymTable::Nil,
@@ -1053,6 +1072,7 @@ fn localSymTable_clone(symtable: &LocalSymTable) -> LocalSymTable {
     }
 }
 
+/// Clone the stack of local scopes.
 fn localSymTableStack_clone(stack: &LocalSymTableStack) -> LocalSymTableStack {
     match stack {
         LocalSymTableStack::Nil => LocalSymTableStack::Nil,
@@ -1075,6 +1095,7 @@ enum FnSignatureOption {
     None,
 }
 
+/// Type forms supported by the front-end.
 enum Type {
     U8,
     Usize,
@@ -1094,6 +1115,7 @@ enum TypeOption {
     None,
 }
 
+/// Clone a type value.
 fn type_clone(t: &Type) -> Type {
     match t {
         Type::U8 => Type::U8,
@@ -1193,11 +1215,13 @@ fn type_to_llvm_name(ty: &Type) -> String {
     }
 }
 
+/// Cons list of `Type` values.
 enum Types {
     Cons(Type, TypesBox),
     Nil,
 }
 
+/// Create an empty Types list.
 fn types_new() -> Types {
     Types::Nil
 }
@@ -1343,20 +1367,24 @@ fn unwrap_char(char_opt: CharOption) -> char {
     }
 }
 
+/// Check whether a character is whitespace.
 fn is_whitespace(c: char) -> bool {
     or(or(c == ' ', c == '\t'), or(c == '\n', c == '\r'))
 }
 
+/// Check whether a character is a decimal digit.
 fn is_digit(c: char) -> bool {
     and(c >= '0', c <= '9')
 }
 
+/// Check whether a character is alphabetic or underscore.
 fn is_alpha(c: char) -> bool {
     let lower: bool = and(c >= 'a', c <= 'z');
     let upper: bool = and(c >= 'A', c <= 'Z');
     or(or(lower, upper), c == '_')
 }
 
+/// Check whether a character is alphanumeric.
 fn is_alphanumeric(c: char) -> bool {
     or(is_alpha(c), is_digit(c))
 }
@@ -1593,6 +1621,7 @@ fn string_push_string(string: &mut String, other: &String) {
     *len = *len + other_len;
 }
 
+/// Clone a string.
 fn string_clone(string: &String) -> String {
     let len: usize = string_len(string);
 
