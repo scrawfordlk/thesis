@@ -1194,20 +1194,6 @@ fn type_is_numeric(ty: &Type) -> bool {
     }
 }
 
-fn type_is_bool(ty: &Type) -> bool {
-    match ty {
-        Type::Bool => true,
-        _ => false,
-    }
-}
-
-fn type_is_unit(ty: &Type) -> bool {
-    match ty {
-        Type::Unit => true,
-        _ => false,
-    }
-}
-
 /// Convert type into a simple LLVM-IR type name.
 fn type_to_llvm_name(ty: &Type) -> String {
     match ty {
