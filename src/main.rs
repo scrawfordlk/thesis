@@ -907,6 +907,34 @@ fn parse_function(parser: &mut Parser) {
     symTable_leave_scope(parser_symtable_mut(parser));
     parser_set_current_fn_return_type(parser, Type::Unit);
 }
+
+fn parse_enum(parser: &mut Parser) {
+    parser_expect_token(parser, &Token::Enum);
+    let enum_name: String = parse_identifier(parser);
+    parser_expect_token(parser, &Token::LBrace);
+
+    let mut variants: Types = types_new();
+    let first_variant_type: Type = parse_variant(parser);
+    types_append(&mut variants, first_variant_type);
+    parser_expect_token(parser, &Token::Comma);
+
+    while not(parser_current_token_eq(parser, &Token::RBrace)) {
+        let variant_type: Type = parse_variant(parser);
+        types_append(&mut variants, variant_type);
+        parser_expect_token(parser, &Token::Comma);
+    }
+    parser_expect_token(parser, &Token::RBrace);
+
+    llvm_emit_enum_comment(parser_llvm_mut(parser), &enum_name);
+
+    if not(symTable_insert_enum(
+        parser_symtable_mut(parser),
+        enum_name,
+        variants,
+    )) {
+        parser_error(parser, "duplicate enum name");
+    }
+}
 }
 
 /// Data structure that manages a global symbol table and (multiple) local symbol tables.
