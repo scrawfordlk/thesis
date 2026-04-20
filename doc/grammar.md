@@ -22,8 +22,6 @@ binding   -> "let" variable "=" expression
 
 variable  -> [ "mut" ] pattern ":" type
 
-return    -> "return" [ expression ] ";"
-
 type       -> "u8"  | "usize" | "bool" | "char"
                 | "&" "str"
                 | identifier
