@@ -881,19 +881,20 @@ fn symTable_insert_enum(symtable: &mut SymTable, name: String, variants: Types) 
 }
 
 /// Insert a variable into the current local scope.
+/// Returns true if the variable name is not already taken, else false.
 fn symTable_insert_variable(
     symtable: &mut SymTable,
     name: String,
     variable_type: Type,
     mutable: bool,
-) {
+) -> bool {
     let SymTable::Table(_, local_stack): &mut SymTable = symtable;
     match local_stack {
         LocalSymTableStack::Cons(local, _) => {
             localSymTable_insert_variable(local, name, variable_type, mutable)
         }
-        LocalSymTableStack::Nil => (),
-    };
+        LocalSymTableStack::Nil => true,
+    }
 }
 
 /// Global symbol table represented as a cons list.
@@ -1075,14 +1076,17 @@ fn localSymTable_lookup_variable_type(symtable: &LocalSymTable, name: &String) -
 }
 
 /// Insert a variable entry into a single local scope.
+/// Returns true if the variable name is not already taken, else false.
 fn localSymTable_insert_variable(
     symtable: &mut LocalSymTable,
     name: String,
     variable_type: Type,
     mutable: bool,
-) {
+) -> bool {
+    let already_used: bool = localSymTable_contains(symtable, &name);
     let entry: SymTableEntry = SymTableEntry::Variable(name, variable_type, mutable);
     localSymTable_prepend(symtable, entry);
+    already_used
 }
 
 /// Symbol table entry for functions, enums, and variables.
