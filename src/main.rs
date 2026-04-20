@@ -781,21 +781,21 @@ fn parser_expect_token(parser: &mut Parser, token: &Token) {
 }
 
 /// Require both types to be equal.
-fn parser_expect_same_type(parser: &mut Parser, left: &Type, right: &Type) {
+fn parser_expect_same_type(parser: &Parser, left: &Type, right: &Type) {
     if not(type_eq(left, right)) {
         parser_error(parser, "type mismatch");
     }
 }
 
 /// Require a numeric type.
-fn parser_expect_numeric_type(parser: &mut Parser, ty: &Type) {
+fn parser_expect_numeric_type(parser: &Parser, ty: &Type) {
     if not(type_is_numeric(ty)) {
         parser_error(parser, "expected numeric type");
     }
 }
 
 /// Require a boolean type.
-fn parser_expect_bool_type(parser: &mut Parser, ty: &Type) {
+fn parser_expect_bool_type(parser: &Parser, ty: &Type) {
     if not(type_eq(ty, &Type::Bool)) {
         parser_error(parser, "expected bool type");
     }
