@@ -909,7 +909,7 @@ fn globalSymTable_insert_enum(
     true
 }
 
-/// Stack of local scopes represented as a linked cons list.
+/// Stack of local scopes represented as a cons list.
 enum LocalSymTableStack {
     Cons(LocalSymTable, LocalSymTableStackBox),
     Nil,
@@ -1621,7 +1621,7 @@ fn string_push_string(string: &mut String, other: &String) {
     let other_len: usize = string_len(other);
     string_accomodate_extra_space(string, other_len);
 
-    let other_ptr: *mut u8 = string_ptr(string);
+    let other_ptr: *mut u8 = string_ptr(other);
 
     let String::String(ptr, len, _): &mut String = string;
     let ptr: *mut u8 = ptr_add(*ptr, *len);
