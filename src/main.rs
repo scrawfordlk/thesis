@@ -936,6 +936,23 @@ fn parse_enum(parser: &mut Parser) {
         parser_error(parser, "duplicate enum name");
     }
 }
+
+fn parse_variant(parser: &mut Parser) -> Type {
+    let variant_name: String = parse_identifier(parser);
+
+    if parser_try_consume(parser, &Token::LParen) {
+        parse_type(parser);
+
+        while parser_try_consume(parser, &Token::Comma) {
+            parse_type(parser);
+        }
+
+        parser_expect_token(parser, &Token::RParen);
+    }
+
+    Type::Custom(variant_name)
+}
+
 }
 
 /// Data structure that manages a global symbol table and (multiple) local symbol tables.
