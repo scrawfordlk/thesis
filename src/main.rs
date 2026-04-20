@@ -977,6 +977,30 @@ fn parse_block(parser: &mut Parser) -> Type {
     Type::Unit
 }
 
+fn parse_binding(parser: &mut Parser) {
+    parser_expect_token(parser, &Token::Let);
+    let variable: Variable = parse_variable(parser);
+    parser_expect_token(parser, &Token::Assign);
+    let value_type: Type = parse_expression(parser);
+
+    let Variable::Var(pattern, binding_type, mutable): Variable = variable;
+    parser_expect_same_type(parser, &binding_type, &value_type);
+
+    match pattern {
+        Pattern::Identifier(name) => {
+            symTable_insert_variable(
+                parser_symtable_mut(parser),
+                string_clone(&name),
+                type_clone(&binding_type),
+                mutable,
+            );
+            let binding_type_name: String = type_to_llvm_name(&binding_type);
+            llvm_emit_let_comment(parser_llvm_mut(parser), &name, &binding_type_name, mutable);
+        }
+        // TODO: handle other patterns
+        _ => llvm_emit_line(parser_llvm_mut(parser), "  ; let pattern"),
+    }
+}
 /// Data structure that manages a global symbol table and (multiple) local symbol tables.
 enum SymTable {
     Table(GlobalSymTable, LocalSymTableStack),
