@@ -953,8 +953,6 @@ fn parse_variant(parser: &mut Parser) -> Type {
     Type::Custom(variant_name)
 }
 
-}
-
 /// Data structure that manages a global symbol table and (multiple) local symbol tables.
 enum SymTable {
     Table(GlobalSymTable, LocalSymTableStack),
