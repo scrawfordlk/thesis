@@ -80,7 +80,7 @@ call    -> identifier "(" [ expression { "," expression } [ "," ] ] ")"
 ## Literals
 
 ```
-literal   -> integer | string | character | boolean
+literal   -> integer | string | character | boolean | "()"
 
 integer   -> digit { digit }
 
