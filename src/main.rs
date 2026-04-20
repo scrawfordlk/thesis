@@ -1062,6 +1062,27 @@ fn parse_type(parser: &mut Parser) -> Type {
         _ => parser_error(parser, "expected type"),
     }
 }
+
+fn parse_expression(parser: &mut Parser) -> Type {
+    match parser_current_token(parser) {
+        Token::Return => {
+            parser_next_token(parser);
+
+            let returned_type: Type = match parser_current_token(parser) {
+                Token::SemiColon => Type::Unit,
+                Token::RBrace => Type::Unit,
+                _ => parse_expression(parser),
+            };
+
+            let expected: &Type = parser_current_fn_return_type(parser);
+            parser_expect_same_type(parser, &returned_type, expected);
+
+            Type::Never
+        }
+        _ => parse_assignment(parser),
+    }
+}
+
 /// Data structure that manages a global symbol table and (multiple) local symbol tables.
 enum SymTable {
     Table(GlobalSymTable, LocalSymTableStack),
