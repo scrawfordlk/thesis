@@ -746,8 +746,59 @@ fn parser_current_token(parser: &Parser) -> &Token {
     lexer_current_token(parser_lexer(parser))
 }
 
-fn parser_next_token(parser: &mut Parser) {
-    lexer_next_token(parser_lexer_mut(parser));
+/// Advance to and return the next token.
+fn parser_next_token(parser: &mut Parser) -> Token {
+    lexer_next_token(parser_lexer_mut(parser))
+}
+
+/// Clone and return the emitted LLVM output.
+fn parser_output(parser: &Parser) -> String {
+    string_clone(parser_llvm(parser))
+}
+
+/// Check whether parser current token equals `token`.
+fn parser_current_token_eq(parser: &Parser, token: &Token) -> bool {
+    token_eq(parser_current_token(parser), token)
+}
+
+/// Consume `token` when present and report success.
+fn parser_try_consume(parser: &mut Parser, token: &Token) -> bool {
+    if parser_current_token_eq(parser, token) {
+        parser_next_token(parser);
+        true
+    } else {
+        false
+    }
+}
+
+/// Require and consume the given token.
+fn parser_expect_token(parser: &mut Parser, token: &Token) {
+    if not(parser_try_consume(parser, token)) {
+        parser_error(parser, "unexpected token");
+    }
+}
+
+/// Require both types to be equal.
+fn parser_expect_same_type(parser: &mut Parser, left: &Type, right: &Type) {
+    if not(type_eq(left, right)) {
+        parser_error(parser, "type mismatch");
+    }
+}
+
+/// Require a numeric type.
+fn parser_expect_numeric_type(parser: &mut Parser, ty: &Type) {
+    if not(type_is_numeric(ty)) {
+        parser_error(parser, "expected numeric type");
+    }
+}
+
+/// Require a boolean type.
+fn parser_expect_bool_type(parser: &mut Parser, ty: &Type) {
+    if not(type_eq(ty, &Type::Bool)) {
+        parser_error(parser, "expected bool type");
+    }
+}
+
 }
 
 /// Data structure that manages a global symbol table and (multiple) local symbol tables.
