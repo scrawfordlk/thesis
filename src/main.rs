@@ -1016,6 +1016,51 @@ fn parse_variable(parser: &mut Parser) -> Variable {
     Variable::Var(pattern, ty, mutable)
 }
 
+fn parse_type(parser: &mut Parser) -> Type {
+    match parser_current_token(parser) {
+        Token::U8 => {
+            parser_next_token(parser);
+            Type::U8
+        }
+        Token::Usize => {
+            parser_next_token(parser);
+            Type::Usize
+        }
+        Token::Char => {
+            parser_next_token(parser);
+            Type::Char
+        }
+        Token::Bool => {
+            parser_next_token(parser);
+            Type::Bool
+        }
+        Token::LParen => {
+            parser_next_token(parser);
+            parser_expect_token(parser, &Token::RParen);
+            Type::Unit
+        }
+        Token::Ampersand => {
+            parser_next_token(parser);
+            if parser_try_consume(parser, &Token::Mut) {
+                let inner: Type = parse_type(parser);
+                Type::ReferenceMut(typeBox_new(inner))
+            } else if parser_try_consume(parser, &Token::Str) {
+                Type::Reference(typeBox_new(Type::Custom(string_from_str("str"))))
+            } else {
+                let inner: Type = parse_type(parser);
+                Type::Reference(typeBox_new(inner))
+            }
+        }
+        Token::Star => {
+            parser_next_token(parser);
+            parser_expect_token(parser, &Token::Mut);
+            let inner: Type = parse_type(parser);
+            Type::RawPointerMut(typeBox_new(inner))
+        }
+        Token::Identifier(name) => Type::Custom(string_clone(name)),
+        _ => parser_error(parser, "expected type"),
+    }
+}
 /// Data structure that manages a global symbol table and (multiple) local symbol tables.
 enum SymTable {
     Table(GlobalSymTable, LocalSymTableStack),
