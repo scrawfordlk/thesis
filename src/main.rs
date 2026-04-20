@@ -1089,6 +1089,15 @@ enum FnSignature {
     Fn(Types, Type),
 }
 
+/// Clone a function signature.
+fn fnSignature_clone(signature: &FnSignature) -> FnSignature {
+    match signature {
+        FnSignature::Fn(parameter_types, return_type) => {
+            FnSignature::Fn(types_clone(parameter_types), type_clone(return_type))
+        }
+    }
+}
+
 /// Lookup result for function signature resolution.
 enum FnSignatureOption {
     Some(FnSignature),
