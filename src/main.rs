@@ -701,6 +701,7 @@ fn parser_lexer(parser: &Parser) -> &Lexer {
     lexer
 }
 
+/// Get mutable access to the parser lexer.
 fn parser_lexer_mut(parser: &mut Parser) -> &mut Lexer {
     let Parser::Parser(lexer, _, _, _): &mut Parser = parser;
     lexer
@@ -724,6 +725,7 @@ fn parser_symtable(parser: &Parser) -> &SymTable {
     symTable
 }
 
+/// Get mutable access to the parser symbol table.
 fn parser_symtable_mut(parser: &mut Parser) -> &mut SymTable {
     let Parser::Parser(_, _, symTable, _): &mut Parser = parser;
     symTable
@@ -796,6 +798,20 @@ fn parser_expect_numeric_type(parser: &mut Parser, ty: &Type) {
 fn parser_expect_bool_type(parser: &mut Parser, ty: &Type) {
     if not(type_eq(ty, &Type::Bool)) {
         parser_error(parser, "expected bool type");
+    }
+}
+
+fn parse_language(parser: &mut Parser) {
+    llvm_emit_line(parser_llvm_mut(parser), "; ModuleID = 'thesis'");
+
+    while true {
+        match parser_current_token(parser) {
+            Token::Fn => parse_function(parser),
+            Token::Unsafe => parse_function(parser),
+            Token::Enum => parse_enum(parser),
+            Token::Eof => return,
+            _ => parser_error(parser, "expected top-level item"),
+        }
     }
 }
 
