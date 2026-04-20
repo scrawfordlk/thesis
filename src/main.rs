@@ -815,6 +815,98 @@ fn parse_language(parser: &mut Parser) {
     }
 }
 
+fn parse_function(parser: &mut Parser) {
+    if parser_try_consume(parser, &Token::Unsafe) {
+        // TODO: handle unsafe function
+    }
+
+    parser_expect_token(parser, &Token::Fn);
+
+    let function_name: String = parse_identifier(parser);
+    symTable_enter_scope(parser_symtable_mut(parser));
+    let mut parameter_types: Types = types_new();
+
+    parser_expect_token(parser, &Token::LParen);
+    if not(parser_current_token_eq(parser, &Token::RParen)) {
+        let first_parameter: Variable = parse_variable(parser);
+        let Variable::Var(pattern, param_type, is_mutable): Variable = first_parameter;
+        types_append(&mut parameter_types, type_clone(&param_type));
+
+        match pattern {
+            Pattern::Identifier(name) => {
+                let first_type_name: String = type_to_llvm_name(&param_type);
+                llvm_emit_let_comment(parser_llvm_mut(parser), &name, &first_type_name, is_mutable);
+                symTable_insert_variable(parser_symtable_mut(parser), name, param_type, is_mutable);
+            }
+            _ => (), // only allow irrefutable pattern
+        }
+
+        while and(
+            parser_try_consume(parser, &Token::Comma),
+            not(parser_current_token_eq(parser, &Token::RParen)),
+        ) {
+            let parameter: Variable = parse_variable(parser);
+            let Variable::Var(pattern, param_type, is_mutable): Variable = parameter;
+            types_append(&mut parameter_types, type_clone(&param_type));
+
+            match pattern {
+                Pattern::Identifier(name) => {
+                    let type_name: String = type_to_llvm_name(&param_type);
+                    llvm_emit_let_comment(parser_llvm_mut(parser), &name, &type_name, is_mutable);
+
+                    if not(symTable_insert_variable(
+                        parser_symtable_mut(parser),
+                        name,
+                        param_type,
+                        is_mutable,
+                    )) {
+                        parser_error(parser, "duplicate parameter name");
+                    }
+                }
+                _ => (), // only allow irrefutable pattern
+            }
+        }
+    }
+    parser_expect_token(parser, &Token::RParen);
+
+    let function_return_type: Type = if parser_try_consume(parser, &Token::TypeArrow) {
+        parse_type(parser)
+    } else {
+        Type::Unit
+    };
+    parser_set_current_fn_return_type(parser, type_clone(&function_return_type));
+
+    let llvm_return_type_name: String = type_to_llvm_name(&function_return_type);
+    llvm_emit_function_header(
+        parser_llvm_mut(parser),
+        &function_name,
+        &llvm_return_type_name,
+    );
+
+    if not(symTable_insert_function(
+        parser_symtable_mut(parser),
+        function_name,
+        parameter_types,
+        type_clone(&function_return_type),
+    )) {
+        parser_error(parser, "duplicate function name");
+    }
+
+    match parse_block(parser) {
+        Type::Never => (),
+        block_type => parser_expect_same_type(parser, &block_type, &function_return_type),
+    }
+
+    match function_return_type {
+        Type::Unit => llvm_emit_line(parser_llvm_mut(parser), "  ret void"),
+        Type::Never => llvm_emit_line(parser_llvm_mut(parser), "  unreachable"),
+        _ => llvm_emit_line(parser_llvm_mut(parser), "  ret i64 0"),
+    }
+    llvm_emit_line(parser_llvm_mut(parser), "}");
+
+    symTable_leave_scope(parser_symtable_mut(parser));
+    parser_set_current_fn_return_type(parser, Type::Unit);
+}
 }
 
 /// Data structure that manages a global symbol table and (multiple) local symbol tables.
