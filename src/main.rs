@@ -1224,6 +1224,35 @@ fn parse_arithmetic(parser: &mut Parser) -> Type {
     left_type
 }
 
+fn parse_term(parser: &mut Parser) -> Type {
+    let left_type: Type = parse_cast(parser);
+
+    while or(
+        parser_current_token_eq(parser, &Token::Star),
+        or(
+            parser_current_token_eq(parser, &Token::Slash),
+            parser_current_token_eq(parser, &Token::Remainder),
+        ),
+    ) {
+        match parser_current_token(parser) {
+            Token::Star => (),
+            Token::Slash => (),
+            Token::Remainder => (),
+            _ => (),
+        }
+        parser_next_token(parser);
+
+        let right_type: Type = parse_cast(parser);
+
+        parser_expect_same_type(parser, &left_type, &right_type);
+        parser_expect_numeric_type(parser, &left_type);
+
+        llvm_emit_line(parser_llvm_mut(parser), "  ; mul/div/rem");
+    }
+
+    left_type
+}
+
 /// Data structure that manages a global symbol table and (multiple) local symbol tables.
 enum SymTable {
     Table(GlobalSymTable, LocalSymTableStack),
