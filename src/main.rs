@@ -1202,6 +1202,31 @@ fn parse_comparison(parser: &mut Parser) -> Type {
     Type::Bool
 }
 
+fn parse_arithmetic(parser: &mut Parser) -> Type {
+    let left_type: Type = parse_term(parser);
+
+    while or(
+        parser_current_token_eq(parser, &Token::Plus),
+        parser_current_token_eq(parser, &Token::Minus),
+    ) {
+        match parser_current_token(parser) {
+            Token::Plus => (),
+            Token::Minus => (),
+            _ => (),
+        }
+        parser_next_token(parser);
+
+        let right: Type = parse_term(parser);
+
+        parser_expect_same_type(parser, &left_type, &right);
+        parser_expect_numeric_type(parser, &left_type);
+
+        llvm_emit_line(parser_llvm_mut(parser), "  ; add/sub");
+    }
+
+    left_type
+}
+
 /// Data structure that manages a global symbol table and (multiple) local symbol tables.
 enum SymTable {
     Table(GlobalSymTable, LocalSymTableStack),
