@@ -1253,6 +1253,17 @@ fn parse_term(parser: &mut Parser) -> Type {
     left_type
 }
 
+fn parse_cast(parser: &mut Parser) -> Type {
+    let mut ty: Type = parse_factor(parser);
+
+    while parser_try_consume(parser, &Token::As) {
+        let cast_type: Type = parse_type(parser);
+        ty = cast_type;
+    }
+
+    ty
+}
+
 /// Data structure that manages a global symbol table and (multiple) local symbol tables.
 enum SymTable {
     Table(GlobalSymTable, LocalSymTableStack),
