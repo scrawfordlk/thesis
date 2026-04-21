@@ -17,50 +17,43 @@ fn main() {
 // ---------------------- Lexical Analysis -------------------------
 
 enum Token {
-    Fn,            // "fn"
-    Enum,          // "enum"
-    Let,           // "let"
-    If,            // "if"
-    Else,          // "else"
-    While,         // "while"
-    Return,        // "return"
-    Match,         // "match"
-    As,            // "as"
-    Unsafe,        // "unsafe"
-    Mut,           // "mut"
-    Ampersand,     // "&"
-    LBrace,        // "{"
-    RBrace,        // "}"
-    LParen,        // "("
-    RParen,        // ")"
-    Colon,         // ":"
-    DoubleColon,   // "::"
-    SemiColon,     // ";"
-    Comma,         // ","
-    Assign,        // "="
-    Eq,            // "=="
-    Neq,           // "!="
-    Bang,          // "!"
-    Gt,            // ">"
-    Lt,            // "<"
-    Geq,           // ">="
-    Leq,           // "<="
-    ArmArrow,      // "=>"
-    Plus,          // "+"
-    Minus,         // "-"
-    Star,          // "*"
-    Slash,         // "/"
-    Remainder,     // "%"
-    Usize,         // "usize"
-    U8,            // "u8"
-    Bool,          // "bool"
-    Char,          // "char"
-    Str,           // "str"
-    TypeArrow,     // "->"
-    Boolean(bool), // "true", "false"
-    Integer(usize),
-    String(String),
-    Character(char),
+    Fn,              // "fn"
+    Enum,            // "enum"
+    Let,             // "let"
+    If,              // "if"
+    Else,            // "else"
+    While,           // "while"
+    Return,          // "return"
+    Match,           // "match"
+    As,              // "as"
+    Unsafe,          // "unsafe"
+    Mut,             // "mut"
+    Ampersand,       // "&"
+    LBrace,          // "{"
+    RBrace,          // "}"
+    LParen,          // "("
+    RParen,          // ")"
+    Colon,           // ":"
+    DoubleColon,     // "::"
+    SemiColon,       // ";"
+    Comma,           // ","
+    Assign,          // "="
+    Bang,            // "!"
+    Cmp(Comparison), // ==, !=, <, <=, >, >=
+    ArmArrow,        // "=>"
+    Plus,            // "+"
+    Minus,           // "-"
+    Star,            // "*"
+    Slash,           // "/"
+    Remainder,       // "%"
+    Usize,           // "usize"
+    U8,              // "u8"
+    Bool,            // "bool"
+    Char,            // "char"
+    Str,             // "str"
+    Unit,            // "()"
+    TypeArrow,       // "->"
+    Literal(Literal),
     Identifier(String),
     SizeOf(usize), // TODO: probably unnecessary
     Eof,
@@ -90,13 +83,8 @@ fn token_clone(token: &Token) -> Token {
         Token::SemiColon => Token::SemiColon,
         Token::Comma => Token::Comma,
         Token::Assign => Token::Assign,
-        Token::Eq => Token::Eq,
-        Token::Neq => Token::Neq,
         Token::Bang => Token::Bang,
-        Token::Gt => Token::Gt,
-        Token::Lt => Token::Lt,
-        Token::Geq => Token::Geq,
-        Token::Leq => Token::Leq,
+        Token::Cmp(comparison) => Token::Cmp(comparison_clone(comparison)),
         Token::ArmArrow => Token::ArmArrow,
         Token::Plus => Token::Plus,
         Token::Minus => Token::Minus,
@@ -108,12 +96,10 @@ fn token_clone(token: &Token) -> Token {
         Token::Bool => Token::Bool,
         Token::Char => Token::Char,
         Token::Str => Token::Str,
+        Token::Unit => Token::Unit,
         Token::TypeArrow => Token::TypeArrow,
+        Token::Literal(literal) => Token::Literal(literalToken_clone(literal)),
         Token::Identifier(value) => Token::Identifier(string_clone(value)),
-        Token::Integer(value) => Token::Integer(*value),
-        Token::String(value) => Token::String(string_clone(value)),
-        Token::Character(value) => Token::Character(*value),
-        Token::Boolean(value) => Token::Boolean(*value),
         Token::SizeOf(value) => Token::SizeOf(*value),
         Token::Eof => Token::Eof,
     }
@@ -206,32 +192,12 @@ fn token_eq(a: &Token, b: &Token) -> bool {
             Token::Assign => true,
             _ => false,
         },
-        Token::Eq => match b {
-            Token::Eq => true,
-            _ => false,
-        },
-        Token::Neq => match b {
-            Token::Neq => true,
-            _ => false,
-        },
         Token::Bang => match b {
             Token::Bang => true,
             _ => false,
         },
-        Token::Gt => match b {
-            Token::Gt => true,
-            _ => false,
-        },
-        Token::Lt => match b {
-            Token::Lt => true,
-            _ => false,
-        },
-        Token::Geq => match b {
-            Token::Geq => true,
-            _ => false,
-        },
-        Token::Leq => match b {
-            Token::Leq => true,
+        Token::Cmp(left_comparison) => match b {
+            Token::Cmp(right_comparison) => comparison_eq(left_comparison, right_comparison),
             _ => false,
         },
         Token::ArmArrow => match b {
@@ -278,8 +244,16 @@ fn token_eq(a: &Token, b: &Token) -> bool {
             Token::Str => true,
             _ => false,
         },
+        Token::Unit => match b {
+            Token::Unit => true,
+            _ => false,
+        },
         Token::TypeArrow => match b {
             Token::TypeArrow => true,
+            _ => false,
+        },
+        Token::Literal(left_literal) => match b {
+            Token::Literal(right_literal) => literalToken_eq(left_literal, right_literal),
             _ => false,
         },
         Token::SizeOf(left) => match b {
@@ -290,24 +264,100 @@ fn token_eq(a: &Token, b: &Token) -> bool {
             Token::Identifier(right) => string_eq(left, right),
             _ => false,
         },
-        Token::Integer(left) => match b {
-            Token::Integer(right) => left == right,
-            _ => false,
-        },
-        Token::String(left) => match b {
-            Token::String(right) => string_eq(left, right),
-            _ => false,
-        },
-        Token::Character(left) => match b {
-            Token::Character(right) => left == right,
-            _ => false,
-        },
-        Token::Boolean(left) => match b {
-            Token::Boolean(right) => left == right,
-            _ => false,
-        },
         Token::Eof => match b {
             Token::Eof => true,
+            _ => false,
+        },
+    }
+}
+
+/// Comparison tokens
+enum Comparison {
+    Eq,
+    Neq,
+    Gt,
+    Lt,
+    Geq,
+    Leq,
+}
+
+/// Clone a comparison operator.
+fn comparison_clone(comparison: &Comparison) -> Comparison {
+    match comparison {
+        Comparison::Eq => Comparison::Eq,
+        Comparison::Neq => Comparison::Neq,
+        Comparison::Gt => Comparison::Gt,
+        Comparison::Lt => Comparison::Lt,
+        Comparison::Geq => Comparison::Geq,
+        Comparison::Leq => Comparison::Leq,
+    }
+}
+
+/// Compare two comparison operators.
+fn comparison_eq(left: &Comparison, right: &Comparison) -> bool {
+    match left {
+        Comparison::Eq => match right {
+            Comparison::Eq => true,
+            _ => false,
+        },
+        Comparison::Neq => match right {
+            Comparison::Neq => true,
+            _ => false,
+        },
+        Comparison::Gt => match right {
+            Comparison::Gt => true,
+            _ => false,
+        },
+        Comparison::Lt => match right {
+            Comparison::Lt => true,
+            _ => false,
+        },
+        Comparison::Geq => match right {
+            Comparison::Geq => true,
+            _ => false,
+        },
+        Comparison::Leq => match right {
+            Comparison::Leq => true,
+            _ => false,
+        },
+    }
+}
+
+/// Literal tokens.
+enum Literal {
+    Int(usize),
+    Str(String),
+    Char(char),
+    Bool(bool),
+}
+
+/// Clone a literal token payload.
+fn literalToken_clone(literal: &Literal) -> Literal {
+    match literal {
+        Literal::Int(value) => Literal::Int(*value),
+        Literal::Str(value) => Literal::Str(string_clone(value)),
+        Literal::Char(value) => Literal::Char(*value),
+        Literal::Bool(value) => Literal::Bool(*value),
+    }
+}
+
+/// Compare two literal token payloads.
+fn literalToken_eq(left: &Literal, right: &Literal) -> bool {
+    match left {
+        Literal::Int(left_value) => match right {
+            Literal::Int(right_value) => left_value == right_value,
+            _ => false,
+        },
+        Literal::Str(left_value) => match right {
+            Literal::Str(right_value) => string_eq(left_value, right_value),
+            _ => false,
+        },
+        Literal::Char(left_value) => match right {
+            Literal::Char(right_value) => left_value == right_value,
+            _ => false,
+        },
+        Literal::Bool(left_value) => match right {
+            Literal::Bool(right_value) => left_value == right_value,
             _ => false,
         },
     }
@@ -417,13 +467,13 @@ fn lexer_next_token(lexer: &mut Lexer) -> Token {
                 identifier_to_token(ident)
             } else if is_digit(c) {
                 let value: usize = scan_integer(lexer);
-                Token::Integer(value)
+                Token::Literal(Literal::Int(value))
             } else if c == '\'' {
                 let ch: char = scan_char_literal(lexer);
-                Token::Character(ch)
+                Token::Literal(Literal::Char(ch))
             } else if c == '"' {
                 let s: String = scan_string_literal(lexer);
-                Token::String(s)
+                Token::Literal(Literal::Str(s))
             } else {
                 scan_symbol(lexer)
             }
@@ -490,15 +540,15 @@ fn identifier_to_token(ident: String) -> Token {
     } else if string_eq(&ident, &string_from_str("str")) {
         Token::Str
     } else if string_eq(&ident, &string_from_str("true")) {
-        Token::Boolean(true)
+        Token::Literal(Literal::Bool(true))
     } else if string_eq(&ident, &string_from_str("false")) {
-        Token::Boolean(false)
+        Token::Literal(Literal::Bool(false))
     } else {
         Token::Identifier(ident)
     }
 }
 
-/// TODO: check for too large integer
+// TODO: check for too large integer
 fn scan_integer(lexer: &mut Lexer) -> usize {
     let mut value: usize = 0;
     while true {
@@ -558,7 +608,7 @@ fn scan_symbol(lexer: &mut Lexer) -> Token {
     match unwrap_char(lexer_consume_char(lexer)) {
         '{' => Token::LBrace,
         '}' => Token::RBrace,
-        '(' => Token::LParen,
+        '(' => scan_lparen(lexer),
         ')' => Token::RParen,
         ';' => Token::SemiColon,
         ',' => Token::Comma,
@@ -574,6 +624,16 @@ fn scan_symbol(lexer: &mut Lexer) -> Token {
         '<' => scan_less(lexer),
         '>' => scan_greater(lexer),
         _ => lexer_error(lexer, "unexpected character"),
+    }
+}
+
+fn scan_lparen(lexer: &mut Lexer) -> Token {
+    match lexer_peek_char(lexer) {
+        CharOption::Some(')') => {
+            lexer_consume_char(lexer);
+            Token::Unit
+        }
+        _ => Token::LParen,
     }
 }
 
@@ -602,7 +662,7 @@ fn scan_equals(lexer: &mut Lexer) -> Token {
     match lexer_peek_char(lexer) {
         CharOption::Some('=') => {
             lexer_consume_char(lexer);
-            Token::Eq
+            Token::Cmp(Comparison::Eq)
         }
         CharOption::Some('>') => {
             lexer_consume_char(lexer);
@@ -626,7 +686,7 @@ fn scan_bang(lexer: &mut Lexer) -> Token {
     match lexer_peek_char(lexer) {
         CharOption::Some('=') => {
             lexer_consume_char(lexer);
-            Token::Neq
+            Token::Cmp(Comparison::Neq)
         }
         _ => Token::Bang,
     }
@@ -636,9 +696,9 @@ fn scan_less(lexer: &mut Lexer) -> Token {
     match lexer_peek_char(lexer) {
         CharOption::Some('=') => {
             lexer_consume_char(lexer);
-            Token::Leq
+            Token::Cmp(Comparison::Leq)
         }
-        _ => Token::Lt,
+        _ => Token::Cmp(Comparison::Lt),
     }
 }
 
@@ -646,9 +706,9 @@ fn scan_greater(lexer: &mut Lexer) -> Token {
     match lexer_peek_char(lexer) {
         CharOption::Some('=') => {
             lexer_consume_char(lexer);
-            Token::Geq
+            Token::Cmp(Comparison::Geq)
         }
-        _ => Token::Gt,
+        _ => Token::Cmp(Comparison::Gt),
     }
 }
 
@@ -1035,6 +1095,10 @@ fn parse_type(parser: &mut Parser) -> Type {
             parser_next_token(parser);
             Type::Bool
         }
+        Token::Unit => {
+            parser_next_token(parser);
+            Type::Unit
+        }
         Token::LParen => {
             parser_next_token(parser);
             parser_expect_token(parser, &Token::RParen);
@@ -1058,7 +1122,7 @@ fn parse_type(parser: &mut Parser) -> Type {
             let inner: Type = parse_type(parser);
             Type::RawPointerMut(typeBox_new(inner))
         }
-        Token::Identifier(name) => Type::Custom(string_clone(name)),
+        Token::Identifier(_) => Type::Custom(parser_expect_identifier(parser)),
         _ => parser_error(parser, "expected type"),
     }
 }
