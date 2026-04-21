@@ -1154,6 +1154,21 @@ fn parse_expression(parser: &mut Parser) -> Type {
     }
 }
 
+fn parse_assignment(parser: &mut Parser) -> Type {
+    let left_type: Type = parse_factor(parser);
+
+    if parser_try_consume(parser, &Token::Assign) {
+        let right_type: Type = parse_assignment(parser);
+        parser_expect_same_type(parser, &left_type, &right_type);
+
+        llvm_emit_line(parser_llvm_mut(parser), "  ; assignment");
+
+        right_type
+    } else {
+        left_type
+    }
+}
+
 /// Data structure that manages a global symbol table and (multiple) local symbol tables.
 enum SymTable {
     Table(GlobalSymTable, LocalSymTableStack),
