@@ -1216,9 +1216,9 @@ fn parse_arithmetic(parser: &mut Parser) -> Type {
         }
         parser_next_token(parser);
 
-        let right: Type = parse_term(parser);
+        let right_type: Type = parse_term(parser);
 
-        parser_expect_same_type(parser, &left_type, &right);
+        parser_expect_same_type(parser, &left_type, &right_type);
         parser_expect_numeric_type(parser, &left_type);
 
         llvm_emit_line(parser_llvm_mut(parser), "  ; add/sub");
