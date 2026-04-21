@@ -1111,11 +1111,6 @@ fn parse_type(parser: &mut Parser) -> Type {
             parser_next_token(parser);
             Type::Unit
         }
-        Token::LParen => {
-            parser_next_token(parser);
-            parser_expect_token(parser, &Token::RParen);
-            Type::Unit
-        }
         Token::Ampersand => {
             parser_next_token(parser);
             if parser_try_consume(parser, &Token::Mut) {
