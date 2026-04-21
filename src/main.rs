@@ -861,6 +861,18 @@ fn parser_expect_bool_type(parser: &Parser, ty: &Type) {
     }
 }
 
+/// Read and consume the current identifier token.
+fn parser_expect_identifier(parser: &mut Parser) -> String {
+    match parser_current_token(parser) {
+        Token::Identifier(name) => {
+            let name: String = string_clone(name);
+            parser_next_token(parser);
+            name
+        }
+        _ => parser_error(parser, "expected identifier"),
+    }
+}
+
 fn parse_language(parser: &mut Parser) {
     llvm_emit_line(parser_llvm_mut(parser), "; ModuleID = 'thesis'");
 
@@ -882,7 +894,7 @@ fn parse_function(parser: &mut Parser) {
 
     parser_expect_token(parser, &Token::Fn);
 
-    let function_name: String = parse_identifier(parser);
+    let function_name: String = parser_expect_identifier(parser);
     symTable_enter_scope(parser_symtable_mut(parser));
     let mut parameter_types: Types = types_new();
 
@@ -970,7 +982,7 @@ fn parse_function(parser: &mut Parser) {
 
 fn parse_enum(parser: &mut Parser) {
     parser_expect_token(parser, &Token::Enum);
-    let enum_name: String = parse_identifier(parser);
+    let enum_name: String = parser_expect_identifier(parser);
     parser_expect_token(parser, &Token::LBrace);
 
     let mut variants: Types = types_new();
@@ -998,7 +1010,7 @@ fn parse_enum(parser: &mut Parser) {
 }
 
 fn parse_variant(parser: &mut Parser) -> Type {
-    let variant_name: String = parse_identifier(parser);
+    let variant_name: String = parser_expect_identifier(parser);
 
     if parser_try_consume(parser, &Token::LParen) {
         parse_type(parser);
