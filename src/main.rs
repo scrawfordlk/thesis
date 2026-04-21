@@ -1187,10 +1187,7 @@ fn parse_comparison(parser: &mut Parser) -> Type {
 
             parser_expect_same_type(parser, &left_type, &right_type);
             if not(or(
-                or(
-                    type_eq(&left_type, &Type::U8),
-                    type_eq(&left_type, &Type::Usize),
-                ),
+                type_is_numeric(&left_type),
                 type_eq(&left_type, &Type::Char),
             )) {
                 parser_error(parser, "cannot compare non-integer values");
