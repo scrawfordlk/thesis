@@ -420,10 +420,10 @@ fn lexer_peek_char(lexer: &Lexer) -> CharOption {
 
 /// Consume and return the current character.
 fn lexer_consume_char(lexer: &mut Lexer) -> CharOption {
-    let Lexer::Lexer(source, _): &mut Lexer = lexer;
-    let SourceFile::SourceFile(content, index, location): &mut SourceFile = source;
+    let SourceFile::SourceFile(source, index, location): &mut SourceFile =
+        lexer_sourcefile_mut(lexer);
 
-    let current: CharOption = string_get(content, *index);
+    let current: CharOption = string_get(source, *index);
     *index = *index + 1;
 
     match current {
@@ -462,19 +462,19 @@ fn lexer_next_token(lexer: &mut Lexer) -> Token {
     let token: Token = match lexer_peek_char(lexer) {
         CharOption::Some(c) => {
             if is_alpha(c) {
-                let ident: String = scan_identifier(lexer);
+                let ident: String = lexer_scan_identifier(lexer);
                 identifier_to_token(ident)
             } else if is_digit(c) {
-                let value: usize = scan_integer(lexer);
+                let value: usize = lexer_scan_integer(lexer);
                 Token::Literal(Literal::Int(value))
             } else if c == '\'' {
-                let ch: char = scan_char_literal(lexer);
+                let ch: char = lexer_scan_char_literal(lexer);
                 Token::Literal(Literal::Char(ch))
             } else if c == '"' {
-                let s: String = scan_string_literal(lexer);
+                let s: String = lexer_scan_string_literal(lexer);
                 Token::Literal(Literal::String(s))
             } else {
-                scan_symbol(lexer)
+                lexer_scan_symbol(lexer)
             }
         }
         CharOption::None => Token::Eof,
@@ -486,7 +486,7 @@ fn lexer_next_token(lexer: &mut Lexer) -> Token {
 }
 
 /// Scan an identifier or keyword.
-fn scan_identifier(lexer: &mut Lexer) -> String {
+fn lexer_scan_identifier(lexer: &mut Lexer) -> String {
     let mut ident: String = string_new();
     while true {
         match lexer_peek_char(lexer) {
@@ -548,7 +548,7 @@ fn identifier_to_token(ident: String) -> Token {
 }
 
 // TODO: check for too large integer
-fn scan_integer(lexer: &mut Lexer) -> usize {
+fn lexer_scan_integer(lexer: &mut Lexer) -> usize {
     let mut value: usize = 0;
     while true {
         match lexer_peek_char(lexer) {
@@ -566,10 +566,10 @@ fn scan_integer(lexer: &mut Lexer) -> usize {
     value // satisfy compiler
 }
 
-fn scan_char_literal(lexer: &mut Lexer) -> char {
+fn lexer_scan_char_literal(lexer: &mut Lexer) -> char {
     lexer_expect_char(lexer, '\'');
     let c: char = match lexer_consume_char(lexer) {
-        CharOption::Some('\\') => scan_escape_char(lexer),
+        CharOption::Some('\\') => lexer_scan_escape_char(lexer),
         CharOption::Some(ch) => ch,
         CharOption::None => lexer_error(lexer, "unexpected end of char literal"),
     };
@@ -577,13 +577,13 @@ fn scan_char_literal(lexer: &mut Lexer) -> char {
     c
 }
 
-fn scan_string_literal(lexer: &mut Lexer) -> String {
+fn lexer_scan_string_literal(lexer: &mut Lexer) -> String {
     lexer_expect_char(lexer, '"');
     let mut s: String = string_new();
     while true {
         match lexer_consume_char(lexer) {
             CharOption::Some('"') => return s,
-            CharOption::Some('\\') => string_push(&mut s, scan_escape_char(lexer)),
+            CharOption::Some('\\') => string_push(&mut s, lexer_scan_escape_char(lexer)),
             CharOption::Some(c) => string_push(&mut s, c),
             CharOption::None => lexer_error(lexer, "unexpected end of string literal"),
         }
@@ -592,7 +592,7 @@ fn scan_string_literal(lexer: &mut Lexer) -> String {
 }
 
 /// Scan an escape sequence after backslash.
-fn scan_escape_char(lexer: &mut Lexer) -> char {
+fn lexer_scan_escape_char(lexer: &mut Lexer) -> char {
     match lexer_consume_char(lexer) {
         CharOption::Some('n') => '\n',
         CharOption::Some('t') => '\t',
@@ -603,7 +603,7 @@ fn scan_escape_char(lexer: &mut Lexer) -> char {
     }
 }
 
-fn scan_symbol(lexer: &mut Lexer) -> Token {
+fn lexer_scan_symbol(lexer: &mut Lexer) -> Token {
     match unwrap_char(lexer_consume_char(lexer)) {
         '{' => Token::LBrace,
         '}' => Token::RBrace,
@@ -613,20 +613,20 @@ fn scan_symbol(lexer: &mut Lexer) -> Token {
         ',' => Token::Comma,
         '+' => Token::Plus,
         '*' => Token::Star,
-        '/' => scan_slash(lexer),
+        '/' => lexer_scan_slash(lexer),
         '%' => Token::Remainder,
         '&' => Token::Ampersand,
-        ':' => scan_colon(lexer),
-        '=' => scan_equals(lexer),
-        '-' => scan_minus(lexer),
-        '!' => scan_bang(lexer),
-        '<' => scan_less(lexer),
-        '>' => scan_greater(lexer),
+        ':' => lexer_scan_colon(lexer),
+        '=' => lexer_scan_equals(lexer),
+        '-' => lexer_scan_minus(lexer),
+        '!' => lexer_scan_bang(lexer),
+        '<' => lexer_scan_less(lexer),
+        '>' => lexer_scan_greater(lexer),
         _ => lexer_error(lexer, "unexpected character"),
     }
 }
 
-fn scan_slash(lexer: &mut Lexer) -> Token {
+fn lexer_scan_slash(lexer: &mut Lexer) -> Token {
     match lexer_peek_char(lexer) {
         CharOption::Some('/') => {
             lexer_consume_char(lexer);
@@ -637,7 +637,7 @@ fn scan_slash(lexer: &mut Lexer) -> Token {
     }
 }
 
-fn scan_colon(lexer: &mut Lexer) -> Token {
+fn lexer_scan_colon(lexer: &mut Lexer) -> Token {
     match lexer_peek_char(lexer) {
         CharOption::Some(':') => {
             lexer_consume_char(lexer);
@@ -647,7 +647,7 @@ fn scan_colon(lexer: &mut Lexer) -> Token {
     }
 }
 
-fn scan_equals(lexer: &mut Lexer) -> Token {
+fn lexer_scan_equals(lexer: &mut Lexer) -> Token {
     match lexer_peek_char(lexer) {
         CharOption::Some('=') => {
             lexer_consume_char(lexer);
@@ -661,7 +661,7 @@ fn scan_equals(lexer: &mut Lexer) -> Token {
     }
 }
 
-fn scan_minus(lexer: &mut Lexer) -> Token {
+fn lexer_scan_minus(lexer: &mut Lexer) -> Token {
     match lexer_peek_char(lexer) {
         CharOption::Some('>') => {
             lexer_consume_char(lexer);
@@ -671,7 +671,7 @@ fn scan_minus(lexer: &mut Lexer) -> Token {
     }
 }
 
-fn scan_bang(lexer: &mut Lexer) -> Token {
+fn lexer_scan_bang(lexer: &mut Lexer) -> Token {
     match lexer_peek_char(lexer) {
         CharOption::Some('=') => {
             lexer_consume_char(lexer);
@@ -681,7 +681,7 @@ fn scan_bang(lexer: &mut Lexer) -> Token {
     }
 }
 
-fn scan_less(lexer: &mut Lexer) -> Token {
+fn lexer_scan_less(lexer: &mut Lexer) -> Token {
     match lexer_peek_char(lexer) {
         CharOption::Some('=') => {
             lexer_consume_char(lexer);
@@ -691,7 +691,7 @@ fn scan_less(lexer: &mut Lexer) -> Token {
     }
 }
 
-fn scan_greater(lexer: &mut Lexer) -> Token {
+fn lexer_scan_greater(lexer: &mut Lexer) -> Token {
     match lexer_peek_char(lexer) {
         CharOption::Some('=') => {
             lexer_consume_char(lexer);
