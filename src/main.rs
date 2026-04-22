@@ -326,7 +326,7 @@ fn comparison_eq(left: &Comparison, right: &Comparison) -> bool {
 /// Literal tokens.
 enum Literal {
     Int(usize),
-    Str(String),
+    String(String),
     Char(char),
     Bool(bool),
 }
@@ -335,7 +335,7 @@ enum Literal {
 fn literalToken_clone(literal: &Literal) -> Literal {
     match literal {
         Literal::Int(value) => Literal::Int(*value),
-        Literal::Str(value) => Literal::Str(string_clone(value)),
+        Literal::String(value) => Literal::String(string_clone(value)),
         Literal::Char(value) => Literal::Char(*value),
         Literal::Bool(value) => Literal::Bool(*value),
     }
@@ -348,8 +348,8 @@ fn literalToken_eq(left: &Literal, right: &Literal) -> bool {
             Literal::Int(right_value) => left_value == right_value,
             _ => false,
         },
-        Literal::Str(left_value) => match right {
-            Literal::Str(right_value) => string_eq(left_value, right_value),
+        Literal::String(left_value) => match right {
+            Literal::String(right_value) => string_eq(left_value, right_value),
             _ => false,
         },
         Literal::Char(left_value) => match right {
@@ -473,7 +473,7 @@ fn lexer_next_token(lexer: &mut Lexer) -> Token {
                 Token::Literal(Literal::Char(ch))
             } else if c == '"' {
                 let s: String = scan_string_literal(lexer);
-                Token::Literal(Literal::Str(s))
+                Token::Literal(Literal::String(s))
             } else {
                 scan_symbol(lexer)
             }
@@ -1418,7 +1418,7 @@ fn parse_pattern(parser: &mut Parser) -> Pattern {
             match current_literal {
                 Literal::Int(_) => Pattern::Literal(Type::Usize),
                 Literal::Char(_) => Pattern::Literal(Type::Char),
-                Literal::Str(_) => Pattern::Literal(Type::Reference(typeBox_new(Type::Custom(
+                Literal::String(_) => Pattern::Literal(Type::Reference(typeBox_new(Type::Custom(
                     string_from_str("str"),
                 )))),
                 Literal::Bool(_) => Pattern::Literal(Type::Bool),
