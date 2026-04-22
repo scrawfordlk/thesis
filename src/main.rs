@@ -364,19 +364,19 @@ fn literalToken_eq(left: &Literal, right: &Literal) -> bool {
 
 /// A type that encapsulates the state of the lexer
 enum Lexer {
-    // source file, current token
+    /// source file, current token
     Lexer(SourceFile, Token),
 }
 
 /// A type that manages the source file
 enum SourceFile {
-    // content, current character index, current location
+    /// content, current character index, current location
     SourceFile(String, usize, SourceLocation),
 }
 
 /// A type that tracks the location in the source code
 enum SourceLocation {
-    // line, column
+    /// line, column
     Coords(usize, usize),
 }
 
@@ -730,7 +730,7 @@ fn skip_line_comment(lexer: &mut Lexer) {
 
 /// Type that encapsulates the parser's state..
 enum Parser {
-    // lexer, llvm code, symbol table, current function return type
+    /// lexer, llvm code, symbol table, current function return type
     Parser(Lexer, String, SymTable, Type),
 }
 
@@ -1067,7 +1067,7 @@ fn parse_binding(parser: &mut Parser) {
 
 /// Variable declaration payload parsed from source.
 enum Variable {
-    // pattern, type, is mutable
+    /// pattern, type, is mutable
     Var(Pattern, Type, bool),
 }
 
@@ -1386,6 +1386,7 @@ fn parse_arms(parser: &mut Parser, matched_type: &Type) -> Type {
 enum Pattern {
     Literal(Type),
     Identifier(String),
+    /// type name, variant name
     EnumVariant(String, String),
     Wildcard,
 }
@@ -1574,6 +1575,7 @@ fn symTable_insert_variable(
 
 /// Global symbol table represented as a cons list.
 enum GlobalSymTable {
+    /// head, tail
     Cons(SymTableEntry, GlobalSymTableBox),
     Nil,
 }
@@ -1654,6 +1656,7 @@ fn globalSymTable_insert_enum(
 
 /// Stack of local scopes represented as a cons list.
 enum LocalSymTableStack {
+    /// head, tail
     Cons(LocalSymTable, LocalSymTableStackBox),
     Nil,
 }
@@ -1707,6 +1710,7 @@ fn localSymTableStack_lookup_variable_type(
 
 /// Single local scope represented as a linked cons list.
 enum LocalSymTable {
+    /// head, tail
     Cons(SymTableEntry, LocalSymTableBox),
     Nil,
 }
@@ -1767,11 +1771,11 @@ fn localSymTable_insert_variable(
 
 /// Symbol table entry for functions, enums, and variables.
 enum SymTableEntry {
-    // name, signature
+    /// name, signature
     Function(String, FnSignature),
-    // name, variants
+    /// name, variant types
     Enum(String, Types),
-    // name, type, mutable
+    /// name, type, is mutable
     Variable(String, Type, bool),
 }
 
@@ -1832,7 +1836,7 @@ fn localSymTableStack_clone(stack: &LocalSymTableStack) -> LocalSymTableStack {
 
 /// A type that represents the (type) signature of a function
 enum FnSignature {
-    // parameter types, return type
+    /// parameter types, return type
     Fn(Types, Type),
 }
 
@@ -1959,6 +1963,7 @@ fn type_to_llvm_name(ty: &Type) -> String {
 
 /// Cons list of `Type` values.
 enum Types {
+    /// head, tail
     Cons(Type, TypesBox),
     Nil,
 }
@@ -2295,7 +2300,7 @@ fn typesBox_clone(ptr: &TypesBox) -> TypesBox {
 /// A growable ASCII string.
 #[derive(Debug)]
 enum String {
-    // start, length, capacity
+    /// start, length, capacity
     String(*mut u8, usize, usize),
 }
 
