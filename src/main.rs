@@ -1,7 +1,9 @@
 #![allow(clippy::assign_op_pattern, while_true, non_snake_case)]
 
 fn main() {
-    let str: String = parse_to_llvm("tests/empty.rs");
+    let str: String = parse_to_llvm(
+        &std::fs::read_to_string("tests/empty.rs").unwrap_or(std::string::String::new()),
+    );
 
     let mut i: usize = 0;
     while i < string_len(&str) {
