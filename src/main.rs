@@ -1342,6 +1342,17 @@ fn parse_if(parser: &mut Parser) -> Type {
     }
 }
 
+fn parse_while(parser: &mut Parser) -> Type {
+    parser_expect_token(parser, &Token::While);
+
+    let condition_type: Type = parse_expression(parser);
+    parser_expect_bool_type(parser, &condition_type);
+
+    parse_block(parser);
+
+    Type::Unit
+}
+
 /// Data structure that manages a global symbol table and (multiple) local symbol tables.
 enum SymTable {
     Table(GlobalSymTable, LocalSymTableStack),
