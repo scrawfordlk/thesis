@@ -2036,7 +2036,7 @@ fn llvm_emit_line(llvm: &mut String, text: &str) {
 }
 
 /// Emit a function header.
-fn llvm_emit_function_header(llvm: &mut String, return_type_name: &String, fn_name: &String) {
+fn llvm_emit_function_header(llvm: &mut String, fn_name: &String, return_type_name: &String) {
     llvm_emit_str(llvm, "define ");
     llvm_emit_string(llvm, return_type_name);
     llvm_emit_str(llvm, " @");
