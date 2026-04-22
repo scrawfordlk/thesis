@@ -51,7 +51,6 @@ enum Token {
     Bool,            // "bool"
     Char,            // "char"
     Str,             // "str"
-    Unit,            // "()"
     TypeArrow,       // "->"
     Literal(Literal),
     Identifier(String),
@@ -96,7 +95,6 @@ fn token_clone(token: &Token) -> Token {
         Token::Bool => Token::Bool,
         Token::Char => Token::Char,
         Token::Str => Token::Str,
-        Token::Unit => Token::Unit,
         Token::TypeArrow => Token::TypeArrow,
         Token::Literal(literal) => Token::Literal(literalToken_clone(literal)),
         Token::Identifier(value) => Token::Identifier(string_clone(value)),
@@ -242,10 +240,6 @@ fn token_eq(a: &Token, b: &Token) -> bool {
         },
         Token::Str => match b {
             Token::Str => true,
-            _ => false,
-        },
-        Token::Unit => match b {
-            Token::Unit => true,
             _ => false,
         },
         Token::TypeArrow => match b {
@@ -608,7 +602,7 @@ fn scan_symbol(lexer: &mut Lexer) -> Token {
     match unwrap_char(lexer_consume_char(lexer)) {
         '{' => Token::LBrace,
         '}' => Token::RBrace,
-        '(' => scan_lparen(lexer),
+        '(' => Token::LParen,
         ')' => Token::RParen,
         ';' => Token::SemiColon,
         ',' => Token::Comma,
@@ -624,16 +618,6 @@ fn scan_symbol(lexer: &mut Lexer) -> Token {
         '<' => scan_less(lexer),
         '>' => scan_greater(lexer),
         _ => lexer_error(lexer, "unexpected character"),
-    }
-}
-
-fn scan_lparen(lexer: &mut Lexer) -> Token {
-    match lexer_peek_char(lexer) {
-        CharOption::Some(')') => {
-            lexer_consume_char(lexer);
-            Token::Unit
-        }
-        _ => Token::LParen,
     }
 }
 
@@ -1108,8 +1092,8 @@ fn parse_type(parser: &mut Parser) -> Type {
             parser_next_token(parser);
             Type::Bool
         }
-        Token::Unit => {
-            parser_next_token(parser);
+        Token::LParen => {
+            parser_expect_token(parser, &Token::RParen);
             Type::Unit
         }
         Token::Ampersand => {
