@@ -1264,6 +1264,64 @@ fn parse_cast(parser: &mut Parser) -> Type {
     ty
 }
 
+fn parse_factor(parser: &mut Parser) -> Type {
+    match parser_current_token(parser) {
+        Token::Minus => {
+            parser_next_token(parser);
+            let inner: Type = parse_factor(parser);
+            parser_expect_numeric_type(parser, &inner);
+            inner
+        }
+        Token::Star => {
+            parser_next_token(parser);
+            let inner: Type = parse_factor(parser);
+            match inner {
+                Type::RawPointerMut(pointed) => type_clone(typeBox_deref(&pointed)),
+                Type::Reference(pointed) => type_clone(typeBox_deref(&pointed)),
+                Type::ReferenceMut(pointed) => type_clone(typeBox_deref(&pointed)),
+                _ => parser_error(parser, "cannot dereference this expression"),
+            }
+        }
+        Token::Ampersand => {
+            parser_next_token(parser);
+            let mutable: bool = parser_try_consume(parser, &Token::Mut);
+            let inner: Type = parse_factor(parser);
+            if mutable {
+                Type::ReferenceMut(typeBox_new(inner))
+            } else {
+                Type::Reference(typeBox_new(inner))
+            }
+        }
+        Token::Literal(_) => parse_literal(parser),
+        Token::Identifier(_) => {
+            let name: String = parser_expect_identifier(parser);
+            if parser_current_token_eq(parser, &Token::LParen) {
+                parse_call(parser, name)
+            } else {
+                match symTable_lookup_variable_type(parser_symtable(parser), &name) {
+                    TypeOption::Some(ty) => ty,
+                    TypeOption::None => parser_error(parser, "undefined variable"),
+                }
+            }
+        }
+        Token::LParen => {
+            parser_next_token(parser);
+            let ty: Type = parse_expression(parser);
+            parser_expect_token(parser, &Token::RParen);
+            ty
+        }
+        Token::Unsafe => {
+            parser_next_token(parser);
+            parse_block(parser)
+        }
+        Token::LBrace => parse_block(parser),
+        Token::If => parse_if(parser),
+        Token::While => parse_while(parser),
+        Token::Match => parse_match(parser),
+        _ => parser_error(parser, "unexpected token"),
+    }
+}
+
 /// Data structure that manages a global symbol table and (multiple) local symbol tables.
 enum SymTable {
     Table(GlobalSymTable, LocalSymTableStack),
