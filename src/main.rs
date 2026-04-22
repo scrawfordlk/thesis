@@ -813,14 +813,15 @@ fn parser_next_token(parser: &mut Parser) -> Token {
     lexer_next_token(parser_lexer_mut(parser))
 }
 
-/// Clone and return the emitted LLVM output.
-fn parser_output(parser: &Parser) -> String {
-    string_clone(parser_llvm(parser))
-}
-
 /// Check whether parser current token equals `token`.
 fn parser_current_token_eq(parser: &Parser, token: &Token) -> bool {
     token_eq(parser_current_token(parser), token)
+}
+
+fn parse_to_llvm(source: &str) -> String {
+    let mut parser: Parser = parser_from_str(source);
+    parse_language(&mut parser);
+    string_clone(parser_llvm(&parser))
 }
 
 /// Consume `token` when present and report success.
