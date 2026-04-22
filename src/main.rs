@@ -1483,6 +1483,25 @@ fn parse_call(parser: &mut Parser, function_name: String) -> Type {
     }
 }
 
+fn parse_literal(parser: &mut Parser) -> Type {
+    match parser_current_token(parser) {
+        Token::Literal(literal) => {
+            let current_literal: Literal = literalToken_clone(literal);
+            parser_next_token(parser);
+
+            match current_literal {
+                Literal::Int(_) => Type::Usize,
+                Literal::String(_) => {
+                    Type::Reference(typeBox_new(Type::Custom(string_from_str("str"))))
+                }
+                Literal::Char(_) => Type::Char,
+                Literal::Bool(_) => Type::Bool,
+            }
+        }
+        _ => parser_error(parser, "expected literal"),
+    }
+}
+
 /// Data structure that manages a global symbol table and (multiple) local symbol tables.
 enum SymTable {
     Table(GlobalSymTable, LocalSymTableStack),
