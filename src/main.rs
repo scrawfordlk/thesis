@@ -18,6 +18,7 @@ fn main() {
 
 // ---------------------- Lexical Analysis -------------------------
 
+#[derive(Debug)]
 enum Token {
     Fn,              // "fn"
     Enum,            // "enum"
@@ -268,6 +269,7 @@ fn token_eq(a: &Token, b: &Token) -> bool {
 }
 
 /// Comparison tokens
+#[derive(Debug)]
 enum Comparison {
     Eq,
     Neq,
@@ -320,6 +322,7 @@ fn comparison_eq(left: &Comparison, right: &Comparison) -> bool {
 }
 
 /// Literal tokens.
+#[derive(Debug)]
 enum Literal {
     Int(usize),
     String(String),
@@ -2272,6 +2275,7 @@ fn typesBox_clone(ptr: &TypesBox) -> TypesBox {
 // ------------------------- String -------------------------------
 
 /// A growable ASCII string.
+#[derive(Debug)]
 enum String {
     // start, length, capacity
     String(*mut u8, usize, usize),
