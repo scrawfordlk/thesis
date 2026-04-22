@@ -1322,6 +1322,26 @@ fn parse_factor(parser: &mut Parser) -> Type {
     }
 }
 
+fn parse_if(parser: &mut Parser) -> Type {
+    parser_expect_token(parser, &Token::If);
+
+    let condition_type: Type = parse_expression(parser);
+    parser_expect_bool_type(parser, &condition_type);
+
+    let then_type: Type = parse_block(parser);
+    if parser_try_consume(parser, &Token::Else) {
+        let else_type: Type = if parser_current_token_eq(parser, &Token::If) {
+            parse_if(parser)
+        } else {
+            parse_block(parser)
+        };
+        parser_expect_same_type(parser, &then_type, &else_type);
+        then_type
+    } else {
+        Type::Unit
+    }
+}
+
 /// Data structure that manages a global symbol table and (multiple) local symbol tables.
 enum SymTable {
     Table(GlobalSymTable, LocalSymTableStack),
