@@ -1537,7 +1537,7 @@ fn symTable_leave_scope(symtable: &mut SymTable) -> bool {
     localSymTableStack_pop(local_stack)
 }
 
-/// Insert a function into the global table.
+/// Insert a function into the global symbol table, returning false on duplicate name.
 fn symTable_insert_function(
     symtable: &mut SymTable,
     name: String,
@@ -1751,7 +1751,8 @@ fn localSymTable_lookup_variable_type(symtable: &LocalSymTable, name: &String) -
 }
 
 /// Insert a variable entry into a single local scope.
-/// Returns true if the variable name is not already taken, else false.
+/// Returns true if the variable name is not already taken, else false (in which case it is still
+/// inserted (= shadowing))
 fn localSymTable_insert_variable(
     symtable: &mut LocalSymTable,
     name: String,
