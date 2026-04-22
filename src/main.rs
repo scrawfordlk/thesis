@@ -1353,6 +1353,104 @@ fn parse_while(parser: &mut Parser) -> Type {
     Type::Unit
 }
 
+fn parse_match(parser: &mut Parser) -> Type {
+    parser_expect_token(parser, &Token::Match);
+
+    let expression_type: Type = parse_expression(parser);
+
+    parser_expect_token(parser, &Token::LBrace);
+
+    let return_type: Type = parse_arms(parser, &expression_type);
+    parser_expect_token(parser, &Token::RBrace);
+
+    return_type
+}
+
+fn parse_arms(parser: &mut Parser, matched_type: &Type) -> Type {
+    let first_pattern: Pattern = parse_pattern(parser);
+    let first_pattern_type: Type = pattern_type_for_expression(&first_pattern, matched_type);
+    parser_expect_same_type(parser, &first_pattern_type, matched_type);
+
+    parser_expect_token(parser, &Token::ArmArrow);
+
+    let return_type: Type = parse_expression(parser);
+    parser_expect_token(parser, &Token::Comma);
+
+    while not(parser_current_token_eq(parser, &Token::RBrace)) {
+        let pattern: Pattern = parse_pattern(parser);
+        let pattern_type: Type = pattern_type_for_expression(&pattern, matched_type);
+        parser_expect_same_type(parser, &pattern_type, matched_type);
+
+        parser_expect_token(parser, &Token::ArmArrow);
+
+        let arm_type: Type = parse_expression(parser);
+        parser_expect_same_type(parser, &return_type, &arm_type);
+        parser_expect_token(parser, &Token::Comma);
+    }
+
+    return_type
+}
+
+/// Pattern forms supported by the parser.
+/// TODO: currently very simple skeleton
+enum Pattern {
+    Literal(Type),
+    Identifier(String),
+    EnumVariant(String, String),
+    Wildcard,
+}
+
+/// Derive the expected type contributed by a match pattern.
+fn pattern_type_for_expression(pattern: &Pattern, expression_type: &Type) -> Type {
+    match pattern {
+        Pattern::Literal(ty) => type_clone(ty),
+        Pattern::Identifier(_) => type_clone(expression_type),
+        Pattern::EnumVariant(enum_name, _) => Type::Custom(string_clone(enum_name)),
+        Pattern::Wildcard => type_clone(expression_type),
+    }
+}
+
+fn parse_pattern(parser: &mut Parser) -> Pattern {
+    match parser_current_token(parser) {
+        Token::Literal(literal) => {
+            let current_literal: Literal = literalToken_clone(literal);
+            parser_next_token(parser);
+            match current_literal {
+                Literal::Int(_) => Pattern::Literal(Type::Usize),
+                Literal::Char(_) => Pattern::Literal(Type::Char),
+                Literal::Str(_) => Pattern::Literal(Type::Reference(typeBox_new(Type::Custom(
+                    string_from_str("str"),
+                )))),
+                Literal::Bool(_) => Pattern::Literal(Type::Bool),
+            }
+        }
+        Token::Identifier(_) => {
+            let identifier: String = parser_expect_identifier(parser);
+
+            if string_eq(&identifier, &string_from_str("_")) {
+                Pattern::Wildcard
+            } else if parser_try_consume(parser, &Token::DoubleColon) {
+                let variant_name: String = parser_expect_identifier(parser);
+
+                if parser_try_consume(parser, &Token::LParen) {
+                    let pattern: Pattern = parse_pattern(parser);
+
+                    while parser_try_consume(parser, &Token::Comma) {
+                        let pattern: Pattern = parse_pattern(parser);
+                    }
+
+                    parser_expect_token(parser, &Token::RParen);
+                }
+
+                Pattern::EnumVariant(identifier, variant_name)
+            } else {
+                Pattern::Identifier(identifier)
+            }
+        }
+        _ => parser_error(parser, "expected pattern"),
+    }
+}
+
 /// Data structure that manages a global symbol table and (multiple) local symbol tables.
 enum SymTable {
     Table(GlobalSymTable, LocalSymTableStack),
