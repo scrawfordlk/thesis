@@ -2051,9 +2051,26 @@ fn llvm_emit_enum_comment(llvm: &mut String, enum_name: &String) {
 }
 
 /// Emit a let-binding comment line.
-fn llvm_emit_let_comment(llvm: &mut String, variable_name: &String) {
+fn llvm_emit_let_comment(
+    llvm: &mut String,
+    variable_name: &String,
+    type_name: &String,
+    is_mutable: bool,
+) {
     llvm_emit_str(llvm, "  ; let ");
+    if is_mutable {
+        llvm_emit_str(llvm, "mut ");
+    }
     llvm_emit_string(llvm, variable_name);
+    llvm_emit_str(llvm, ": ");
+    llvm_emit_string(llvm, type_name);
+    llvm_emit_newline(llvm);
+}
+
+/// Emit a function-call comment line.
+fn llvm_emit_call_comment(llvm: &mut String, function_name: &String) {
+    llvm_emit_str(llvm, "  ; call ");
+    llvm_emit_string(llvm, function_name);
     llvm_emit_newline(llvm);
 }
 
