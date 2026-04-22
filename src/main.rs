@@ -1,12 +1,12 @@
 #![allow(clippy::assign_op_pattern, while_true, non_snake_case)]
 
 fn main() {
-    let mut str: String = string_new();
-    string_push_str(&mut str, "Hello, World!");
-    string_push(&mut str, '\n');
+    let str: String = parse_to_llvm("tests/empty.rs");
 
-    for i in 0..string_len(&str) {
+    let mut i: usize = 0;
+    while i < string_len(&str) {
         print!("{}", unwrap_char(string_get(&str, i)));
+        i = i + 1;
     }
 }
 
