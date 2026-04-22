@@ -1451,6 +1451,38 @@ fn parse_pattern(parser: &mut Parser) -> Pattern {
     }
 }
 
+fn parse_call(parser: &mut Parser, function_name: String) -> Type {
+    parser_expect_token(parser, &Token::LParen);
+
+    let mut argument_types: Types = types_new();
+    if not(parser_current_token_eq(parser, &Token::RParen)) {
+        let first_argument_type: Type = parse_expression(parser);
+        types_append(&mut argument_types, first_argument_type);
+
+        while and(
+            parser_try_consume(parser, &Token::Comma),
+            not(parser_current_token_eq(parser, &Token::RParen)),
+        ) {
+            let argument_type: Type = parse_expression(parser);
+            types_append(&mut argument_types, argument_type);
+        }
+    }
+    parser_expect_token(parser, &Token::RParen);
+
+    match symTable_lookup_function_signature(parser_symtable(parser), &function_name) {
+        FnSignatureOption::Some(FnSignature::Fn(parameter_types, return_type)) => {
+            if not(types_eq(&parameter_types, &argument_types)) {
+                parser_error(parser, "function call does not match function signature");
+            }
+
+            llvm_emit_call_comment(parser_llvm_mut(parser), &function_name);
+
+            return_type
+        }
+        FnSignatureOption::None => parser_error(parser, "call to undefined function"),
+    }
+}
+
 /// Data structure that manages a global symbol table and (multiple) local symbol tables.
 enum SymTable {
     Table(GlobalSymTable, LocalSymTableStack),
