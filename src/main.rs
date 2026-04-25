@@ -394,6 +394,12 @@ fn lexer_sourcefile(lexer: &Lexer) -> &SourceFile {
     source
 }
 
+/// Get mutable access to the lexer source file state.
+fn lexer_sourcefile_mut(lexer: &mut Lexer) -> &mut SourceFile {
+    let Lexer::Lexer(source, _): &mut Lexer = lexer;
+    source
+}
+
 /// Get the current token from the lexer.
 fn lexer_current_token(lexer: &Lexer) -> &Token {
     let Lexer::Lexer(_, token): &Lexer = lexer;

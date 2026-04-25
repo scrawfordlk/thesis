@@ -181,7 +181,7 @@ fn test_lexer_expect_char_success() {
 #[test]
 fn test_scan_identifier_direct() {
     let mut lexer = make_lexer("hello_42!");
-    let ident = scan_identifier(&mut lexer);
+    let ident = lexer_scan_identifier(&mut lexer);
     assert!(string_eq(&ident, &string_from_str("hello_42")));
     assert!(matches!(lexer_peek_char(&lexer), CharOption::Some('!')));
 }
@@ -204,7 +204,7 @@ fn test_identifier_to_token_direct_identifier() {
 #[test]
 fn test_scan_integer_direct() {
     let mut lexer = make_lexer("123abc");
-    let value = scan_integer(&mut lexer);
+    let value = lexer_scan_integer(&mut lexer);
     assert_eq!(value, 123);
     assert!(matches!(lexer_peek_char(&lexer), CharOption::Some('a')));
 }
@@ -212,14 +212,14 @@ fn test_scan_integer_direct() {
 #[test]
 fn test_scan_char_literal_direct() {
     let mut lexer = make_lexer("'x'");
-    assert_eq!(scan_char_literal(&mut lexer), 'x');
+    assert_eq!(lexer_scan_char_literal(&mut lexer), 'x');
     assert!(matches!(lexer_peek_char(&lexer), CharOption::None));
 }
 
 #[test]
 fn test_scan_string_literal_direct() {
     let mut lexer = make_lexer("\"ab\\n\"");
-    let s = scan_string_literal(&mut lexer);
+    let s = lexer_scan_string_literal(&mut lexer);
     assert!(string_eq(&s, &string_from_str("ab\n")));
     assert!(matches!(lexer_peek_char(&lexer), CharOption::None));
 }
@@ -227,59 +227,59 @@ fn test_scan_string_literal_direct() {
 #[test]
 fn test_scan_escape_char_direct() {
     let mut lexer = make_lexer("n");
-    assert_eq!(scan_escape_char(&mut lexer), '\n');
+    assert_eq!(lexer_scan_escape_char(&mut lexer), '\n');
 }
 
 #[test]
 fn test_scan_symbol_direct() {
     let mut lexer = make_lexer("+");
-    let tok = scan_symbol(&mut lexer);
+    let tok = lexer_scan_symbol(&mut lexer);
     assert!(matches!(tok, Token::Plus));
 }
 
 #[test]
 fn test_scan_slash_direct() {
     let mut lexer = make_lexer("x");
-    assert!(matches!(scan_slash(&mut lexer), Token::Slash));
+    assert!(matches!(lexer_scan_slash(&mut lexer), Token::Slash));
     assert!(matches!(lexer_peek_char(&lexer), CharOption::Some('x')));
 }
 
 #[test]
 fn test_scan_colon_direct() {
     let mut lexer = make_lexer("x");
-    assert!(matches!(scan_colon(&mut lexer), Token::Colon));
+    assert!(matches!(lexer_scan_colon(&mut lexer), Token::Colon));
     assert!(matches!(lexer_peek_char(&lexer), CharOption::Some('x')));
 }
 
 #[test]
 fn test_scan_equals_direct() {
     let mut lexer = make_lexer(">");
-    assert!(matches!(scan_equals(&mut lexer), Token::ArmArrow));
+    assert!(matches!(lexer_scan_equals(&mut lexer), Token::ArmArrow));
 }
 
 #[test]
 fn test_scan_minus_direct() {
     let mut lexer = make_lexer(">");
-    assert!(matches!(scan_minus(&mut lexer), Token::TypeArrow));
+    assert!(matches!(lexer_scan_minus(&mut lexer), Token::TypeArrow));
 }
 
 #[test]
 fn test_scan_bang_direct() {
     let mut lexer = make_lexer("=");
-    assert!(matches!(scan_bang(&mut lexer), Token::Cmp(Comparison::Neq)));
+    assert!(matches!(lexer_scan_bang(&mut lexer), Token::Cmp(Comparison::Neq)));
 }
 
 #[test]
 fn test_scan_less_direct() {
     let mut lexer = make_lexer("=");
-    assert!(matches!(scan_less(&mut lexer), Token::Cmp(Comparison::Leq)));
+    assert!(matches!(lexer_scan_less(&mut lexer), Token::Cmp(Comparison::Leq)));
 }
 
 #[test]
 fn test_scan_greater_direct() {
     let mut lexer = make_lexer("=");
     assert!(matches!(
-        scan_greater(&mut lexer),
+        lexer_scan_greater(&mut lexer),
         Token::Cmp(Comparison::Geq)
     ));
 }
