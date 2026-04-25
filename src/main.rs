@@ -2023,7 +2023,7 @@ fn types_eq(left: &Types, right: &Types) -> bool {
 
 // -----------------------------------------------------------------
 // -----------------------------------------------------------------
-// ------------------------ LLLVM Emulator -------------------------
+// ------------------------ LLVM Emulator -------------------------
 // -----------------------------------------------------------------
 // -----------------------------------------------------------------
 
@@ -2031,8 +2031,8 @@ fn types_eq(left: &Types, right: &Types) -> bool {
 // ---------------------- Lexical Analysis -------------------------
 // -----------------------------------------------------------------
 
-/// Tokens used by the LLLVM lexer.
-enum LllvmToken {
+/// Tokens used by the LLVM lexer.
+enum LlvmToken {
     Define,  // "define"
     Ret,     // "ret"
     Add,     // "add"
@@ -2060,197 +2060,197 @@ enum LllvmToken {
     Eof,
 }
 
-/// Clone an LLLVM token.
-fn lllvmToken_clone(token: &LllvmToken) -> LllvmToken {
+/// Clone an LLVM token.
+fn llvmToken_clone(token: &LlvmToken) -> LlvmToken {
     match token {
-        LllvmToken::Define => LllvmToken::Define,
-        LllvmToken::Ret => LllvmToken::Ret,
-        LllvmToken::Add => LllvmToken::Add,
-        LllvmToken::Sub => LllvmToken::Sub,
-        LllvmToken::Mul => LllvmToken::Mul,
-        LllvmToken::Udiv => LllvmToken::Udiv,
-        LllvmToken::Urem => LllvmToken::Urem,
-        LllvmToken::Icmp => LllvmToken::Icmp,
-        LllvmToken::Call => LllvmToken::Call,
-        LllvmToken::Ult => LllvmToken::Ult,
-        LllvmToken::I64 => LllvmToken::I64,
-        LllvmToken::I1 => LllvmToken::I1,
-        LllvmToken::Void => LllvmToken::Void,
-        LllvmToken::At => LllvmToken::At,
-        LllvmToken::Percent => LllvmToken::Percent,
-        LllvmToken::LParen => LllvmToken::LParen,
-        LllvmToken::RParen => LllvmToken::RParen,
-        LllvmToken::LBrace => LllvmToken::LBrace,
-        LllvmToken::RBrace => LllvmToken::RBrace,
-        LllvmToken::Comma => LllvmToken::Comma,
-        LllvmToken::Minus => LllvmToken::Minus,
-        LllvmToken::Assign => LllvmToken::Assign,
-        LllvmToken::Identifier(name) => LllvmToken::Identifier(string_clone(name)),
-        LllvmToken::Integer(value) => LllvmToken::Integer(*value),
-        LllvmToken::Eof => LllvmToken::Eof,
+        LlvmToken::Define => LlvmToken::Define,
+        LlvmToken::Ret => LlvmToken::Ret,
+        LlvmToken::Add => LlvmToken::Add,
+        LlvmToken::Sub => LlvmToken::Sub,
+        LlvmToken::Mul => LlvmToken::Mul,
+        LlvmToken::Udiv => LlvmToken::Udiv,
+        LlvmToken::Urem => LlvmToken::Urem,
+        LlvmToken::Icmp => LlvmToken::Icmp,
+        LlvmToken::Call => LlvmToken::Call,
+        LlvmToken::Ult => LlvmToken::Ult,
+        LlvmToken::I64 => LlvmToken::I64,
+        LlvmToken::I1 => LlvmToken::I1,
+        LlvmToken::Void => LlvmToken::Void,
+        LlvmToken::At => LlvmToken::At,
+        LlvmToken::Percent => LlvmToken::Percent,
+        LlvmToken::LParen => LlvmToken::LParen,
+        LlvmToken::RParen => LlvmToken::RParen,
+        LlvmToken::LBrace => LlvmToken::LBrace,
+        LlvmToken::RBrace => LlvmToken::RBrace,
+        LlvmToken::Comma => LlvmToken::Comma,
+        LlvmToken::Minus => LlvmToken::Minus,
+        LlvmToken::Assign => LlvmToken::Assign,
+        LlvmToken::Identifier(name) => LlvmToken::Identifier(string_clone(name)),
+        LlvmToken::Integer(value) => LlvmToken::Integer(*value),
+        LlvmToken::Eof => LlvmToken::Eof,
     }
 }
 
-/// Compare two LLLVM tokens.
-fn lllvmToken_eq(left: &LllvmToken, right: &LllvmToken) -> bool {
+/// Compare two LLVM tokens.
+fn llvmToken_eq(left: &LlvmToken, right: &LlvmToken) -> bool {
     match left {
-        LllvmToken::Define => match right {
-            LllvmToken::Define => true,
+        LlvmToken::Define => match right {
+            LlvmToken::Define => true,
             _ => false,
         },
-        LllvmToken::Ret => match right {
-            LllvmToken::Ret => true,
+        LlvmToken::Ret => match right {
+            LlvmToken::Ret => true,
             _ => false,
         },
-        LllvmToken::Add => match right {
-            LllvmToken::Add => true,
+        LlvmToken::Add => match right {
+            LlvmToken::Add => true,
             _ => false,
         },
-        LllvmToken::Sub => match right {
-            LllvmToken::Sub => true,
+        LlvmToken::Sub => match right {
+            LlvmToken::Sub => true,
             _ => false,
         },
-        LllvmToken::Mul => match right {
-            LllvmToken::Mul => true,
+        LlvmToken::Mul => match right {
+            LlvmToken::Mul => true,
             _ => false,
         },
-        LllvmToken::Udiv => match right {
-            LllvmToken::Udiv => true,
+        LlvmToken::Udiv => match right {
+            LlvmToken::Udiv => true,
             _ => false,
         },
-        LllvmToken::Urem => match right {
-            LllvmToken::Urem => true,
+        LlvmToken::Urem => match right {
+            LlvmToken::Urem => true,
             _ => false,
         },
-        LllvmToken::Icmp => match right {
-            LllvmToken::Icmp => true,
+        LlvmToken::Icmp => match right {
+            LlvmToken::Icmp => true,
             _ => false,
         },
-        LllvmToken::Call => match right {
-            LllvmToken::Call => true,
+        LlvmToken::Call => match right {
+            LlvmToken::Call => true,
             _ => false,
         },
-        LllvmToken::Ult => match right {
-            LllvmToken::Ult => true,
+        LlvmToken::Ult => match right {
+            LlvmToken::Ult => true,
             _ => false,
         },
-        LllvmToken::I64 => match right {
-            LllvmToken::I64 => true,
+        LlvmToken::I64 => match right {
+            LlvmToken::I64 => true,
             _ => false,
         },
-        LllvmToken::I1 => match right {
-            LllvmToken::I1 => true,
+        LlvmToken::I1 => match right {
+            LlvmToken::I1 => true,
             _ => false,
         },
-        LllvmToken::Void => match right {
-            LllvmToken::Void => true,
+        LlvmToken::Void => match right {
+            LlvmToken::Void => true,
             _ => false,
         },
-        LllvmToken::At => match right {
-            LllvmToken::At => true,
+        LlvmToken::At => match right {
+            LlvmToken::At => true,
             _ => false,
         },
-        LllvmToken::Percent => match right {
-            LllvmToken::Percent => true,
+        LlvmToken::Percent => match right {
+            LlvmToken::Percent => true,
             _ => false,
         },
-        LllvmToken::LParen => match right {
-            LllvmToken::LParen => true,
+        LlvmToken::LParen => match right {
+            LlvmToken::LParen => true,
             _ => false,
         },
-        LllvmToken::RParen => match right {
-            LllvmToken::RParen => true,
+        LlvmToken::RParen => match right {
+            LlvmToken::RParen => true,
             _ => false,
         },
-        LllvmToken::LBrace => match right {
-            LllvmToken::LBrace => true,
+        LlvmToken::LBrace => match right {
+            LlvmToken::LBrace => true,
             _ => false,
         },
-        LllvmToken::RBrace => match right {
-            LllvmToken::RBrace => true,
+        LlvmToken::RBrace => match right {
+            LlvmToken::RBrace => true,
             _ => false,
         },
-        LllvmToken::Comma => match right {
-            LllvmToken::Comma => true,
+        LlvmToken::Comma => match right {
+            LlvmToken::Comma => true,
             _ => false,
         },
-        LllvmToken::Minus => match right {
-            LllvmToken::Minus => true,
+        LlvmToken::Minus => match right {
+            LlvmToken::Minus => true,
             _ => false,
         },
-        LllvmToken::Assign => match right {
-            LllvmToken::Assign => true,
+        LlvmToken::Assign => match right {
+            LlvmToken::Assign => true,
             _ => false,
         },
-        LllvmToken::Identifier(left_name) => match right {
-            LllvmToken::Identifier(right_name) => string_eq(left_name, right_name),
+        LlvmToken::Identifier(left_name) => match right {
+            LlvmToken::Identifier(right_name) => string_eq(left_name, right_name),
             _ => false,
         },
-        LllvmToken::Integer(left_value) => match right {
-            LllvmToken::Integer(right_value) => *left_value == *right_value,
+        LlvmToken::Integer(left_value) => match right {
+            LlvmToken::Integer(right_value) => *left_value == *right_value,
             _ => false,
         },
-        LllvmToken::Eof => match right {
-            LllvmToken::Eof => true,
+        LlvmToken::Eof => match right {
+            LlvmToken::Eof => true,
             _ => false,
         },
     }
 }
 
-/// A type that encapsulates the state of the lexer for the LLLVM-IR parser
-enum LllvmLexer {
+/// A type that encapsulates the state of the lexer for the LLVM-IR parser
+enum LlvmLexer {
     /// LLVM-IR human-readable source file, current token
-    Lexer(SourceFile, LllvmToken),
+    Lexer(SourceFile, LlvmToken),
 }
 
-/// Create a new LLLVM lexer and prime the first token.
-fn lllvmLexer_new(source: String) -> LllvmLexer {
+/// Create a new LLVM lexer and prime the first token.
+fn llvmLexer_new(source: String) -> LlvmLexer {
     let source_file: SourceFile = SourceFile::SourceFile(source, 0, SourceLocation::Coords(1, 1));
-    let mut lexer: LllvmLexer = LllvmLexer::Lexer(source_file, LllvmToken::Eof);
-    lllvmLexer_next_token(&mut lexer);
+    let mut lexer: LlvmLexer = LlvmLexer::Lexer(source_file, LlvmToken::Eof);
+    llvmLexer_next_token(&mut lexer);
     lexer
 }
 
 /// Get the lexer source file.
-fn lllvmLexer_sourcefile(lexer: &LllvmLexer) -> &SourceFile {
-    let LllvmLexer::Lexer(source, _): &LllvmLexer = lexer;
+fn llvmLexer_sourcefile(lexer: &LlvmLexer) -> &SourceFile {
+    let LlvmLexer::Lexer(source, _): &LlvmLexer = lexer;
     source
 }
 
 /// Get the lexer source file.
-fn lllvmLexer_sourcefile_mut(lexer: &mut LllvmLexer) -> &mut SourceFile {
-    let LllvmLexer::Lexer(source, _): &mut LllvmLexer = lexer;
+fn llvmLexer_sourcefile_mut(lexer: &mut LlvmLexer) -> &mut SourceFile {
+    let LlvmLexer::Lexer(source, _): &mut LlvmLexer = lexer;
     source
 }
 
 /// Get the current lexer token.
-fn lllvmLexer_current_token(lexer: &LllvmLexer) -> &LllvmToken {
-    let LllvmLexer::Lexer(_, token): &LllvmLexer = lexer;
+fn llvmLexer_current_token(lexer: &LlvmLexer) -> &LlvmToken {
+    let LlvmLexer::Lexer(_, token): &LlvmLexer = lexer;
     token
 }
 
 /// Set the current lexer token.
-fn lllvmLexer_set_current_token(lexer: &mut LllvmLexer, token: LllvmToken) {
-    let LllvmLexer::Lexer(_, old_token): &mut LllvmLexer = lexer;
+fn llvmLexer_set_current_token(lexer: &mut LlvmLexer, token: LlvmToken) {
+    let LlvmLexer::Lexer(_, old_token): &mut LlvmLexer = lexer;
     *old_token = token;
 }
 
 /// Get the location the lexer is currently at.
-fn lllvmLexer_location(lexer: &LllvmLexer) -> &SourceLocation {
-    let SourceFile::SourceFile(_, _, location) = lllvmLexer_sourcefile(lexer);
+fn llvmLexer_location(lexer: &LlvmLexer) -> &SourceLocation {
+    let SourceFile::SourceFile(_, _, location) = llvmLexer_sourcefile(lexer);
     location
 }
 
 /// Peek the current source character.
-fn lllvmLexer_peek_char(lexer: &LllvmLexer) -> CharOption {
-    let SourceFile::SourceFile(content, index, _): &SourceFile = lllvmLexer_sourcefile(lexer);
+fn llvmLexer_peek_char(lexer: &LlvmLexer) -> CharOption {
+    let SourceFile::SourceFile(content, index, _): &SourceFile = llvmLexer_sourcefile(lexer);
     string_get(content, *index)
 }
 
 /// Consume and return the current source character.
-fn lllvmLexer_consume_char(lexer: &mut LllvmLexer) -> CharOption {
+fn llvmLexer_consume_char(lexer: &mut LlvmLexer) -> CharOption {
     let SourceFile::SourceFile(source, index, location): &mut SourceFile =
-        lllvmLexer_sourcefile_mut(lexer);
+        llvmLexer_sourcefile_mut(lexer);
 
     let current: CharOption = string_get(source, *index);
     *index = *index + 1;
@@ -2271,35 +2271,35 @@ fn lllvmLexer_consume_char(lexer: &mut LllvmLexer) -> CharOption {
 }
 
 /// Consume and return the next token.
-fn lllvmLexer_next_token(lexer: &mut LllvmLexer) -> LllvmToken {
-    lllvmLexer_skip_whitespace_and_comments(lexer);
+fn llvmLexer_next_token(lexer: &mut LlvmLexer) -> LlvmToken {
+    llvmLexer_skip_whitespace_and_comments(lexer);
 
-    let token: LllvmToken = match lllvmLexer_peek_char(lexer) {
+    let token: LlvmToken = match llvmLexer_peek_char(lexer) {
         CharOption::Some(ch) => {
             if is_alpha(ch) {
-                let ident: String = lllvmLexer_scan_identifier_or_keyword(lexer);
-                lllvm_identifier_to_token(ident)
+                let ident: String = llvmLexer_scan_identifier_or_keyword(lexer);
+                llvm_identifier_to_token(ident)
             } else if is_digit(ch) {
-                let value: usize = lllvmLexer_scan_integer(lexer);
-                LllvmToken::Integer(value)
+                let value: usize = llvmLexer_scan_integer(lexer);
+                LlvmToken::Integer(value)
             } else {
-                lllvmLexer_scan_symbol(lexer)
+                llvmLexer_scan_symbol(lexer)
             }
         }
-        CharOption::None => LllvmToken::Eof,
+        CharOption::None => LlvmToken::Eof,
     };
 
-    lllvmLexer_set_current_token(lexer, lllvmToken_clone(&token));
+    llvmLexer_set_current_token(lexer, llvmToken_clone(&token));
     token
 }
 
-fn lllvmLexer_scan_identifier_or_keyword(lexer: &mut LllvmLexer) -> String {
+fn llvmLexer_scan_identifier_or_keyword(lexer: &mut LlvmLexer) -> String {
     let mut identifier: String = string_new();
     while true {
-        match lllvmLexer_peek_char(lexer) {
+        match llvmLexer_peek_char(lexer) {
             CharOption::Some(ch) => {
                 if is_alphanumeric_or_dot(ch) {
-                    lllvmLexer_consume_char(lexer);
+                    llvmLexer_consume_char(lexer);
                     string_push(&mut identifier, ch);
                 } else {
                     return identifier;
@@ -2311,47 +2311,47 @@ fn lllvmLexer_scan_identifier_or_keyword(lexer: &mut LllvmLexer) -> String {
     identifier // satisfy compiler
 }
 
-fn lllvm_identifier_to_token(identifier: String) -> LllvmToken {
+fn llvm_identifier_to_token(identifier: String) -> LlvmToken {
     if string_eq(&identifier, &string_from_str("define")) {
-        LllvmToken::Define
+        LlvmToken::Define
     } else if string_eq(&identifier, &string_from_str("ret")) {
-        LllvmToken::Ret
+        LlvmToken::Ret
     } else if string_eq(&identifier, &string_from_str("add")) {
-        LllvmToken::Add
+        LlvmToken::Add
     } else if string_eq(&identifier, &string_from_str("sub")) {
-        LllvmToken::Sub
+        LlvmToken::Sub
     } else if string_eq(&identifier, &string_from_str("mul")) {
-        LllvmToken::Mul
+        LlvmToken::Mul
     } else if string_eq(&identifier, &string_from_str("udiv")) {
-        LllvmToken::Udiv
+        LlvmToken::Udiv
     } else if string_eq(&identifier, &string_from_str("urem")) {
-        LllvmToken::Urem
+        LlvmToken::Urem
     } else if string_eq(&identifier, &string_from_str("icmp")) {
-        LllvmToken::Icmp
+        LlvmToken::Icmp
     } else if string_eq(&identifier, &string_from_str("call")) {
-        LllvmToken::Call
+        LlvmToken::Call
     } else if string_eq(&identifier, &string_from_str("ult")) {
-        LllvmToken::Ult
+        LlvmToken::Ult
     } else if string_eq(&identifier, &string_from_str("i64")) {
-        LllvmToken::I64
+        LlvmToken::I64
     } else if string_eq(&identifier, &string_from_str("i1")) {
-        LllvmToken::I1
+        LlvmToken::I1
     } else if string_eq(&identifier, &string_from_str("void")) {
-        LllvmToken::Void
+        LlvmToken::Void
     } else {
-        LllvmToken::Identifier(identifier)
+        LlvmToken::Identifier(identifier)
     }
 }
 
-fn lllvmLexer_scan_integer(lexer: &mut LllvmLexer) -> usize {
+fn llvmLexer_scan_integer(lexer: &mut LlvmLexer) -> usize {
     let mut value: usize = 0;
     while true {
-        match lllvmLexer_peek_char(lexer) {
+        match llvmLexer_peek_char(lexer) {
             CharOption::Some(ch) => {
                 if is_digit(ch) {
                     let digit: usize = (ch as usize) - ('0' as usize);
                     value = value * 10 + digit;
-                    lllvmLexer_consume_char(lexer);
+                    llvmLexer_consume_char(lexer);
                 } else {
                     return value;
                 }
@@ -2362,30 +2362,30 @@ fn lllvmLexer_scan_integer(lexer: &mut LllvmLexer) -> usize {
     value
 }
 
-fn lllvmLexer_scan_symbol(lexer: &mut LllvmLexer) -> LllvmToken {
-    match unwrap_char(lllvmLexer_consume_char(lexer)) {
-        '@' => LllvmToken::At,
-        '%' => LllvmToken::Percent,
-        '(' => LllvmToken::LParen,
-        ')' => LllvmToken::RParen,
-        '{' => LllvmToken::LBrace,
-        '}' => LllvmToken::RBrace,
-        ',' => LllvmToken::Comma,
-        '-' => LllvmToken::Minus,
-        '=' => LllvmToken::Assign,
-        _ => panic!("unsupported token in LLLVM input"),
+fn llvmLexer_scan_symbol(lexer: &mut LlvmLexer) -> LlvmToken {
+    match unwrap_char(llvmLexer_consume_char(lexer)) {
+        '@' => LlvmToken::At,
+        '%' => LlvmToken::Percent,
+        '(' => LlvmToken::LParen,
+        ')' => LlvmToken::RParen,
+        '{' => LlvmToken::LBrace,
+        '}' => LlvmToken::RBrace,
+        ',' => LlvmToken::Comma,
+        '-' => LlvmToken::Minus,
+        '=' => LlvmToken::Assign,
+        _ => panic!("unsupported token in LLVM input"),
     }
 }
 
-fn lllvmLexer_skip_whitespace_and_comments(lexer: &mut LllvmLexer) {
+fn llvmLexer_skip_whitespace_and_comments(lexer: &mut LlvmLexer) {
     while true {
-        match lllvmLexer_peek_char(lexer) {
+        match llvmLexer_peek_char(lexer) {
             CharOption::Some(ch) => {
                 if is_whitespace(ch) {
-                    lllvmLexer_consume_char(lexer);
+                    llvmLexer_consume_char(lexer);
                 } else if ch == ';' {
-                    lllvmLexer_consume_char(lexer);
-                    lllvmLexer_skip_line(lexer);
+                    llvmLexer_consume_char(lexer);
+                    llvmLexer_skip_line(lexer);
                 } else {
                     return;
                 }
@@ -2395,9 +2395,9 @@ fn lllvmLexer_skip_whitespace_and_comments(lexer: &mut LllvmLexer) {
     }
 }
 
-fn lllvmLexer_skip_line(lexer: &mut LllvmLexer) {
+fn llvmLexer_skip_line(lexer: &mut LlvmLexer) {
     while true {
-        match lllvmLexer_consume_char(lexer) {
+        match llvmLexer_consume_char(lexer) {
             CharOption::Some('\n') => return,
             CharOption::Some(_) => (),
             CharOption::None => return,
