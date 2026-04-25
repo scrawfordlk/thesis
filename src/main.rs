@@ -2191,6 +2191,79 @@ fn lllvmToken_eq(left: &LllvmToken, right: &LllvmToken) -> bool {
     }
 }
 
+/// A type that encapsulates the state of the lexer for the LLLVM-IR parser
+enum LllvmLexer {
+    /// LLVM-IR human-readable source file, current token
+    Lexer(SourceFile, LllvmToken),
+}
+
+/// Create a new LLLVM lexer and prime the first token.
+fn lllvmLexer_new(source: String) -> LllvmLexer {
+    let source_file: SourceFile = SourceFile::SourceFile(source, 0, SourceLocation::Coords(1, 1));
+    let mut lexer: LllvmLexer = LllvmLexer::Lexer(source_file, LllvmToken::Eof);
+    lllvmLexer_next_token(&mut lexer);
+    lexer
+}
+
+/// Get the lexer source file.
+fn lllvmLexer_sourcefile(lexer: &LllvmLexer) -> &SourceFile {
+    let LllvmLexer::Lexer(source, _): &LllvmLexer = lexer;
+    source
+}
+
+/// Get the lexer source file.
+fn lllvmLexer_sourcefile_mut(lexer: &mut LllvmLexer) -> &mut SourceFile {
+    let LllvmLexer::Lexer(source, _): &mut LllvmLexer = lexer;
+    source
+}
+
+/// Get the current lexer token.
+fn lllvmLexer_current_token(lexer: &LllvmLexer) -> &LllvmToken {
+    let LllvmLexer::Lexer(_, token): &LllvmLexer = lexer;
+    token
+}
+
+/// Set the current lexer token.
+fn lllvmLexer_set_current_token(lexer: &mut LllvmLexer, token: LllvmToken) {
+    let LllvmLexer::Lexer(_, old_token): &mut LllvmLexer = lexer;
+    *old_token = token;
+}
+
+/// Get the location the lexer is currently at.
+fn lllvmLexer_location(lexer: &LllvmLexer) -> &SourceLocation {
+    let SourceFile::SourceFile(_, _, location) = lllvmLexer_sourcefile(lexer);
+    location
+}
+
+/// Peek the current source character.
+fn lllvmLexer_peek_char(lexer: &LllvmLexer) -> CharOption {
+    let SourceFile::SourceFile(content, index, _): &SourceFile = lllvmLexer_sourcefile(lexer);
+    string_get(content, *index)
+}
+
+/// Consume and return the current source character.
+fn lllvmLexer_consume_char(lexer: &mut LllvmLexer) -> CharOption {
+    let SourceFile::SourceFile(source, index, location): &mut SourceFile =
+        lllvmLexer_sourcefile_mut(lexer);
+
+    let current: CharOption = string_get(source, *index);
+    *index = *index + 1;
+
+    match current {
+        CharOption::Some(c) => {
+            let SourceLocation::Coords(line, col): &mut SourceLocation = location;
+            if c == '\n' {
+                *line = *line + 1;
+                *col = 1;
+            } else {
+                *col = *col + 1;
+            }
+        }
+        CharOption::None => {}
+    }
+    current
+}
+
 // -----------------------------------------------------------------
 // -----------------------------------------------------------------
 // ------------------------- Library -------------------------------
