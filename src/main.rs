@@ -2023,7 +2023,178 @@ fn types_eq(left: &Types, right: &Types) -> bool {
 
 // -----------------------------------------------------------------
 // -----------------------------------------------------------------
+// ------------------------ LLLVM Emulator -------------------------
+// -----------------------------------------------------------------
+// -----------------------------------------------------------------
+
+// -----------------------------------------------------------------
+// ---------------------- Lexical Analysis -------------------------
+// -----------------------------------------------------------------
+
+/// Tokens used by the LLLVM lexer.
+enum LllvmToken {
+    Define,  // "define"
+    Ret,     // "ret"
+    Add,     // "add"
+    Sub,     // "sub"
+    Mul,     // "mul"
+    Udiv,    // "udiv"
+    Urem,    // "urem"
+    Icmp,    // "icmp"
+    Call,    // "call"
+    Ult,     // "ult"
+    I64,     // "i64"
+    I1,      // "i1"
+    Void,    // "void"
+    At,      // "@"
+    Percent, // "%"
+    LParen,  // "("
+    RParen,  // ")"
+    LBrace,  // "{"
+    RBrace,  // "}"
+    Comma,   // ","
+    Assign,  // "="
+    Identifier(String),
+    Integer(i64),
+    Eof,
+}
+
+/// Clone an LLLVM token.
+fn lllvmToken_clone(token: &LllvmToken) -> LllvmToken {
+    match token {
+        LllvmToken::Define => LllvmToken::Define,
+        LllvmToken::Ret => LllvmToken::Ret,
+        LllvmToken::Add => LllvmToken::Add,
+        LllvmToken::Sub => LllvmToken::Sub,
+        LllvmToken::Mul => LllvmToken::Mul,
+        LllvmToken::Udiv => LllvmToken::Udiv,
+        LllvmToken::Urem => LllvmToken::Urem,
+        LllvmToken::Icmp => LllvmToken::Icmp,
+        LllvmToken::Call => LllvmToken::Call,
+        LllvmToken::Ult => LllvmToken::Ult,
+        LllvmToken::I64 => LllvmToken::I64,
+        LllvmToken::I1 => LllvmToken::I1,
+        LllvmToken::Void => LllvmToken::Void,
+        LllvmToken::At => LllvmToken::At,
+        LllvmToken::Percent => LllvmToken::Percent,
+        LllvmToken::LParen => LllvmToken::LParen,
+        LllvmToken::RParen => LllvmToken::RParen,
+        LllvmToken::LBrace => LllvmToken::LBrace,
+        LllvmToken::RBrace => LllvmToken::RBrace,
+        LllvmToken::Comma => LllvmToken::Comma,
+        LllvmToken::Assign => LllvmToken::Assign,
+        LllvmToken::Identifier(name) => LllvmToken::Identifier(string_clone(name)),
+        LllvmToken::Integer(value) => LllvmToken::Integer(*value),
+        LllvmToken::Eof => LllvmToken::Eof,
+    }
+}
+
+/// Compare two LLLVM tokens.
+fn lllvmToken_eq(left: &LllvmToken, right: &LllvmToken) -> bool {
+    match left {
+        LllvmToken::Define => match right {
+            LllvmToken::Define => true,
+            _ => false,
+        },
+        LllvmToken::Ret => match right {
+            LllvmToken::Ret => true,
+            _ => false,
+        },
+        LllvmToken::Add => match right {
+            LllvmToken::Add => true,
+            _ => false,
+        },
+        LllvmToken::Sub => match right {
+            LllvmToken::Sub => true,
+            _ => false,
+        },
+        LllvmToken::Mul => match right {
+            LllvmToken::Mul => true,
+            _ => false,
+        },
+        LllvmToken::Udiv => match right {
+            LllvmToken::Udiv => true,
+            _ => false,
+        },
+        LllvmToken::Urem => match right {
+            LllvmToken::Urem => true,
+            _ => false,
+        },
+        LllvmToken::Icmp => match right {
+            LllvmToken::Icmp => true,
+            _ => false,
+        },
+        LllvmToken::Call => match right {
+            LllvmToken::Call => true,
+            _ => false,
+        },
+        LllvmToken::Ult => match right {
+            LllvmToken::Ult => true,
+            _ => false,
+        },
+        LllvmToken::I64 => match right {
+            LllvmToken::I64 => true,
+            _ => false,
+        },
+        LllvmToken::I1 => match right {
+            LllvmToken::I1 => true,
+            _ => false,
+        },
+        LllvmToken::Void => match right {
+            LllvmToken::Void => true,
+            _ => false,
+        },
+        LllvmToken::At => match right {
+            LllvmToken::At => true,
+            _ => false,
+        },
+        LllvmToken::Percent => match right {
+            LllvmToken::Percent => true,
+            _ => false,
+        },
+        LllvmToken::LParen => match right {
+            LllvmToken::LParen => true,
+            _ => false,
+        },
+        LllvmToken::RParen => match right {
+            LllvmToken::RParen => true,
+            _ => false,
+        },
+        LllvmToken::LBrace => match right {
+            LllvmToken::LBrace => true,
+            _ => false,
+        },
+        LllvmToken::RBrace => match right {
+            LllvmToken::RBrace => true,
+            _ => false,
+        },
+        LllvmToken::Comma => match right {
+            LllvmToken::Comma => true,
+            _ => false,
+        },
+        LllvmToken::Assign => match right {
+            LllvmToken::Assign => true,
+            _ => false,
+        },
+        LllvmToken::Identifier(left_name) => match right {
+            LllvmToken::Identifier(right_name) => string_eq(left_name, right_name),
+            _ => false,
+        },
+        LllvmToken::Integer(left_value) => match right {
+            LllvmToken::Integer(right_value) => *left_value == *right_value,
+            _ => false,
+        },
+        LllvmToken::Eof => match right {
+            LllvmToken::Eof => true,
+            _ => false,
+        },
+    }
+}
+
+// -----------------------------------------------------------------
+// -----------------------------------------------------------------
 // ------------------------- Library -------------------------------
+// -----------------------------------------------------------------
 // -----------------------------------------------------------------
 
 // ------------------------- LLVM-IR -------------------------------
