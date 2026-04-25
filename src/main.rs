@@ -2264,6 +2264,141 @@ fn lllvmLexer_consume_char(lexer: &mut LllvmLexer) -> CharOption {
     current
 }
 
+/// Consume and return the next token.
+fn lllvmLexer_next_token(lexer: &mut LllvmLexer) -> LllvmToken {
+    lllvmLexer_skip_whitespace_and_comments(lexer);
+
+    let token: LllvmToken = match lllvmLexer_peek_char(lexer) {
+        CharOption::Some(ch) => {
+            if is_alpha(ch) {
+                let ident: String = lllvmLexer_scan_identifier_or_keyword(lexer);
+                lllvm_identifier_to_token(ident)
+            } else if is_digit(ch) {
+                let value: usize = lllvmLexer_scan_integer(lexer);
+                LllvmToken::Integer(value)
+            } else {
+                lllvmLexer_scan_symbol(lexer)
+            }
+        }
+        CharOption::None => LllvmToken::Eof,
+    };
+
+    lllvmLexer_set_current_token(lexer, lllvmToken_clone(&token));
+    token
+}
+
+fn lllvmLexer_scan_identifier_or_keyword(lexer: &mut LllvmLexer) -> String {
+    let mut identifier: String = string_new();
+    while true {
+        match lllvmLexer_peek_char(lexer) {
+            CharOption::Some(ch) => {
+                if is_alphanumeric_or_dot(ch) {
+                    lllvmLexer_consume_char(lexer);
+                    string_push(&mut identifier, ch);
+                } else {
+                    return identifier;
+                }
+            }
+            CharOption::None => return identifier,
+        }
+    }
+    identifier // satisfy compiler
+}
+
+fn lllvm_identifier_to_token(identifier: String) -> LllvmToken {
+    if string_eq(&identifier, &string_from_str("define")) {
+        LllvmToken::Define
+    } else if string_eq(&identifier, &string_from_str("ret")) {
+        LllvmToken::Ret
+    } else if string_eq(&identifier, &string_from_str("add")) {
+        LllvmToken::Add
+    } else if string_eq(&identifier, &string_from_str("sub")) {
+        LllvmToken::Sub
+    } else if string_eq(&identifier, &string_from_str("mul")) {
+        LllvmToken::Mul
+    } else if string_eq(&identifier, &string_from_str("udiv")) {
+        LllvmToken::Udiv
+    } else if string_eq(&identifier, &string_from_str("urem")) {
+        LllvmToken::Urem
+    } else if string_eq(&identifier, &string_from_str("icmp")) {
+        LllvmToken::Icmp
+    } else if string_eq(&identifier, &string_from_str("call")) {
+        LllvmToken::Call
+    } else if string_eq(&identifier, &string_from_str("ult")) {
+        LllvmToken::Ult
+    } else if string_eq(&identifier, &string_from_str("i64")) {
+        LllvmToken::I64
+    } else if string_eq(&identifier, &string_from_str("i1")) {
+        LllvmToken::I1
+    } else if string_eq(&identifier, &string_from_str("void")) {
+        LllvmToken::Void
+    } else {
+        LllvmToken::Identifier(identifier)
+    }
+}
+
+fn lllvmLexer_scan_integer(lexer: &mut LllvmLexer) -> usize {
+    let mut value: usize = 0;
+    while true {
+        match lllvmLexer_peek_char(lexer) {
+            CharOption::Some(ch) => {
+                if is_digit(ch) {
+                    let digit: usize = (ch as usize) - ('0' as usize);
+                    value = value * 10 + digit;
+                    lllvmLexer_consume_char(lexer);
+                } else {
+                    return value;
+                }
+            }
+            CharOption::None => return value,
+        }
+    }
+    value
+}
+
+fn lllvmLexer_scan_symbol(lexer: &mut LllvmLexer) -> LllvmToken {
+    match unwrap_char(lllvmLexer_consume_char(lexer)) {
+        '@' => LllvmToken::At,
+        '%' => LllvmToken::Percent,
+        '(' => LllvmToken::LParen,
+        ')' => LllvmToken::RParen,
+        '{' => LllvmToken::LBrace,
+        '}' => LllvmToken::RBrace,
+        ',' => LllvmToken::Comma,
+        '-' => LllvmToken::Minus,
+        '=' => LllvmToken::Assign,
+        _ => panic!("unsupported token in LLLVM input"),
+    }
+}
+
+fn lllvmLexer_skip_whitespace_and_comments(lexer: &mut LllvmLexer) {
+    while true {
+        match lllvmLexer_peek_char(lexer) {
+            CharOption::Some(ch) => {
+                if is_whitespace(ch) {
+                    lllvmLexer_consume_char(lexer);
+                } else if ch == ';' {
+                    lllvmLexer_consume_char(lexer);
+                    lllvmLexer_skip_line(lexer);
+                } else {
+                    return;
+                }
+            }
+            CharOption::None => return,
+        }
+    }
+}
+
+fn lllvmLexer_skip_line(lexer: &mut LllvmLexer) {
+    while true {
+        match lllvmLexer_consume_char(lexer) {
+            CharOption::Some('\n') => return,
+            CharOption::Some(_) => (),
+            CharOption::None => return,
+        }
+    }
+}
+
 // -----------------------------------------------------------------
 // -----------------------------------------------------------------
 // ------------------------- Library -------------------------------
