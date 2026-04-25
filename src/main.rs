@@ -2053,9 +2053,10 @@ enum LllvmToken {
     LBrace,  // "{"
     RBrace,  // "}"
     Comma,   // ","
+    Minus,   // "-"
     Assign,  // "="
     Identifier(String),
-    Integer(i64),
+    Integer(usize),
     Eof,
 }
 
@@ -2082,6 +2083,7 @@ fn lllvmToken_clone(token: &LllvmToken) -> LllvmToken {
         LllvmToken::LBrace => LllvmToken::LBrace,
         LllvmToken::RBrace => LllvmToken::RBrace,
         LllvmToken::Comma => LllvmToken::Comma,
+        LllvmToken::Minus => LllvmToken::Minus,
         LllvmToken::Assign => LllvmToken::Assign,
         LllvmToken::Identifier(name) => LllvmToken::Identifier(string_clone(name)),
         LllvmToken::Integer(value) => LllvmToken::Integer(*value),
@@ -2170,6 +2172,10 @@ fn lllvmToken_eq(left: &LllvmToken, right: &LllvmToken) -> bool {
         },
         LllvmToken::Comma => match right {
             LllvmToken::Comma => true,
+            _ => false,
+        },
+        LllvmToken::Minus => match right {
+            LllvmToken::Minus => true,
             _ => false,
         },
         LllvmToken::Assign => match right {
