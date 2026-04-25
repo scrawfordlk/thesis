@@ -2541,6 +2541,10 @@ fn is_alphanumeric(c: char) -> bool {
     or(is_alpha(c), is_digit(c))
 }
 
+fn is_alphanumeric_or_dot(ch: char) -> bool {
+    or(is_alphanumeric(ch), ch == '.')
+}
+
 // ------------------------ Pointers ------------------------------
 
 /// Box-like type that is a pointer to an owned heap-allocated GlobalSymTable.
