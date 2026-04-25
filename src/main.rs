@@ -407,9 +407,9 @@ fn lexer_current_token(lexer: &Lexer) -> &Token {
 }
 
 /// Get mutable access to the current lexer token slot.
-fn lexer_current_token_mut(lexer: &mut Lexer) -> &mut Token {
-    let Lexer::Lexer(_, token): &mut Lexer = lexer;
-    token
+fn lexer_set_current_token(lexer: &mut Lexer, token: Token) {
+    let Lexer::Lexer(_, old_token): &mut Lexer = lexer;
+    *old_token = token;
 }
 
 /// Get the current source location tracked by the lexer.
@@ -486,9 +486,8 @@ fn lexer_next_token(lexer: &mut Lexer) -> Token {
         CharOption::None => Token::Eof,
     };
 
-    let returned_token: Token = token_clone(&token);
-    *lexer_current_token_mut(lexer) = token;
-    returned_token
+    lexer_set_current_token(lexer, token_clone(&token));
+    token
 }
 
 /// Scan an identifier or keyword.
@@ -1019,6 +1018,7 @@ fn parse_variant(parser: &mut Parser) -> Type {
     Type::Custom(variant_name)
 }
 
+// TODO: should introduce a new symbol table
 fn parse_block(parser: &mut Parser) -> Type {
     parser_expect_token(parser, &Token::LBrace);
 
