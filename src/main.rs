@@ -864,8 +864,6 @@ fn parser_expect_identifier(parser: &mut Parser) -> String {
 }
 
 fn parse_language(parser: &mut Parser) {
-    llvm_emit_line(parser_llvm_mut(parser), "; ModuleID = 'thesis'");
-
     while true {
         match parser_current_token(parser) {
             Token::Fn => parse_function(parser),
