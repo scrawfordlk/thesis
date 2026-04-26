@@ -6,7 +6,7 @@ fn test_unwrap_char_some() {
 }
 
 #[test]
-#[should_panic(expected = "unwrap failed")]
+#[should_panic(expected = "tried to unwrap None variant of CharOption")]
 fn test_unwrap_char_none() {
     unwrap_char(CharOption::None);
 }
@@ -168,19 +168,19 @@ fn parser_type_match(a: &Type, b: &Type) -> bool {
     }
 }
 
-fn parser_types_match(a: &Types, b: &Types) -> bool {
+fn parser_typeList_match(a: &TypeList, b: &TypeList) -> bool {
     match (a, b) {
-        (Types::Nil, Types::Nil) => true,
-        (Types::Cons(a_head, a_tail), Types::Cons(b_head, b_tail)) => and(
+        (TypeList::Nil, TypeList::Nil) => true,
+        (TypeList::Cons(a_head, a_tail), TypeList::Cons(b_head, b_tail)) => and(
             parser_type_match(a_head, b_head),
-            parser_types_match(typesBox_deref(a_tail), typesBox_deref(b_tail)),
+            parser_typeList_match(typeListBox_deref(a_tail), typeListBox_deref(b_tail)),
         ),
         _ => false,
     }
 }
 
-fn types_single(t: Type) -> Types {
-    Types::Cons(t, typesBox_new(Types::Nil))
+fn typeList_single(t: Type) -> TypeList {
+    TypeList::Cons(t, typeListBox_new(TypeList::Nil))
 }
 
 // ------------------------- Bool ----------------------------
@@ -225,8 +225,10 @@ fn test_global_symtable_prepend_and_contains() {
     assert!(!globalSymTable_contains(&global, &string_from_str("f")));
 
     let mut global = GlobalSymTable::Nil;
-    let entry =
-        SymTableEntry::Function(string_from_str("f"), FnSignature::Fn(Types::Nil, Type::U8));
+    let entry = SymTableEntry::Function(
+        string_from_str("f"),
+        FnSignature::Fn(TypeList::Nil, Type::U8),
+    );
     globalSymTable_prepend(&mut global, entry);
     match &global {
         GlobalSymTable::Cons(head, _) => {
@@ -242,7 +244,7 @@ fn test_global_symtable_insert_function() {
     assert!(globalSymTable_insert_function(
         &mut global,
         string_from_str("f"),
-        Types::Nil,
+        TypeList::Nil,
         Type::Usize
     ));
 }
@@ -253,7 +255,7 @@ fn test_global_symtable_insert_enum() {
     assert!(globalSymTable_insert_enum(
         &mut global,
         string_from_str("Color"),
-        Types::Nil
+        TypeList::Nil
     ));
 }
 
@@ -311,7 +313,7 @@ fn test_symtable_insert_function() {
     assert!(symTable_insert_function(
         &mut symtable,
         string_from_str("f"),
-        Types::Nil,
+        TypeList::Nil,
         Type::Usize
     ));
 }
@@ -322,7 +324,7 @@ fn test_symtable_insert_enum() {
     assert!(symTable_insert_enum(
         &mut symtable,
         string_from_str("State"),
-        Types::Nil
+        TypeList::Nil
     ));
 }
 
@@ -348,14 +350,14 @@ fn test_symtable_scope_and_variables() {
 fn test_symtable_entry_name() {
     let fn_entry = SymTableEntry::Function(
         string_from_str("f"),
-        FnSignature::Fn(Types::Nil, Type::Unit),
+        FnSignature::Fn(TypeList::Nil, Type::Unit),
     );
     assert!(string_eq(
         symTableEntry_name(&fn_entry),
         &string_from_str("f")
     ));
 
-    let enum_entry = SymTableEntry::Enum(string_from_str("E"), Types::Nil);
+    let enum_entry = SymTableEntry::Enum(string_from_str("E"), TypeList::Nil);
     assert!(string_eq(
         symTableEntry_name(&enum_entry),
         &string_from_str("E")
@@ -376,17 +378,20 @@ fn test_type_clone() {
 }
 
 #[test]
-fn test_types_clone() {
-    let types = types_single(Type::Custom(string_from_str("Node")));
-    let cloned = types_clone(&types);
-    assert!(parser_types_match(&types, &cloned));
+fn test_type_list_clone() {
+    let types = typeList_single(Type::Custom(string_from_str("Node")));
+    let cloned = typeList_clone(&types);
+    assert!(parser_typeList_match(&types, &cloned));
 }
 
 #[test]
 fn test_symtable_entry_clone() {
     let entry = SymTableEntry::Function(
         string_from_str("f"),
-        FnSignature::Fn(types_single(Type::U8), Type::Custom(string_from_str("Ret"))),
+        FnSignature::Fn(
+            typeList_single(Type::U8),
+            Type::Custom(string_from_str("Ret")),
+        ),
     );
     let cloned = symTableEntry_clone(&entry);
 
@@ -477,10 +482,10 @@ fn test_local_symtable_stack_box_new_deref_clone() {
 }
 
 #[test]
-fn test_types_box_new_deref_clone() {
-    let ptr = typesBox_new(Types::Nil);
-    assert!(matches!(typesBox_deref(&ptr), Types::Nil));
+fn test_type_list_box_new_deref_clone() {
+    let ptr = typeListBox_new(TypeList::Nil);
+    assert!(matches!(typeListBox_deref(&ptr), TypeList::Nil));
 
-    let cloned_ptr = typesBox_clone(&ptr);
-    assert!(matches!(typesBox_deref(&cloned_ptr), Types::Nil));
+    let cloned_ptr = typeListBox_clone(&ptr);
+    assert!(matches!(typeListBox_deref(&cloned_ptr), TypeList::Nil));
 }

@@ -65,213 +65,6 @@ enum Token {
     Eof,
 }
 
-/// Clone a token value.
-fn token_clone(token: &Token) -> Token {
-    match token {
-        Token::Unsafe => Token::Unsafe,
-        Token::Fn => Token::Fn,
-        Token::Enum => Token::Enum,
-        Token::Let => Token::Let,
-        Token::If => Token::If,
-        Token::Else => Token::Else,
-        Token::While => Token::While,
-        Token::Return => Token::Return,
-        Token::Match => Token::Match,
-        Token::As => Token::As,
-        Token::Mut => Token::Mut,
-        Token::Ampersand => Token::Ampersand,
-        Token::LBrace => Token::LBrace,
-        Token::RBrace => Token::RBrace,
-        Token::LParen => Token::LParen,
-        Token::RParen => Token::RParen,
-        Token::Colon => Token::Colon,
-        Token::DoubleColon => Token::DoubleColon,
-        Token::SemiColon => Token::SemiColon,
-        Token::Comma => Token::Comma,
-        Token::Assign => Token::Assign,
-        Token::Bang => Token::Bang,
-        Token::Cmp(comparison) => Token::Cmp(comparison_clone(comparison)),
-        Token::ArmArrow => Token::ArmArrow,
-        Token::Plus => Token::Plus,
-        Token::Minus => Token::Minus,
-        Token::Star => Token::Star,
-        Token::Slash => Token::Slash,
-        Token::Remainder => Token::Remainder,
-        Token::Usize => Token::Usize,
-        Token::U8 => Token::U8,
-        Token::Bool => Token::Bool,
-        Token::Char => Token::Char,
-        Token::Str => Token::Str,
-        Token::TypeArrow => Token::TypeArrow,
-        Token::Literal(literal) => Token::Literal(literalToken_clone(literal)),
-        Token::Identifier(value) => Token::Identifier(string_clone(value)),
-        Token::SizeOf(value) => Token::SizeOf(*value),
-        Token::Eof => Token::Eof,
-    }
-}
-
-/// Check if two tokens are equal.
-fn token_eq(a: &Token, b: &Token) -> bool {
-    match a {
-        Token::Unsafe => match b {
-            Token::Unsafe => true,
-            _ => false,
-        },
-        Token::Fn => match b {
-            Token::Fn => true,
-            _ => false,
-        },
-        Token::Enum => match b {
-            Token::Enum => true,
-            _ => false,
-        },
-        Token::Let => match b {
-            Token::Let => true,
-            _ => false,
-        },
-        Token::If => match b {
-            Token::If => true,
-            _ => false,
-        },
-        Token::Else => match b {
-            Token::Else => true,
-            _ => false,
-        },
-        Token::While => match b {
-            Token::While => true,
-            _ => false,
-        },
-        Token::Return => match b {
-            Token::Return => true,
-            _ => false,
-        },
-        Token::Match => match b {
-            Token::Match => true,
-            _ => false,
-        },
-        Token::As => match b {
-            Token::As => true,
-            _ => false,
-        },
-        Token::Mut => match b {
-            Token::Mut => true,
-            _ => false,
-        },
-        Token::Ampersand => match b {
-            Token::Ampersand => true,
-            _ => false,
-        },
-        Token::LBrace => match b {
-            Token::LBrace => true,
-            _ => false,
-        },
-        Token::RBrace => match b {
-            Token::RBrace => true,
-            _ => false,
-        },
-        Token::LParen => match b {
-            Token::LParen => true,
-            _ => false,
-        },
-        Token::RParen => match b {
-            Token::RParen => true,
-            _ => false,
-        },
-        Token::Colon => match b {
-            Token::Colon => true,
-            _ => false,
-        },
-        Token::DoubleColon => match b {
-            Token::DoubleColon => true,
-            _ => false,
-        },
-        Token::SemiColon => match b {
-            Token::SemiColon => true,
-            _ => false,
-        },
-        Token::Comma => match b {
-            Token::Comma => true,
-            _ => false,
-        },
-        Token::Assign => match b {
-            Token::Assign => true,
-            _ => false,
-        },
-        Token::Bang => match b {
-            Token::Bang => true,
-            _ => false,
-        },
-        Token::Cmp(left_comparison) => match b {
-            Token::Cmp(right_comparison) => comparison_eq(left_comparison, right_comparison),
-            _ => false,
-        },
-        Token::ArmArrow => match b {
-            Token::ArmArrow => true,
-            _ => false,
-        },
-        Token::Plus => match b {
-            Token::Plus => true,
-            _ => false,
-        },
-        Token::Minus => match b {
-            Token::Minus => true,
-            _ => false,
-        },
-        Token::Star => match b {
-            Token::Star => true,
-            _ => false,
-        },
-        Token::Slash => match b {
-            Token::Slash => true,
-            _ => false,
-        },
-        Token::Remainder => match b {
-            Token::Remainder => true,
-            _ => false,
-        },
-        Token::Usize => match b {
-            Token::Usize => true,
-            _ => false,
-        },
-        Token::U8 => match b {
-            Token::U8 => true,
-            _ => false,
-        },
-        Token::Bool => match b {
-            Token::Bool => true,
-            _ => false,
-        },
-        Token::Char => match b {
-            Token::Char => true,
-            _ => false,
-        },
-        Token::Str => match b {
-            Token::Str => true,
-            _ => false,
-        },
-        Token::TypeArrow => match b {
-            Token::TypeArrow => true,
-            _ => false,
-        },
-        Token::Literal(left_literal) => match b {
-            Token::Literal(right_literal) => literalToken_eq(left_literal, right_literal),
-            _ => false,
-        },
-        Token::SizeOf(left) => match b {
-            Token::SizeOf(right) => left == right,
-            _ => false,
-        },
-        Token::Identifier(left) => match b {
-            Token::Identifier(right) => string_eq(left, right),
-            _ => false,
-        },
-        Token::Eof => match b {
-            Token::Eof => true,
-            _ => false,
-        },
-    }
-}
-
 /// Comparison tokens
 #[derive(Debug)]
 enum Comparison {
@@ -283,48 +76,6 @@ enum Comparison {
     Leq,
 }
 
-/// Clone a comparison operator.
-fn comparison_clone(comparison: &Comparison) -> Comparison {
-    match comparison {
-        Comparison::Eq => Comparison::Eq,
-        Comparison::Neq => Comparison::Neq,
-        Comparison::Gt => Comparison::Gt,
-        Comparison::Lt => Comparison::Lt,
-        Comparison::Geq => Comparison::Geq,
-        Comparison::Leq => Comparison::Leq,
-    }
-}
-
-/// Compare two comparison operators.
-fn comparison_eq(left: &Comparison, right: &Comparison) -> bool {
-    match left {
-        Comparison::Eq => match right {
-            Comparison::Eq => true,
-            _ => false,
-        },
-        Comparison::Neq => match right {
-            Comparison::Neq => true,
-            _ => false,
-        },
-        Comparison::Gt => match right {
-            Comparison::Gt => true,
-            _ => false,
-        },
-        Comparison::Lt => match right {
-            Comparison::Lt => true,
-            _ => false,
-        },
-        Comparison::Geq => match right {
-            Comparison::Geq => true,
-            _ => false,
-        },
-        Comparison::Leq => match right {
-            Comparison::Leq => true,
-            _ => false,
-        },
-    }
-}
-
 /// Literal tokens.
 #[derive(Debug)]
 enum Literal {
@@ -332,38 +83,6 @@ enum Literal {
     String(String),
     Char(char),
     Bool(bool),
-}
-
-/// Clone a literal token payload.
-fn literalToken_clone(literal: &Literal) -> Literal {
-    match literal {
-        Literal::Int(value) => Literal::Int(*value),
-        Literal::String(value) => Literal::String(string_clone(value)),
-        Literal::Char(value) => Literal::Char(*value),
-        Literal::Bool(value) => Literal::Bool(*value),
-    }
-}
-
-/// Compare two literal token payloads.
-fn literalToken_eq(left: &Literal, right: &Literal) -> bool {
-    match left {
-        Literal::Int(left_value) => match right {
-            Literal::Int(right_value) => left_value == right_value,
-            _ => false,
-        },
-        Literal::String(left_value) => match right {
-            Literal::String(right_value) => string_eq(left_value, right_value),
-            _ => false,
-        },
-        Literal::Char(left_value) => match right {
-            Literal::Char(right_value) => left_value == right_value,
-            _ => false,
-        },
-        Literal::Bool(left_value) => match right {
-            Literal::Bool(right_value) => left_value == right_value,
-            _ => false,
-        },
-    }
 }
 
 /// A type that encapsulates the state of the lexer
@@ -893,13 +612,13 @@ fn parse_function(parser: &mut Parser) {
 
     let function_name: String = parser_expect_identifier(parser);
     symTable_enter_scope(parser_symtable_mut(parser));
-    let mut parameter_types: Types = types_new();
+    let mut parameter_types: TypeList = typeList_new();
 
     parser_expect_token(parser, &Token::LParen);
     if not(parser_current_token_eq(parser, &Token::RParen)) {
         let first_parameter: Variable = parse_variable(parser);
         let Variable::Var(pattern, param_type, is_mutable): Variable = first_parameter;
-        types_append(&mut parameter_types, type_clone(&param_type));
+        typeList_append(&mut parameter_types, type_clone(&param_type));
 
         match pattern {
             Pattern::Identifier(name) => {
@@ -916,7 +635,7 @@ fn parse_function(parser: &mut Parser) {
         ) {
             let parameter: Variable = parse_variable(parser);
             let Variable::Var(pattern, param_type, is_mutable): Variable = parameter;
-            types_append(&mut parameter_types, type_clone(&param_type));
+            typeList_append(&mut parameter_types, type_clone(&param_type));
 
             match pattern {
                 Pattern::Identifier(name) => {
@@ -982,15 +701,15 @@ fn parse_enum(parser: &mut Parser) {
     let enum_name: String = parser_expect_identifier(parser);
     parser_expect_token(parser, &Token::LBrace);
 
-    let mut variants: Types = types_new();
+    let mut variants: TypeList = typeList_new();
     let first_variant_type: Type = parse_variant(parser);
-    types_append(&mut variants, first_variant_type);
+    typeList_append(&mut variants, first_variant_type);
     parser_expect_token(parser, &Token::Comma);
 
     while not(parser_current_token_eq(parser, &Token::RBrace)) {
         let variant_type: Type = parse_variant(parser);
         // TODO: check for duplicate variants
-        types_append(&mut variants, variant_type);
+        typeList_append(&mut variants, variant_type);
         parser_expect_token(parser, &Token::Comma);
     }
     parser_expect_token(parser, &Token::RBrace);
@@ -1453,24 +1172,24 @@ fn parse_pattern(parser: &mut Parser) -> Pattern {
 fn parse_call(parser: &mut Parser, function_name: String) -> Type {
     parser_expect_token(parser, &Token::LParen);
 
-    let mut argument_types: Types = types_new();
+    let mut argument_types: TypeList = typeList_new();
     if not(parser_current_token_eq(parser, &Token::RParen)) {
         let first_argument_type: Type = parse_expression(parser);
-        types_append(&mut argument_types, first_argument_type);
+        typeList_append(&mut argument_types, first_argument_type);
 
         while and(
             parser_try_consume(parser, &Token::Comma),
             not(parser_current_token_eq(parser, &Token::RParen)),
         ) {
             let argument_type: Type = parse_expression(parser);
-            types_append(&mut argument_types, argument_type);
+            typeList_append(&mut argument_types, argument_type);
         }
     }
     parser_expect_token(parser, &Token::RParen);
 
     match symTable_lookup_function_signature(parser_symtable(parser), &function_name) {
         FnSignatureOption::Some(FnSignature::Fn(parameter_types, return_type)) => {
-            if not(types_eq(&parameter_types, &argument_types)) {
+            if not(typeList_eq(&parameter_types, &argument_types)) {
                 parser_error(parser, "function call does not match function signature");
             }
 
@@ -1550,7 +1269,7 @@ fn symTable_leave_scope(symtable: &mut SymTable) -> bool {
 fn symTable_insert_function(
     symtable: &mut SymTable,
     name: String,
-    parameter_types: Types,
+    parameter_types: TypeList,
     return_type: Type,
 ) -> bool {
     let SymTable::Table(global, _) = symtable;
@@ -1559,7 +1278,7 @@ fn symTable_insert_function(
 
 /// Insert an enum into the global table.
 /// Return true, if the name is not taken else false.
-fn symTable_insert_enum(symtable: &mut SymTable, name: String, variants: Types) -> bool {
+fn symTable_insert_enum(symtable: &mut SymTable, name: String, variants: TypeList) -> bool {
     let SymTable::Table(global, _) = symtable;
     globalSymTable_insert_enum(global, name, variants)
 }
@@ -1634,7 +1353,7 @@ fn globalSymTable_lookup_function_signature(
 fn globalSymTable_insert_function(
     symtable: &mut GlobalSymTable,
     name: String,
-    parameter_types: Types,
+    parameter_types: TypeList,
     return_type: Type,
 ) -> bool {
     if globalSymTable_contains(symtable, &name) {
@@ -1651,7 +1370,7 @@ fn globalSymTable_insert_function(
 fn globalSymTable_insert_enum(
     symtable: &mut GlobalSymTable,
     name: String,
-    variants: Types,
+    variants: TypeList,
 ) -> bool {
     if globalSymTable_contains(symtable, &name) {
         return false;
@@ -1782,7 +1501,7 @@ enum SymTableEntry {
     /// name, signature
     Function(String, FnSignature),
     /// name, variant types
-    Enum(String, Types),
+    Enum(String, TypeList),
     /// name, type, is mutable
     Variable(String, Type, bool),
 }
@@ -1796,71 +1515,10 @@ fn symTableEntry_name(entry: &SymTableEntry) -> &String {
     }
 }
 
-/// Clone a symbol table entry.
-fn symTableEntry_clone(entry: &SymTableEntry) -> SymTableEntry {
-    match entry {
-        SymTableEntry::Function(name, signature) => {
-            SymTableEntry::Function(string_clone(name), fnSignature_clone(signature))
-        }
-        SymTableEntry::Enum(name, variants) => {
-            SymTableEntry::Enum(string_clone(name), types_clone(variants))
-        }
-        SymTableEntry::Variable(name, variable_type, mutable) => {
-            SymTableEntry::Variable(string_clone(name), type_clone(variable_type), *mutable)
-        }
-    }
-}
-
-/// Clone the global symbol table list.
-fn globalSymTable_clone(symtable: &GlobalSymTable) -> GlobalSymTable {
-    match symtable {
-        GlobalSymTable::Nil => GlobalSymTable::Nil,
-        GlobalSymTable::Cons(head, tail) => {
-            GlobalSymTable::Cons(symTableEntry_clone(head), globalSymTableBox_clone(tail))
-        }
-    }
-}
-
-/// Clone a local scope symbol table list.
-fn localSymTable_clone(symtable: &LocalSymTable) -> LocalSymTable {
-    match symtable {
-        LocalSymTable::Nil => LocalSymTable::Nil,
-        LocalSymTable::Cons(head, tail) => {
-            LocalSymTable::Cons(symTableEntry_clone(head), localSymTableBox_clone(tail))
-        }
-    }
-}
-
-/// Clone the stack of local scopes.
-fn localSymTableStack_clone(stack: &LocalSymTableStack) -> LocalSymTableStack {
-    match stack {
-        LocalSymTableStack::Nil => LocalSymTableStack::Nil,
-        LocalSymTableStack::Cons(local, tail) => LocalSymTableStack::Cons(
-            localSymTable_clone(local),
-            localSymTableStackBox_clone(tail),
-        ),
-    }
-}
-
 /// A type that represents the (type) signature of a function
 enum FnSignature {
     /// parameter types, return type
-    Fn(Types, Type),
-}
-
-/// Clone a function signature.
-fn fnSignature_clone(signature: &FnSignature) -> FnSignature {
-    match signature {
-        FnSignature::Fn(parameter_types, return_type) => {
-            FnSignature::Fn(types_clone(parameter_types), type_clone(return_type))
-        }
-    }
-}
-
-/// Lookup result for function signature resolution.
-enum FnSignatureOption {
-    Some(FnSignature),
-    None,
+    Fn(TypeList, Type),
 }
 
 /// Type forms supported by the front-end.
@@ -1875,74 +1533,6 @@ enum Type {
     Reference(TypeBox),     // &Type
     ReferenceMut(TypeBox),  // &mut Type
     RawPointerMut(TypeBox), // *mut Type
-}
-
-/// Lookup result for variable type resolution.
-enum TypeOption {
-    Some(Type),
-    None,
-}
-
-/// Clone a type value.
-fn type_clone(t: &Type) -> Type {
-    match t {
-        Type::U8 => Type::U8,
-        Type::Usize => Type::Usize,
-        Type::Bool => Type::Bool,
-        Type::Char => Type::Char,
-        Type::Unit => Type::Unit,
-        Type::Never => Type::Never,
-        Type::Custom(name) => Type::Custom(string_clone(name)),
-        Type::Reference(inner) => Type::Reference(typeBox_clone(inner)),
-        Type::ReferenceMut(inner) => Type::ReferenceMut(typeBox_clone(inner)),
-        Type::RawPointerMut(inner) => Type::RawPointerMut(typeBox_clone(inner)),
-    }
-}
-
-/// Compare two types.
-fn type_eq(a: &Type, b: &Type) -> bool {
-    match a {
-        Type::U8 => match b {
-            Type::U8 => true,
-            _ => false,
-        },
-        Type::Usize => match b {
-            Type::Usize => true,
-            _ => false,
-        },
-        Type::Bool => match b {
-            Type::Bool => true,
-            _ => false,
-        },
-        Type::Char => match b {
-            Type::Char => true,
-            _ => false,
-        },
-        Type::Unit => match b {
-            Type::Unit => true,
-            _ => false,
-        },
-        Type::Never => match b {
-            Type::Never => true,
-            _ => false,
-        },
-        Type::Custom(left) => match b {
-            Type::Custom(right) => string_eq(left, right),
-            _ => false,
-        },
-        Type::Reference(left) => match b {
-            Type::Reference(right) => type_eq(typeBox_deref(left), typeBox_deref(right)),
-            _ => false,
-        },
-        Type::ReferenceMut(left) => match b {
-            Type::ReferenceMut(right) => type_eq(typeBox_deref(left), typeBox_deref(right)),
-            _ => false,
-        },
-        Type::RawPointerMut(left) => match b {
-            Type::RawPointerMut(right) => type_eq(typeBox_deref(left), typeBox_deref(right)),
-            _ => false,
-        },
-    }
 }
 
 fn type_is_numeric(ty: &Type) -> bool {
@@ -1966,58 +1556,6 @@ fn type_to_llvm_name(ty: &Type) -> String {
         Type::Reference(_) => string_from_str("i64"),
         Type::ReferenceMut(_) => string_from_str("i64"),
         Type::RawPointerMut(_) => string_from_str("i64"),
-    }
-}
-
-/// Cons list of `Type` values.
-enum Types {
-    /// head, tail
-    Cons(Type, TypesBox),
-    Nil,
-}
-
-/// Create an empty Types list.
-fn types_new() -> Types {
-    Types::Nil
-}
-
-/// Clone a Types linked list.
-fn types_clone(types: &Types) -> Types {
-    match types {
-        Types::Nil => Types::Nil,
-        Types::Cons(head, tail) => Types::Cons(type_clone(head), typesBox_clone(tail)),
-    }
-}
-
-/// Append one type to a type list.
-fn types_append(list: &mut Types, ty: Type) {
-    let mut current: &mut Types = list;
-
-    while true {
-        match current {
-            Types::Nil => {
-                *current = Types::Cons(ty, typesBox_new(Types::Nil));
-                return;
-            }
-            Types::Cons(_, tail) => current = typesBox_deref_mut(tail),
-        }
-    }
-}
-
-/// Compare two type lists in order.
-fn types_eq(left: &Types, right: &Types) -> bool {
-    match left {
-        Types::Nil => match right {
-            Types::Nil => true,
-            _ => false,
-        },
-        Types::Cons(lhead, ltail) => match right {
-            Types::Cons(rhead, rtail) => and(
-                type_eq(lhead, rhead),
-                types_eq(typesBox_deref(ltail), typesBox_deref(rtail)),
-            ),
-            _ => false,
-        },
     }
 }
 
@@ -2058,143 +1596,6 @@ enum LlvmToken {
     Identifier(String),
     Integer(usize),
     Eof,
-}
-
-/// Clone an LLVM token.
-fn llvmToken_clone(token: &LlvmToken) -> LlvmToken {
-    match token {
-        LlvmToken::Define => LlvmToken::Define,
-        LlvmToken::Ret => LlvmToken::Ret,
-        LlvmToken::Add => LlvmToken::Add,
-        LlvmToken::Sub => LlvmToken::Sub,
-        LlvmToken::Mul => LlvmToken::Mul,
-        LlvmToken::Udiv => LlvmToken::Udiv,
-        LlvmToken::Urem => LlvmToken::Urem,
-        LlvmToken::Icmp => LlvmToken::Icmp,
-        LlvmToken::Call => LlvmToken::Call,
-        LlvmToken::Ult => LlvmToken::Ult,
-        LlvmToken::I64 => LlvmToken::I64,
-        LlvmToken::I1 => LlvmToken::I1,
-        LlvmToken::Void => LlvmToken::Void,
-        LlvmToken::At => LlvmToken::At,
-        LlvmToken::Percent => LlvmToken::Percent,
-        LlvmToken::LParen => LlvmToken::LParen,
-        LlvmToken::RParen => LlvmToken::RParen,
-        LlvmToken::LBrace => LlvmToken::LBrace,
-        LlvmToken::RBrace => LlvmToken::RBrace,
-        LlvmToken::Comma => LlvmToken::Comma,
-        LlvmToken::Minus => LlvmToken::Minus,
-        LlvmToken::Assign => LlvmToken::Assign,
-        LlvmToken::Identifier(name) => LlvmToken::Identifier(string_clone(name)),
-        LlvmToken::Integer(value) => LlvmToken::Integer(*value),
-        LlvmToken::Eof => LlvmToken::Eof,
-    }
-}
-
-/// Compare two LLVM tokens.
-fn llvmToken_eq(left: &LlvmToken, right: &LlvmToken) -> bool {
-    match left {
-        LlvmToken::Define => match right {
-            LlvmToken::Define => true,
-            _ => false,
-        },
-        LlvmToken::Ret => match right {
-            LlvmToken::Ret => true,
-            _ => false,
-        },
-        LlvmToken::Add => match right {
-            LlvmToken::Add => true,
-            _ => false,
-        },
-        LlvmToken::Sub => match right {
-            LlvmToken::Sub => true,
-            _ => false,
-        },
-        LlvmToken::Mul => match right {
-            LlvmToken::Mul => true,
-            _ => false,
-        },
-        LlvmToken::Udiv => match right {
-            LlvmToken::Udiv => true,
-            _ => false,
-        },
-        LlvmToken::Urem => match right {
-            LlvmToken::Urem => true,
-            _ => false,
-        },
-        LlvmToken::Icmp => match right {
-            LlvmToken::Icmp => true,
-            _ => false,
-        },
-        LlvmToken::Call => match right {
-            LlvmToken::Call => true,
-            _ => false,
-        },
-        LlvmToken::Ult => match right {
-            LlvmToken::Ult => true,
-            _ => false,
-        },
-        LlvmToken::I64 => match right {
-            LlvmToken::I64 => true,
-            _ => false,
-        },
-        LlvmToken::I1 => match right {
-            LlvmToken::I1 => true,
-            _ => false,
-        },
-        LlvmToken::Void => match right {
-            LlvmToken::Void => true,
-            _ => false,
-        },
-        LlvmToken::At => match right {
-            LlvmToken::At => true,
-            _ => false,
-        },
-        LlvmToken::Percent => match right {
-            LlvmToken::Percent => true,
-            _ => false,
-        },
-        LlvmToken::LParen => match right {
-            LlvmToken::LParen => true,
-            _ => false,
-        },
-        LlvmToken::RParen => match right {
-            LlvmToken::RParen => true,
-            _ => false,
-        },
-        LlvmToken::LBrace => match right {
-            LlvmToken::LBrace => true,
-            _ => false,
-        },
-        LlvmToken::RBrace => match right {
-            LlvmToken::RBrace => true,
-            _ => false,
-        },
-        LlvmToken::Comma => match right {
-            LlvmToken::Comma => true,
-            _ => false,
-        },
-        LlvmToken::Minus => match right {
-            LlvmToken::Minus => true,
-            _ => false,
-        },
-        LlvmToken::Assign => match right {
-            LlvmToken::Assign => true,
-            _ => false,
-        },
-        LlvmToken::Identifier(left_name) => match right {
-            LlvmToken::Identifier(right_name) => string_eq(left_name, right_name),
-            _ => false,
-        },
-        LlvmToken::Integer(left_value) => match right {
-            LlvmToken::Integer(right_value) => *left_value == *right_value,
-            _ => false,
-        },
-        LlvmToken::Eof => match right {
-            LlvmToken::Eof => true,
-            _ => false,
-        },
-    }
 }
 
 /// A type that encapsulates the state of the lexer for the LLVM-IR parser
@@ -2489,9 +1890,9 @@ fn parser_error(parser: &Parser, message: &str) -> ! {
     lexer_error(parser_lexer(parser), message)
 }
 
-/// Check whether the parser current token equals an expected token.
-
+// -----------------------------------------------------------------
 // -------------------------- bool ---------------------------------
+// -----------------------------------------------------------------
 
 /// Logical AND of two booleans.
 fn and(a: bool, b: bool) -> bool {
@@ -2508,22 +1909,9 @@ fn not(a: bool) -> bool {
     a as u8 == 0
 }
 
+// -----------------------------------------------------------------
 // -------------------------- char ---------------------------------
-
-/// Option type for the type char
-enum CharOption {
-    Some(char),
-    None,
-}
-
-/// Returns the value wrapped in Some.
-/// If the option is None, end the program.
-fn unwrap_char(char_opt: CharOption) -> char {
-    match char_opt {
-        CharOption::Some(c) => c,
-        CharOption::None => panic!("unwrap failed"),
-    }
-}
+// -----------------------------------------------------------------
 
 /// Check whether a character is whitespace.
 fn is_whitespace(c: char) -> bool {
@@ -2551,7 +1939,71 @@ fn is_alphanumeric_or_dot(ch: char) -> bool {
     or(is_alphanumeric(ch), ch == '.')
 }
 
-// ------------------------ Pointers ------------------------------
+// -----------------------------------------------------------------
+// ------------------------ Option<T> ------------------------------
+// -----------------------------------------------------------------
+
+/// Option type for FnSignature.
+enum FnSignatureOption {
+    Some(FnSignature),
+    None,
+}
+
+/// Option type for Type.
+enum TypeOption {
+    Some(Type),
+    None,
+}
+
+/// Option type for char.
+enum CharOption {
+    Some(char),
+    None,
+}
+
+/// Returns the value wrapped in Some.
+/// If the option is None, end the program.
+fn unwrap_char(char_opt: CharOption) -> char {
+    match char_opt {
+        CharOption::Some(c) => c,
+        CharOption::None => panic!("tried to unwrap None variant of CharOption"),
+    }
+}
+
+// -----------------------------------------------------------------
+// -------------------------- Lists --------------------------------
+// -----------------------------------------------------------------
+
+/// List of Type values.
+enum TypeList {
+    /// head, tail
+    Cons(Type, TypeListBox),
+    Nil,
+}
+
+/// Create an empty TypeList.
+fn typeList_new() -> TypeList {
+    TypeList::Nil
+}
+
+/// Append one type to a TypeList.
+fn typeList_append(list: &mut TypeList, ty: Type) {
+    let mut current: &mut TypeList = list;
+
+    while true {
+        match current {
+            TypeList::Nil => {
+                *current = TypeList::Cons(ty, typeListBox_new(TypeList::Nil));
+                return;
+            }
+            TypeList::Cons(_, tail) => current = typeListBox_deref_mut(tail),
+        }
+    }
+}
+
+// ----------------------------------------------------------------
+// -------------------- Pointers (Box, Rc) ------------------------
+// ----------------------------------------------------------------
 
 /// Box-like type that is a pointer to an owned heap-allocated GlobalSymTable.
 enum GlobalSymTableBox {
@@ -2573,12 +2025,6 @@ fn globalSymTableBox_new(symtable: GlobalSymTable) -> GlobalSymTableBox {
 fn globalSymTableBox_deref(ptr_wrap: &GlobalSymTableBox) -> &GlobalSymTable {
     let GlobalSymTableBox::Ptr(ptr): &GlobalSymTableBox = ptr_wrap;
     unsafe { &**ptr }
-}
-
-/// Clone a GlobalSymTable box and its heap-owned value.
-fn globalSymTableBox_clone(ptr: &GlobalSymTableBox) -> GlobalSymTableBox {
-    let cloned: GlobalSymTable = globalSymTable_clone(globalSymTableBox_deref(ptr));
-    globalSymTableBox_new(cloned)
 }
 
 /// Box-like type that is a pointer to an owned heap-allocated LocalSymTableStack.
@@ -2603,12 +2049,6 @@ fn localSymTableStackBox_deref(ptr_wrap: &LocalSymTableStackBox) -> &LocalSymTab
     unsafe { &**ptr }
 }
 
-/// Clone a LocalSymTableStack box and its heap-owned value.
-fn localSymTableStackBox_clone(ptr: &LocalSymTableStackBox) -> LocalSymTableStackBox {
-    let cloned: LocalSymTableStack = localSymTableStack_clone(localSymTableStackBox_deref(ptr));
-    localSymTableStackBox_new(cloned)
-}
-
 /// Box-like type that is a pointer to an owned heap-allocated LocalSymTable.
 enum LocalSymTableBox {
     Ptr(*mut LocalSymTable),
@@ -2631,12 +2071,6 @@ fn localSymTableBox_deref(ptr_wrap: &LocalSymTableBox) -> &LocalSymTable {
     unsafe { &**ptr }
 }
 
-/// Clone a LocalSymTable box and its heap-owned value.
-fn localSymTableBox_clone(ptr: &LocalSymTableBox) -> LocalSymTableBox {
-    let cloned: LocalSymTable = localSymTable_clone(localSymTableBox_deref(ptr));
-    localSymTableBox_new(cloned)
-}
-
 /// Box-like type that is a pointer to an owned heap-allocated Type.
 enum TypeBox {
     Ptr(*mut Type),
@@ -2656,41 +2090,665 @@ fn typeBox_deref(ptr_wrap: &TypeBox) -> &Type {
     unsafe { &**ptr }
 }
 
+/// Box-like type that is a pointer to an owned heap-allocated TypeList.
+enum TypeListBox {
+    Ptr(*mut TypeList),
+}
+
+/// Allocate and box a TypeList value on the heap.
+fn typeListBox_new(types: TypeList) -> TypeListBox {
+    let ptr_u8: *mut u8 = alloc(
+        std::mem::size_of::<TypeList>(),
+        std::mem::size_of::<usize>(),
+    );
+    let ptr: *mut TypeList = ptr_u8 as *mut TypeList;
+    unsafe { *ptr = types };
+    TypeListBox::Ptr(ptr)
+}
+
+/// Dereference a TypeList box.
+fn typeListBox_deref(ptr_wrap: &TypeListBox) -> &TypeList {
+    let TypeListBox::Ptr(ptr): &TypeListBox = ptr_wrap;
+    unsafe { &**ptr }
+}
+
+/// Mutably dereference a TypeList box.
+fn typeListBox_deref_mut(ptr_wrap: &mut TypeListBox) -> &mut TypeList {
+    let TypeListBox::Ptr(ptr): &mut TypeListBox = ptr_wrap;
+    unsafe { &mut **ptr }
+}
+
+// ----------------------------------------------------------------
+// --------------------------- Eq ---------------------------------
+// ----------------------------------------------------------------
+
+/// Check if two tokens are equal.
+fn token_eq(a: &Token, b: &Token) -> bool {
+    match a {
+        Token::Unsafe => match b {
+            Token::Unsafe => true,
+            _ => false,
+        },
+        Token::Fn => match b {
+            Token::Fn => true,
+            _ => false,
+        },
+        Token::Enum => match b {
+            Token::Enum => true,
+            _ => false,
+        },
+        Token::Let => match b {
+            Token::Let => true,
+            _ => false,
+        },
+        Token::If => match b {
+            Token::If => true,
+            _ => false,
+        },
+        Token::Else => match b {
+            Token::Else => true,
+            _ => false,
+        },
+        Token::While => match b {
+            Token::While => true,
+            _ => false,
+        },
+        Token::Return => match b {
+            Token::Return => true,
+            _ => false,
+        },
+        Token::Match => match b {
+            Token::Match => true,
+            _ => false,
+        },
+        Token::As => match b {
+            Token::As => true,
+            _ => false,
+        },
+        Token::Mut => match b {
+            Token::Mut => true,
+            _ => false,
+        },
+        Token::Ampersand => match b {
+            Token::Ampersand => true,
+            _ => false,
+        },
+        Token::LBrace => match b {
+            Token::LBrace => true,
+            _ => false,
+        },
+        Token::RBrace => match b {
+            Token::RBrace => true,
+            _ => false,
+        },
+        Token::LParen => match b {
+            Token::LParen => true,
+            _ => false,
+        },
+        Token::RParen => match b {
+            Token::RParen => true,
+            _ => false,
+        },
+        Token::Colon => match b {
+            Token::Colon => true,
+            _ => false,
+        },
+        Token::DoubleColon => match b {
+            Token::DoubleColon => true,
+            _ => false,
+        },
+        Token::SemiColon => match b {
+            Token::SemiColon => true,
+            _ => false,
+        },
+        Token::Comma => match b {
+            Token::Comma => true,
+            _ => false,
+        },
+        Token::Assign => match b {
+            Token::Assign => true,
+            _ => false,
+        },
+        Token::Bang => match b {
+            Token::Bang => true,
+            _ => false,
+        },
+        Token::Cmp(left_comparison) => match b {
+            Token::Cmp(right_comparison) => comparison_eq(left_comparison, right_comparison),
+            _ => false,
+        },
+        Token::ArmArrow => match b {
+            Token::ArmArrow => true,
+            _ => false,
+        },
+        Token::Plus => match b {
+            Token::Plus => true,
+            _ => false,
+        },
+        Token::Minus => match b {
+            Token::Minus => true,
+            _ => false,
+        },
+        Token::Star => match b {
+            Token::Star => true,
+            _ => false,
+        },
+        Token::Slash => match b {
+            Token::Slash => true,
+            _ => false,
+        },
+        Token::Remainder => match b {
+            Token::Remainder => true,
+            _ => false,
+        },
+        Token::Usize => match b {
+            Token::Usize => true,
+            _ => false,
+        },
+        Token::U8 => match b {
+            Token::U8 => true,
+            _ => false,
+        },
+        Token::Bool => match b {
+            Token::Bool => true,
+            _ => false,
+        },
+        Token::Char => match b {
+            Token::Char => true,
+            _ => false,
+        },
+        Token::Str => match b {
+            Token::Str => true,
+            _ => false,
+        },
+        Token::TypeArrow => match b {
+            Token::TypeArrow => true,
+            _ => false,
+        },
+        Token::Literal(left_literal) => match b {
+            Token::Literal(right_literal) => literalToken_eq(left_literal, right_literal),
+            _ => false,
+        },
+        Token::SizeOf(left) => match b {
+            Token::SizeOf(right) => left == right,
+            _ => false,
+        },
+        Token::Identifier(left) => match b {
+            Token::Identifier(right) => string_eq(left, right),
+            _ => false,
+        },
+        Token::Eof => match b {
+            Token::Eof => true,
+            _ => false,
+        },
+    }
+}
+
+/// Check if two comparison tokens are equal.
+fn comparison_eq(left: &Comparison, right: &Comparison) -> bool {
+    match left {
+        Comparison::Eq => match right {
+            Comparison::Eq => true,
+            _ => false,
+        },
+        Comparison::Neq => match right {
+            Comparison::Neq => true,
+            _ => false,
+        },
+        Comparison::Gt => match right {
+            Comparison::Gt => true,
+            _ => false,
+        },
+        Comparison::Lt => match right {
+            Comparison::Lt => true,
+            _ => false,
+        },
+        Comparison::Geq => match right {
+            Comparison::Geq => true,
+            _ => false,
+        },
+        Comparison::Leq => match right {
+            Comparison::Leq => true,
+            _ => false,
+        },
+    }
+}
+
+/// Check if two literal tokens are equal.
+fn literalToken_eq(left: &Literal, right: &Literal) -> bool {
+    match left {
+        Literal::Int(left_value) => match right {
+            Literal::Int(right_value) => left_value == right_value,
+            _ => false,
+        },
+        Literal::String(left_value) => match right {
+            Literal::String(right_value) => string_eq(left_value, right_value),
+            _ => false,
+        },
+        Literal::Char(left_value) => match right {
+            Literal::Char(right_value) => left_value == right_value,
+            _ => false,
+        },
+        Literal::Bool(left_value) => match right {
+            Literal::Bool(right_value) => left_value == right_value,
+            _ => false,
+        },
+    }
+}
+
+/// Check two types for equality.
+fn type_eq(a: &Type, b: &Type) -> bool {
+    match a {
+        Type::U8 => match b {
+            Type::U8 => true,
+            _ => false,
+        },
+        Type::Usize => match b {
+            Type::Usize => true,
+            _ => false,
+        },
+        Type::Bool => match b {
+            Type::Bool => true,
+            _ => false,
+        },
+        Type::Char => match b {
+            Type::Char => true,
+            _ => false,
+        },
+        Type::Unit => match b {
+            Type::Unit => true,
+            _ => false,
+        },
+        Type::Never => match b {
+            Type::Never => true,
+            _ => false,
+        },
+        Type::Custom(left) => match b {
+            Type::Custom(right) => string_eq(left, right),
+            _ => false,
+        },
+        Type::Reference(left) => match b {
+            Type::Reference(right) => type_eq(typeBox_deref(left), typeBox_deref(right)),
+            _ => false,
+        },
+        Type::ReferenceMut(left) => match b {
+            Type::ReferenceMut(right) => type_eq(typeBox_deref(left), typeBox_deref(right)),
+            _ => false,
+        },
+        Type::RawPointerMut(left) => match b {
+            Type::RawPointerMut(right) => type_eq(typeBox_deref(left), typeBox_deref(right)),
+            _ => false,
+        },
+    }
+}
+
+/// Compare two TypeLists in order.
+fn typeList_eq(left: &TypeList, right: &TypeList) -> bool {
+    match left {
+        TypeList::Nil => match right {
+            TypeList::Nil => true,
+            _ => false,
+        },
+        TypeList::Cons(lhead, ltail) => match right {
+            TypeList::Cons(rhead, rtail) => and(
+                type_eq(lhead, rhead),
+                typeList_eq(typeListBox_deref(ltail), typeListBox_deref(rtail)),
+            ),
+            _ => false,
+        },
+    }
+}
+
+/// Check two LLVM tokens for equality.
+fn llvmToken_eq(left: &LlvmToken, right: &LlvmToken) -> bool {
+    match left {
+        LlvmToken::Define => match right {
+            LlvmToken::Define => true,
+            _ => false,
+        },
+        LlvmToken::Ret => match right {
+            LlvmToken::Ret => true,
+            _ => false,
+        },
+        LlvmToken::Add => match right {
+            LlvmToken::Add => true,
+            _ => false,
+        },
+        LlvmToken::Sub => match right {
+            LlvmToken::Sub => true,
+            _ => false,
+        },
+        LlvmToken::Mul => match right {
+            LlvmToken::Mul => true,
+            _ => false,
+        },
+        LlvmToken::Udiv => match right {
+            LlvmToken::Udiv => true,
+            _ => false,
+        },
+        LlvmToken::Urem => match right {
+            LlvmToken::Urem => true,
+            _ => false,
+        },
+        LlvmToken::Icmp => match right {
+            LlvmToken::Icmp => true,
+            _ => false,
+        },
+        LlvmToken::Call => match right {
+            LlvmToken::Call => true,
+            _ => false,
+        },
+        LlvmToken::Ult => match right {
+            LlvmToken::Ult => true,
+            _ => false,
+        },
+        LlvmToken::I64 => match right {
+            LlvmToken::I64 => true,
+            _ => false,
+        },
+        LlvmToken::I1 => match right {
+            LlvmToken::I1 => true,
+            _ => false,
+        },
+        LlvmToken::Void => match right {
+            LlvmToken::Void => true,
+            _ => false,
+        },
+        LlvmToken::At => match right {
+            LlvmToken::At => true,
+            _ => false,
+        },
+        LlvmToken::Percent => match right {
+            LlvmToken::Percent => true,
+            _ => false,
+        },
+        LlvmToken::LParen => match right {
+            LlvmToken::LParen => true,
+            _ => false,
+        },
+        LlvmToken::RParen => match right {
+            LlvmToken::RParen => true,
+            _ => false,
+        },
+        LlvmToken::LBrace => match right {
+            LlvmToken::LBrace => true,
+            _ => false,
+        },
+        LlvmToken::RBrace => match right {
+            LlvmToken::RBrace => true,
+            _ => false,
+        },
+        LlvmToken::Comma => match right {
+            LlvmToken::Comma => true,
+            _ => false,
+        },
+        LlvmToken::Minus => match right {
+            LlvmToken::Minus => true,
+            _ => false,
+        },
+        LlvmToken::Assign => match right {
+            LlvmToken::Assign => true,
+            _ => false,
+        },
+        LlvmToken::Identifier(left_name) => match right {
+            LlvmToken::Identifier(right_name) => string_eq(left_name, right_name),
+            _ => false,
+        },
+        LlvmToken::Integer(left_value) => match right {
+            LlvmToken::Integer(right_value) => *left_value == *right_value,
+            _ => false,
+        },
+        LlvmToken::Eof => match right {
+            LlvmToken::Eof => true,
+            _ => false,
+        },
+    }
+}
+
+/// Check if two strings are equal.
+fn string_eq(s1: &String, s2: &String) -> bool {
+    let len: usize = string_len(s1);
+    if len != string_len(s2) {
+        return false;
+    }
+
+    let mut i: usize = 0;
+    while i < len {
+        let c1: char = unwrap_char(string_get(s1, i));
+        let c2: char = unwrap_char(string_get(s2, i));
+        if c1 != c2 {
+            return false;
+        }
+
+        i = i + 1;
+    }
+
+    true
+}
+
+// ----------------------------------------------------------------
+// ------------------------- Clone --------------------------------
+// ----------------------------------------------------------------
+
+/// Clone a token value.
+fn token_clone(token: &Token) -> Token {
+    match token {
+        Token::Unsafe => Token::Unsafe,
+        Token::Fn => Token::Fn,
+        Token::Enum => Token::Enum,
+        Token::Let => Token::Let,
+        Token::If => Token::If,
+        Token::Else => Token::Else,
+        Token::While => Token::While,
+        Token::Return => Token::Return,
+        Token::Match => Token::Match,
+        Token::As => Token::As,
+        Token::Mut => Token::Mut,
+        Token::Ampersand => Token::Ampersand,
+        Token::LBrace => Token::LBrace,
+        Token::RBrace => Token::RBrace,
+        Token::LParen => Token::LParen,
+        Token::RParen => Token::RParen,
+        Token::Colon => Token::Colon,
+        Token::DoubleColon => Token::DoubleColon,
+        Token::SemiColon => Token::SemiColon,
+        Token::Comma => Token::Comma,
+        Token::Assign => Token::Assign,
+        Token::Bang => Token::Bang,
+        Token::Cmp(comparison) => Token::Cmp(comparison_clone(comparison)),
+        Token::ArmArrow => Token::ArmArrow,
+        Token::Plus => Token::Plus,
+        Token::Minus => Token::Minus,
+        Token::Star => Token::Star,
+        Token::Slash => Token::Slash,
+        Token::Remainder => Token::Remainder,
+        Token::Usize => Token::Usize,
+        Token::U8 => Token::U8,
+        Token::Bool => Token::Bool,
+        Token::Char => Token::Char,
+        Token::Str => Token::Str,
+        Token::TypeArrow => Token::TypeArrow,
+        Token::Literal(literal) => Token::Literal(literalToken_clone(literal)),
+        Token::Identifier(value) => Token::Identifier(string_clone(value)),
+        Token::SizeOf(value) => Token::SizeOf(*value),
+        Token::Eof => Token::Eof,
+    }
+}
+
+/// Clone a comparison operator.
+fn comparison_clone(comparison: &Comparison) -> Comparison {
+    match comparison {
+        Comparison::Eq => Comparison::Eq,
+        Comparison::Neq => Comparison::Neq,
+        Comparison::Gt => Comparison::Gt,
+        Comparison::Lt => Comparison::Lt,
+        Comparison::Geq => Comparison::Geq,
+        Comparison::Leq => Comparison::Leq,
+    }
+}
+
+/// Clone a literal token payload.
+fn literalToken_clone(literal: &Literal) -> Literal {
+    match literal {
+        Literal::Int(value) => Literal::Int(*value),
+        Literal::String(value) => Literal::String(string_clone(value)),
+        Literal::Char(value) => Literal::Char(*value),
+        Literal::Bool(value) => Literal::Bool(*value),
+    }
+}
+
+/// Clone a symbol table entry.
+fn symTableEntry_clone(entry: &SymTableEntry) -> SymTableEntry {
+    match entry {
+        SymTableEntry::Function(name, signature) => {
+            SymTableEntry::Function(string_clone(name), fnSignature_clone(signature))
+        }
+        SymTableEntry::Enum(name, variants) => {
+            SymTableEntry::Enum(string_clone(name), typeList_clone(variants))
+        }
+        SymTableEntry::Variable(name, variable_type, mutable) => {
+            SymTableEntry::Variable(string_clone(name), type_clone(variable_type), *mutable)
+        }
+    }
+}
+
+/// Clone the global symbol table.
+fn globalSymTable_clone(symtable: &GlobalSymTable) -> GlobalSymTable {
+    match symtable {
+        GlobalSymTable::Nil => GlobalSymTable::Nil,
+        GlobalSymTable::Cons(head, tail) => {
+            GlobalSymTable::Cons(symTableEntry_clone(head), globalSymTableBox_clone(tail))
+        }
+    }
+}
+
+/// Clone a local scope symbol table.
+fn localSymTable_clone(symtable: &LocalSymTable) -> LocalSymTable {
+    match symtable {
+        LocalSymTable::Nil => LocalSymTable::Nil,
+        LocalSymTable::Cons(head, tail) => {
+            LocalSymTable::Cons(symTableEntry_clone(head), localSymTableBox_clone(tail))
+        }
+    }
+}
+
+/// Clone the stack of local scopes.
+fn localSymTableStack_clone(stack: &LocalSymTableStack) -> LocalSymTableStack {
+    match stack {
+        LocalSymTableStack::Nil => LocalSymTableStack::Nil,
+        LocalSymTableStack::Cons(local, tail) => LocalSymTableStack::Cons(
+            localSymTable_clone(local),
+            localSymTableStackBox_clone(tail),
+        ),
+    }
+}
+
+/// Clone a function signature.
+fn fnSignature_clone(signature: &FnSignature) -> FnSignature {
+    match signature {
+        FnSignature::Fn(parameter_types, return_type) => {
+            FnSignature::Fn(typeList_clone(parameter_types), type_clone(return_type))
+        }
+    }
+}
+
+/// Clone a type value.
+fn type_clone(t: &Type) -> Type {
+    match t {
+        Type::U8 => Type::U8,
+        Type::Usize => Type::Usize,
+        Type::Bool => Type::Bool,
+        Type::Char => Type::Char,
+        Type::Unit => Type::Unit,
+        Type::Never => Type::Never,
+        Type::Custom(name) => Type::Custom(string_clone(name)),
+        Type::Reference(inner) => Type::Reference(typeBox_clone(inner)),
+        Type::ReferenceMut(inner) => Type::ReferenceMut(typeBox_clone(inner)),
+        Type::RawPointerMut(inner) => Type::RawPointerMut(typeBox_clone(inner)),
+    }
+}
+
+/// Clone an LLVM token.
+fn llvmToken_clone(token: &LlvmToken) -> LlvmToken {
+    match token {
+        LlvmToken::Define => LlvmToken::Define,
+        LlvmToken::Ret => LlvmToken::Ret,
+        LlvmToken::Add => LlvmToken::Add,
+        LlvmToken::Sub => LlvmToken::Sub,
+        LlvmToken::Mul => LlvmToken::Mul,
+        LlvmToken::Udiv => LlvmToken::Udiv,
+        LlvmToken::Urem => LlvmToken::Urem,
+        LlvmToken::Icmp => LlvmToken::Icmp,
+        LlvmToken::Call => LlvmToken::Call,
+        LlvmToken::Ult => LlvmToken::Ult,
+        LlvmToken::I64 => LlvmToken::I64,
+        LlvmToken::I1 => LlvmToken::I1,
+        LlvmToken::Void => LlvmToken::Void,
+        LlvmToken::At => LlvmToken::At,
+        LlvmToken::Percent => LlvmToken::Percent,
+        LlvmToken::LParen => LlvmToken::LParen,
+        LlvmToken::RParen => LlvmToken::RParen,
+        LlvmToken::LBrace => LlvmToken::LBrace,
+        LlvmToken::RBrace => LlvmToken::RBrace,
+        LlvmToken::Comma => LlvmToken::Comma,
+        LlvmToken::Minus => LlvmToken::Minus,
+        LlvmToken::Assign => LlvmToken::Assign,
+        LlvmToken::Identifier(name) => LlvmToken::Identifier(string_clone(name)),
+        LlvmToken::Integer(value) => LlvmToken::Integer(*value),
+        LlvmToken::Eof => LlvmToken::Eof,
+    }
+}
+
+/// Clone a TypeList linked list.
+fn typeList_clone(types: &TypeList) -> TypeList {
+    match types {
+        TypeList::Nil => TypeList::Nil,
+        TypeList::Cons(head, tail) => TypeList::Cons(type_clone(head), typeListBox_clone(tail)),
+    }
+}
+
+/// Clone a GlobalSymTable box and its heap-owned value.
+fn globalSymTableBox_clone(ptr: &GlobalSymTableBox) -> GlobalSymTableBox {
+    let cloned: GlobalSymTable = globalSymTable_clone(globalSymTableBox_deref(ptr));
+    globalSymTableBox_new(cloned)
+}
+
+/// Clone a LocalSymTableStack box and its heap-owned value.
+fn localSymTableStackBox_clone(ptr: &LocalSymTableStackBox) -> LocalSymTableStackBox {
+    let cloned: LocalSymTableStack = localSymTableStack_clone(localSymTableStackBox_deref(ptr));
+    localSymTableStackBox_new(cloned)
+}
+
+/// Clone a LocalSymTable box and its heap-owned value.
+fn localSymTableBox_clone(ptr: &LocalSymTableBox) -> LocalSymTableBox {
+    let cloned: LocalSymTable = localSymTable_clone(localSymTableBox_deref(ptr));
+    localSymTableBox_new(cloned)
+}
+
 /// Clone a Type box and its heap-owned value.
 fn typeBox_clone(ptr: &TypeBox) -> TypeBox {
     let cloned: Type = type_clone(typeBox_deref(ptr));
     typeBox_new(cloned)
 }
 
-/// Box-like type that is a pointer to an owned heap-allocated Types.
-enum TypesBox {
-    Ptr(*mut Types),
+/// Clone a TypeList box and its heap-owned value.
+fn typeListBox_clone(ptr: &TypeListBox) -> TypeListBox {
+    let cloned: TypeList = typeList_clone(typeListBox_deref(ptr));
+    typeListBox_new(cloned)
 }
 
-/// Allocate and box a Types value on the heap.
-fn typesBox_new(types: Types) -> TypesBox {
-    let ptr_u8: *mut u8 = alloc(std::mem::size_of::<Types>(), std::mem::size_of::<usize>());
-    let ptr: *mut Types = ptr_u8 as *mut Types;
-    unsafe { *ptr = types };
-    TypesBox::Ptr(ptr)
-}
+/// Clone a string.
+fn string_clone(string: &String) -> String {
+    let len: usize = string_len(string);
 
-/// Dereference a Types box.
-fn typesBox_deref(ptr_wrap: &TypesBox) -> &Types {
-    let TypesBox::Ptr(ptr): &TypesBox = ptr_wrap;
-    unsafe { &**ptr }
-}
-
-/// Mutably dereference a Types box.
-fn typesBox_deref_mut(ptr_wrap: &mut TypesBox) -> &mut Types {
-    let TypesBox::Ptr(ptr): &mut TypesBox = ptr_wrap;
-    unsafe { &mut **ptr }
-}
-
-/// Clone a Types box and its heap-owned value.
-fn typesBox_clone(ptr: &TypesBox) -> TypesBox {
-    let cloned: Types = types_clone(typesBox_deref(ptr));
-    typesBox_new(cloned)
+    let mut clone: String = string_with_capacity(len);
+    let mut i: usize = 0;
+    while i < len {
+        let character: char = unwrap_char(string_get(string, i));
+        string_push(&mut clone, character);
+        i = i + 1;
+    }
+    clone
 }
 
 // ------------------------- String -------------------------------
@@ -2782,41 +2840,6 @@ fn string_push_string(string: &mut String, other: &String) {
 
     unsafe { memcopy(ptr, other_ptr, other_len) }
     *len = *len + other_len;
-}
-
-/// Clone a string.
-fn string_clone(string: &String) -> String {
-    let len: usize = string_len(string);
-
-    let mut clone: String = string_with_capacity(len);
-    let mut i: usize = 0;
-    while i < len {
-        let character: char = unwrap_char(string_get(string, i));
-        string_push(&mut clone, character);
-        i = i + 1;
-    }
-    clone
-}
-
-/// Check if two strings are equal.
-fn string_eq(s1: &String, s2: &String) -> bool {
-    let len: usize = string_len(s1);
-    if len != string_len(s2) {
-        return false;
-    }
-
-    let mut i: usize = 0;
-    while i < len {
-        let c1: char = unwrap_char(string_get(s1, i));
-        let c2: char = unwrap_char(string_get(s2, i));
-        if c1 != c2 {
-            return false;
-        }
-
-        i = i + 1;
-    }
-
-    true
 }
 
 /// Ensure the string has space for additional bytes.
