@@ -2039,6 +2039,15 @@ fn unwrap_char(char_opt: CharOption) -> char {
     }
 }
 
+/// Returns the value wrapped in Some.
+/// If the option is None, end the program.
+fn unwrap_usize(n_opt: UsizeOption) -> usize {
+    match n_opt {
+        UsizeOption::Some(n) => n,
+        UsizeOption::None => panic!("tried to unwrap None variant of UsizeOption"),
+    }
+}
+
 // -----------------------------------------------------------------
 // -------------------------- Lists --------------------------------
 // -----------------------------------------------------------------
