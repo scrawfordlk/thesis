@@ -1923,11 +1923,31 @@ fn is_digit(c: char) -> bool {
     and(c >= '0', c <= '9')
 }
 
+/// Check whether a character is a hexadecimal digit.
+/// Both upper and lowercase hexadecimal digits are considered valid.
+fn is_hexadecimal_digit(c: char) -> bool {
+    let upper: char = to_uppercase(c);
+    or(is_digit(c), and(upper >= 'A', upper <= 'F'))
+}
+
+/// Check whether a character is a lowercase letter
+fn is_lowercase(c: char) -> bool {
+    and(c >= 'a', c <= 'z')
+}
+
+/// Check whether a character is an uppercase letter
+fn is_uppercase(c: char) -> bool {
+    and(c >= 'A', c <= 'Z')
+}
+
+/// Check whether a character is an alphabetical letter
+fn is_letter(c: char) -> bool {
+    or(is_lowercase(c), is_uppercase(c))
+}
+
 /// Check whether a character is alphabetic or underscore.
 fn is_alpha(c: char) -> bool {
-    let lower: bool = and(c >= 'a', c <= 'z');
-    let upper: bool = and(c >= 'A', c <= 'Z');
-    or(or(lower, upper), c == '_')
+    or(is_letter(c), c == '_')
 }
 
 /// Check whether a character is alphanumeric.
@@ -1935,8 +1955,51 @@ fn is_alphanumeric(c: char) -> bool {
     or(is_alpha(c), is_digit(c))
 }
 
+/// Check whether a character is alphanumeric or '.'.
 fn is_alphanumeric_or_dot(ch: char) -> bool {
     or(is_alphanumeric(ch), ch == '.')
+}
+
+/// Convert an ASCII character to uppercase.
+/// If the character is not a letter, it is returned as is.
+fn to_uppercase(c: char) -> char {
+    if or(not(is_letter(c)), is_uppercase(c)) {
+        c
+    } else {
+        (c as u8 - ('a' as u8 - 'A' as u8)) as char
+    }
+}
+
+// -----------------------------------------------------------------
+// ------------------------ General Utilities ------------------------------
+// -----------------------------------------------------------------
+
+/// Converts a string into an integer given the base.
+/// Returns None if the integer contained in the string is invalid for 64-bit integers.
+fn string_to_integer(string: &mut String, base: usize) -> UsizeOption {
+    let mut value: usize = 0;
+
+    let mut i: usize = 0;
+    while i < string_len(string) {
+        let digit: char = unwrap_char(string_get(string, i));
+
+        let digit_value: usize = if is_digit(digit) {
+            digit as usize - '0' as usize
+        } else {
+            digit as usize - 'A' as usize + 10
+        };
+
+        let max: usize = 18446744073709551615; // 2^64 - 1
+
+        if or(digit_value > base - 1, value > max / base) {
+            return UsizeOption::None;
+        }
+
+        value = value * base + digit_value;
+
+        i = i + 1;
+    }
+    UsizeOption::Some(value)
 }
 
 // -----------------------------------------------------------------
@@ -1958,6 +2021,12 @@ enum TypeOption {
 /// Option type for char.
 enum CharOption {
     Some(char),
+    None,
+}
+
+/// Option type for usize.
+enum UsizeOption {
+    Some(usize),
     None,
 }
 
