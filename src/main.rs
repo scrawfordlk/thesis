@@ -3065,6 +3065,22 @@ fn string_to_integer(string: &mut String, base: usize) -> UsizeOption {
     UsizeOption::Some(value)
 }
 
+/// Hash a String.
+fn string_hash(string: &String, bucket_count: usize) -> usize {
+    if bucket_count == 0 {
+        return 0;
+    }
+
+    let mut hash: usize = 0;
+    let mut i: usize = 0;
+    while i < string_len(string) {
+        let character: usize = unwrap_char(string_get(string, i)) as usize;
+        hash = hash * 67 + character;
+        i = i + 1;
+    }
+    hash % bucket_count
+}
+
 /// Ensure the string has space for additional bytes.
 fn string_accomodate_extra_space(string: &mut String, space: usize) {
     let len: usize = string_len(string);
