@@ -1,5 +1,6 @@
 #![allow(clippy::assign_op_pattern, while_true, non_snake_case)]
 
+// TODO: decide whether to use stdlib or C-like main for args
 fn main() {
     let str: String = parse_to_llvm(
         &std::fs::read_to_string("tests/empty.rs").unwrap_or(std::string::String::new()),
@@ -1900,9 +1901,1896 @@ fn llvmLexer_skip_line(lexer: &mut LlvmLexer) {
     }
 }
 
+/// Type that encapsulates the LLVM Parser's state
+enum LlvmParser {
+    Parser(LlvmLexer, LlvmSymTable),
+}
+
+/// Symbol table for LLVM
+enum LlvmSymTable {
+    SymTable(LlvmGlobalSymTable, LlvmLocalSymTable),
+}
+
+/// Global symbol table for LLVM
+enum LlvmGlobalSymTable {
+    Globals(LlvmGlobalSymTableBuckets),
+}
+
+/// Entry of a LlvmGlobalSymTable
+enum LlvmGlobalSymTableEntry {
+    /// identifier, literal value
+    String(String, String),
+    /// identifier, function
+    Function(String, LlvmFunction),
+}
+
+/// Local symbol table for LLVM
+enum LlvmLocalSymTable {
+    Registers(LlvmLocalSymTableBuckets),
+}
+
+/// Virtual register entry of a LlvmLocalSymTable
+enum LlvmLocalSymTableEntry {
+    /// identifier, value
+    Register(String, u64),
+}
+
+enum LlvmFunction {
+    /// return type, parameters, instructions
+    Function(LlvmType, LlvmParameterList, InstructionBlockList),
+}
+
+/// Represents a parameter of an LLVM function.
+enum LlvmParameter {
+    /// identifier, type
+    Parameter(String, LlvmType),
+}
+
+/// Supported types of LLVM.
+enum LlvmType {
+    I1,
+    I8,
+    I32,
+    I64,
+    Ptr,
+    Array(usize, LlvmTypeBox),
+    Void,
+}
+
+/// Represents an instruction block.
+enum InstructionBlock {
+    /// label, instructions
+    Block(String, InstructionList),
+}
+
+/// Represents an instruction inside an instruction block
+enum Instruction {
+    Assignment(AssignInstruction),
+    Terminator(TerminatorInstruction),
+}
+
+/// Represents an instruction which terminates an instruction block.
+enum TerminatorInstruction {
+    RetVoid,
+    /// type, value
+    Ret(LlvmType, LlvmValue),
+    Br(Branch),
+}
+
+/// Represents "br", either a conditional or unconditional jump.
+enum Branch {
+    /// label
+    Unconditional(String),
+    /// condition, then label, else label
+    Conditional(LlvmValue, String, String),
+}
+
+/// Represents an assignment instruction.
+enum AssignInstruction {
+    Assign(String, AssignOp),
+}
+
+/// Represents the right-hand-side of an assignment
+enum AssignOp {
+    /// operation, type, left operand, right operand
+    Binary(BinaryOp, LlvmType, LlvmValue, LlvmValue),
+    /// return type, callee, arguments
+    Call(LlvmType, String, LlvmTypedValueList),
+    /// type, pointer, indexes
+    Gep(LlvmType, LlvmValue, LlvmTypedValueList),
+}
+
+/// Binary operations that can only appear in assignments.
+enum BinaryOp {
+    Add,
+    Sub,
+    Mul,
+    Udiv,
+    Urem,
+    IcmpUlt,
+}
+
+/// Represents a value in a register, global or as a literal.
+enum LlvmValue {
+    /// identifier
+    Register(String),
+    Literal(u64),
+    /// identifier
+    Global(String),
+}
+
+/// Represents an instance where a type and value is specified.
+enum LlvmTypedValue {
+    Pair(LlvmType, LlvmValue),
+}
+
+// -----------------------------------------------------------------
+// -------------------------- Library ------------------------------
+// -----------------------------------------------------------------
+// -------------------------- Lists --------------------------------
+// -----------------------------------------------------------------
+
+/// Linked list of LLVM parameters.
+enum LlvmParameterList {
+    Cons(LlvmParameter, LlvmParameterListBox),
+    Nil,
+}
+
+/// Linked list of LLVM blocks.
+enum InstructionBlockList {
+    Cons(InstructionBlock, InstructionBlockListBox),
+    Nil,
+}
+
+/// Linked list of LLVM instructions.
+enum InstructionList {
+    Cons(Instruction, InstructionListBox),
+    Nil,
+}
+
+/// Linked list of typed LLVM values.
+enum LlvmTypedValueList {
+    Cons(LlvmTypedValue, LlvmTypedValueListBox),
+    Nil,
+}
+
+/// Linked list of global symbol-table entries.
+enum LlvmGlobalSymTableEntryList {
+    Cons(LlvmGlobalSymTableEntry, LlvmGlobalSymTableEntryListBox),
+    Nil,
+}
+
+/// Linked list of global symbol-table buckets.
+enum LlvmGlobalSymTableBuckets {
+    Cons(LlvmGlobalSymTableEntryList, LlvmGlobalSymTableBucketsBox),
+    Nil,
+}
+
+/// Linked list of local symbol-table entries.
+enum LlvmLocalSymTableEntryList {
+    Cons(LlvmLocalSymTableEntry, LlvmLocalSymTableEntryListBox),
+    Nil,
+}
+
+/// Linked list of local symbol-table buckets.
+enum LlvmLocalSymTableBuckets {
+    Cons(LlvmLocalSymTableEntryList, LlvmLocalSymTableBucketsBox),
+    Nil,
+}
+
+// ----------------------------------------------------------------
+// -------------------- Pointers (Box, Rc) ------------------------
+// ----------------------------------------------------------------
+
+/// Box-like type for LLVM types.
+enum LlvmTypeBox {
+    Ptr(*mut LlvmType),
+}
+
+/// Box-like type for LLVM parameter lists.
+enum LlvmParameterListBox {
+    Ptr(*mut LlvmParameterList),
+}
+
+/// Box-like type for instruction block lists.
+enum InstructionBlockListBox {
+    Ptr(*mut InstructionBlockList),
+}
+
+/// Box-like type for instruction lists.
+enum InstructionListBox {
+    Ptr(*mut InstructionList),
+}
+
+/// Box-like type for typed LLVM value lists.
+enum LlvmTypedValueListBox {
+    Ptr(*mut LlvmTypedValueList),
+}
+
+/// Box-like type for global symbol-table entry lists.
+enum LlvmGlobalSymTableEntryListBox {
+    Ptr(*mut LlvmGlobalSymTableEntryList),
+}
+
+/// Box-like type for global symbol-table bucket lists.
+enum LlvmGlobalSymTableBucketsBox {
+    Ptr(*mut LlvmGlobalSymTableBuckets),
+}
+
+/// Box-like type for local symbol-table entry lists.
+enum LlvmLocalSymTableEntryListBox {
+    Ptr(*mut LlvmLocalSymTableEntryList),
+}
+
+/// Box-like type for local symbol-table bucket lists.
+enum LlvmLocalSymTableBucketsBox {
+    Ptr(*mut LlvmLocalSymTableBuckets),
+}
+
+/// Option type for u64.
+enum U64Option {
+    Some(u64),
+    None,
+}
+
+/// Option type for immutable LlvmFunction references.
+enum LlvmFunctionRefOption<'a> {
+    Some(&'a LlvmFunction),
+    None,
+}
+
+/// Option type for immutable String references.
+enum LlvmStringRefOption<'a> {
+    Some(&'a String),
+    None,
+}
+
+const LLVM_GLOBAL_BUCKET_COUNT: usize = 128;
+const LLVM_LOCAL_BUCKET_COUNT: usize = 128;
+
+/// Allocate and box an LLVM type.
+fn llvmTypeBox_new(ty: LlvmType) -> LlvmTypeBox {
+    let ptr_u8: *mut u8 = alloc(
+        std::mem::size_of::<LlvmType>(),
+        std::mem::size_of::<usize>(),
+    );
+    let ptr: *mut LlvmType = ptr_u8 as *mut LlvmType;
+    unsafe { *ptr = ty };
+    LlvmTypeBox::Ptr(ptr)
+}
+
+/// Dereference an LLVM type box.
+fn llvmTypeBox_deref(ptr_wrap: &LlvmTypeBox) -> &LlvmType {
+    let LlvmTypeBox::Ptr(ptr): &LlvmTypeBox = ptr_wrap;
+    unsafe { &**ptr }
+}
+
+/// Allocate and box a parameter list.
+fn llvmParameterListBox_new(parameters: LlvmParameterList) -> LlvmParameterListBox {
+    let ptr_u8: *mut u8 = alloc(
+        std::mem::size_of::<LlvmParameterList>(),
+        std::mem::size_of::<usize>(),
+    );
+    let ptr: *mut LlvmParameterList = ptr_u8 as *mut LlvmParameterList;
+    unsafe { *ptr = parameters };
+    LlvmParameterListBox::Ptr(ptr)
+}
+
+/// Dereference a parameter list box.
+fn llvmParameterListBox_deref(ptr_wrap: &LlvmParameterListBox) -> &LlvmParameterList {
+    let LlvmParameterListBox::Ptr(ptr): &LlvmParameterListBox = ptr_wrap;
+    unsafe { &**ptr }
+}
+
+/// Mutably dereference a parameter list box.
+fn llvmParameterListBox_deref_mut(ptr_wrap: &mut LlvmParameterListBox) -> &mut LlvmParameterList {
+    let LlvmParameterListBox::Ptr(ptr): &mut LlvmParameterListBox = ptr_wrap;
+    unsafe { &mut **ptr }
+}
+
+/// Allocate and box an instruction-block list.
+fn instructionBlockListBox_new(blocks: InstructionBlockList) -> InstructionBlockListBox {
+    let ptr_u8: *mut u8 = alloc(
+        std::mem::size_of::<InstructionBlockList>(),
+        std::mem::size_of::<usize>(),
+    );
+    let ptr: *mut InstructionBlockList = ptr_u8 as *mut InstructionBlockList;
+    unsafe { *ptr = blocks };
+    InstructionBlockListBox::Ptr(ptr)
+}
+
+/// Dereference an instruction-block list box.
+fn instructionBlockListBox_deref(ptr_wrap: &InstructionBlockListBox) -> &InstructionBlockList {
+    let InstructionBlockListBox::Ptr(ptr): &InstructionBlockListBox = ptr_wrap;
+    unsafe { &**ptr }
+}
+
+/// Mutably dereference an instruction-block list box.
+fn instructionBlockListBox_deref_mut(
+    ptr_wrap: &mut InstructionBlockListBox,
+) -> &mut InstructionBlockList {
+    let InstructionBlockListBox::Ptr(ptr): &mut InstructionBlockListBox = ptr_wrap;
+    unsafe { &mut **ptr }
+}
+
+/// Allocate and box an instruction list.
+fn instructionListBox_new(instructions: InstructionList) -> InstructionListBox {
+    let ptr_u8: *mut u8 = alloc(
+        std::mem::size_of::<InstructionList>(),
+        std::mem::size_of::<usize>(),
+    );
+    let ptr: *mut InstructionList = ptr_u8 as *mut InstructionList;
+    unsafe { *ptr = instructions };
+    InstructionListBox::Ptr(ptr)
+}
+
+/// Dereference an instruction list box.
+fn instructionListBox_deref(ptr_wrap: &InstructionListBox) -> &InstructionList {
+    let InstructionListBox::Ptr(ptr): &InstructionListBox = ptr_wrap;
+    unsafe { &**ptr }
+}
+
+/// Mutably dereference an instruction list box.
+fn instructionListBox_deref_mut(ptr_wrap: &mut InstructionListBox) -> &mut InstructionList {
+    let InstructionListBox::Ptr(ptr): &mut InstructionListBox = ptr_wrap;
+    unsafe { &mut **ptr }
+}
+
+/// Allocate and box a typed-value list.
+fn llvmTypedValueListBox_new(values: LlvmTypedValueList) -> LlvmTypedValueListBox {
+    let ptr_u8: *mut u8 = alloc(
+        std::mem::size_of::<LlvmTypedValueList>(),
+        std::mem::size_of::<usize>(),
+    );
+    let ptr: *mut LlvmTypedValueList = ptr_u8 as *mut LlvmTypedValueList;
+    unsafe { *ptr = values };
+    LlvmTypedValueListBox::Ptr(ptr)
+}
+
+/// Dereference a typed-value list box.
+fn llvmTypedValueListBox_deref(ptr_wrap: &LlvmTypedValueListBox) -> &LlvmTypedValueList {
+    let LlvmTypedValueListBox::Ptr(ptr): &LlvmTypedValueListBox = ptr_wrap;
+    unsafe { &**ptr }
+}
+
+/// Mutably dereference a typed-value list box.
+fn llvmTypedValueListBox_deref_mut(
+    ptr_wrap: &mut LlvmTypedValueListBox,
+) -> &mut LlvmTypedValueList {
+    let LlvmTypedValueListBox::Ptr(ptr): &mut LlvmTypedValueListBox = ptr_wrap;
+    unsafe { &mut **ptr }
+}
+
+/// Allocate and box a global symbol-table entry list.
+fn llvmGlobalSymTableEntryListBox_new(
+    list: LlvmGlobalSymTableEntryList,
+) -> LlvmGlobalSymTableEntryListBox {
+    let ptr_u8: *mut u8 = alloc(
+        std::mem::size_of::<LlvmGlobalSymTableEntryList>(),
+        std::mem::size_of::<usize>(),
+    );
+    let ptr: *mut LlvmGlobalSymTableEntryList = ptr_u8 as *mut LlvmGlobalSymTableEntryList;
+    unsafe { *ptr = list };
+    LlvmGlobalSymTableEntryListBox::Ptr(ptr)
+}
+
+/// Dereference a global symbol-table entry list box.
+fn llvmGlobalSymTableEntryListBox_deref(
+    ptr_wrap: &LlvmGlobalSymTableEntryListBox,
+) -> &LlvmGlobalSymTableEntryList {
+    let LlvmGlobalSymTableEntryListBox::Ptr(ptr): &LlvmGlobalSymTableEntryListBox = ptr_wrap;
+    unsafe { &**ptr }
+}
+
+/// Mutably dereference a global symbol-table entry list box.
+fn llvmGlobalSymTableEntryListBox_deref_mut(
+    ptr_wrap: &mut LlvmGlobalSymTableEntryListBox,
+) -> &mut LlvmGlobalSymTableEntryList {
+    let LlvmGlobalSymTableEntryListBox::Ptr(ptr): &mut LlvmGlobalSymTableEntryListBox = ptr_wrap;
+    unsafe { &mut **ptr }
+}
+
+/// Allocate and box a global symbol-table bucket list.
+fn llvmGlobalSymTableBucketsBox_new(
+    buckets: LlvmGlobalSymTableBuckets,
+) -> LlvmGlobalSymTableBucketsBox {
+    let ptr_u8: *mut u8 = alloc(
+        std::mem::size_of::<LlvmGlobalSymTableBuckets>(),
+        std::mem::size_of::<usize>(),
+    );
+    let ptr: *mut LlvmGlobalSymTableBuckets = ptr_u8 as *mut LlvmGlobalSymTableBuckets;
+    unsafe { *ptr = buckets };
+    LlvmGlobalSymTableBucketsBox::Ptr(ptr)
+}
+
+/// Dereference a global symbol-table bucket list box.
+fn llvmGlobalSymTableBucketsBox_deref(
+    ptr_wrap: &LlvmGlobalSymTableBucketsBox,
+) -> &LlvmGlobalSymTableBuckets {
+    let LlvmGlobalSymTableBucketsBox::Ptr(ptr): &LlvmGlobalSymTableBucketsBox = ptr_wrap;
+    unsafe { &**ptr }
+}
+
+/// Mutably dereference a global symbol-table bucket list box.
+fn llvmGlobalSymTableBucketsBox_deref_mut(
+    ptr_wrap: &mut LlvmGlobalSymTableBucketsBox,
+) -> &mut LlvmGlobalSymTableBuckets {
+    let LlvmGlobalSymTableBucketsBox::Ptr(ptr): &mut LlvmGlobalSymTableBucketsBox = ptr_wrap;
+    unsafe { &mut **ptr }
+}
+
+/// Allocate and box a local symbol-table entry list.
+fn llvmLocalSymTableEntryListBox_new(
+    list: LlvmLocalSymTableEntryList,
+) -> LlvmLocalSymTableEntryListBox {
+    let ptr_u8: *mut u8 = alloc(
+        std::mem::size_of::<LlvmLocalSymTableEntryList>(),
+        std::mem::size_of::<usize>(),
+    );
+    let ptr: *mut LlvmLocalSymTableEntryList = ptr_u8 as *mut LlvmLocalSymTableEntryList;
+    unsafe { *ptr = list };
+    LlvmLocalSymTableEntryListBox::Ptr(ptr)
+}
+
+/// Dereference a local symbol-table entry list box.
+fn llvmLocalSymTableEntryListBox_deref(
+    ptr_wrap: &LlvmLocalSymTableEntryListBox,
+) -> &LlvmLocalSymTableEntryList {
+    let LlvmLocalSymTableEntryListBox::Ptr(ptr): &LlvmLocalSymTableEntryListBox = ptr_wrap;
+    unsafe { &**ptr }
+}
+
+/// Mutably dereference a local symbol-table entry list box.
+fn llvmLocalSymTableEntryListBox_deref_mut(
+    ptr_wrap: &mut LlvmLocalSymTableEntryListBox,
+) -> &mut LlvmLocalSymTableEntryList {
+    let LlvmLocalSymTableEntryListBox::Ptr(ptr): &mut LlvmLocalSymTableEntryListBox = ptr_wrap;
+    unsafe { &mut **ptr }
+}
+
+/// Allocate and box a local symbol-table bucket list.
+fn llvmLocalSymTableBucketsBox_new(
+    buckets: LlvmLocalSymTableBuckets,
+) -> LlvmLocalSymTableBucketsBox {
+    let ptr_u8: *mut u8 = alloc(
+        std::mem::size_of::<LlvmLocalSymTableBuckets>(),
+        std::mem::size_of::<usize>(),
+    );
+    let ptr: *mut LlvmLocalSymTableBuckets = ptr_u8 as *mut LlvmLocalSymTableBuckets;
+    unsafe { *ptr = buckets };
+    LlvmLocalSymTableBucketsBox::Ptr(ptr)
+}
+
+/// Dereference a local symbol-table bucket list box.
+fn llvmLocalSymTableBucketsBox_deref(
+    ptr_wrap: &LlvmLocalSymTableBucketsBox,
+) -> &LlvmLocalSymTableBuckets {
+    let LlvmLocalSymTableBucketsBox::Ptr(ptr): &LlvmLocalSymTableBucketsBox = ptr_wrap;
+    unsafe { &**ptr }
+}
+
+/// Mutably dereference a local symbol-table bucket list box.
+fn llvmLocalSymTableBucketsBox_deref_mut(
+    ptr_wrap: &mut LlvmLocalSymTableBucketsBox,
+) -> &mut LlvmLocalSymTableBuckets {
+    let LlvmLocalSymTableBucketsBox::Ptr(ptr): &mut LlvmLocalSymTableBucketsBox = ptr_wrap;
+    unsafe { &mut **ptr }
+}
+
+/// Create an empty parameter list.
+fn llvmParameterList_new() -> LlvmParameterList {
+    LlvmParameterList::Nil
+}
+
+/// Append one parameter.
+fn llvmParameterList_append(list: &mut LlvmParameterList, parameter: LlvmParameter) {
+    let mut current: &mut LlvmParameterList = list;
+    while true {
+        match current {
+            LlvmParameterList::Nil => {
+                *current = LlvmParameterList::Cons(
+                    parameter,
+                    llvmParameterListBox_new(LlvmParameterList::Nil),
+                );
+                return;
+            }
+            LlvmParameterList::Cons(_, tail) => current = llvmParameterListBox_deref_mut(tail),
+        }
+    }
+}
+
+/// Create an empty block list.
+fn instructionBlockList_new() -> InstructionBlockList {
+    InstructionBlockList::Nil
+}
+
+/// Append one instruction block.
+fn instructionBlockList_append(list: &mut InstructionBlockList, block: InstructionBlock) {
+    let mut current: &mut InstructionBlockList = list;
+    while true {
+        match current {
+            InstructionBlockList::Nil => {
+                *current = InstructionBlockList::Cons(
+                    block,
+                    instructionBlockListBox_new(InstructionBlockList::Nil),
+                );
+                return;
+            }
+            InstructionBlockList::Cons(_, tail) => {
+                current = instructionBlockListBox_deref_mut(tail)
+            }
+        }
+    }
+}
+
+/// Create an empty instruction list.
+fn instructionList_new() -> InstructionList {
+    InstructionList::Nil
+}
+
+/// Append one instruction.
+fn instructionList_append(list: &mut InstructionList, instruction: Instruction) {
+    let mut current: &mut InstructionList = list;
+    while true {
+        match current {
+            InstructionList::Nil => {
+                *current = InstructionList::Cons(
+                    instruction,
+                    instructionListBox_new(InstructionList::Nil),
+                );
+                return;
+            }
+            InstructionList::Cons(_, tail) => current = instructionListBox_deref_mut(tail),
+        }
+    }
+}
+
+/// Create an empty typed-value list.
+fn llvmTypedValueList_new() -> LlvmTypedValueList {
+    LlvmTypedValueList::Nil
+}
+
+/// Append one typed value.
+fn llvmTypedValueList_append(list: &mut LlvmTypedValueList, typed_value: LlvmTypedValue) {
+    let mut current: &mut LlvmTypedValueList = list;
+    while true {
+        match current {
+            LlvmTypedValueList::Nil => {
+                *current = LlvmTypedValueList::Cons(
+                    typed_value,
+                    llvmTypedValueListBox_new(LlvmTypedValueList::Nil),
+                );
+                return;
+            }
+            LlvmTypedValueList::Cons(_, tail) => current = llvmTypedValueListBox_deref_mut(tail),
+        }
+    }
+}
+
+/// Clone an LLVM type.
+fn llvmType_clone(ty: &LlvmType) -> LlvmType {
+    match ty {
+        LlvmType::I1 => LlvmType::I1,
+        LlvmType::I8 => LlvmType::I8,
+        LlvmType::I32 => LlvmType::I32,
+        LlvmType::I64 => LlvmType::I64,
+        LlvmType::Ptr => LlvmType::Ptr,
+        LlvmType::Array(len, inner) => LlvmType::Array(
+            *len,
+            llvmTypeBox_new(llvmType_clone(llvmTypeBox_deref(inner))),
+        ),
+        LlvmType::Void => LlvmType::Void,
+    }
+}
+
+/// Compare two LLVM types.
+fn llvmType_eq(left: &LlvmType, right: &LlvmType) -> bool {
+    match left {
+        LlvmType::I1 => match right {
+            LlvmType::I1 => true,
+            _ => false,
+        },
+        LlvmType::I8 => match right {
+            LlvmType::I8 => true,
+            _ => false,
+        },
+        LlvmType::I32 => match right {
+            LlvmType::I32 => true,
+            _ => false,
+        },
+        LlvmType::I64 => match right {
+            LlvmType::I64 => true,
+            _ => false,
+        },
+        LlvmType::Ptr => match right {
+            LlvmType::Ptr => true,
+            _ => false,
+        },
+        LlvmType::Array(left_len, left_inner) => match right {
+            LlvmType::Array(right_len, right_inner) => and(
+                left_len == right_len,
+                llvmType_eq(
+                    llvmTypeBox_deref(left_inner),
+                    llvmTypeBox_deref(right_inner),
+                ),
+            ),
+            _ => false,
+        },
+        LlvmType::Void => match right {
+            LlvmType::Void => true,
+            _ => false,
+        },
+    }
+}
+
+/// Create an empty LLVM global symbol table.
+fn llvmGlobalSymTable_new() -> LlvmGlobalSymTable {
+    LlvmGlobalSymTable::Globals(llvmGlobalSymTableBuckets_new(LLVM_GLOBAL_BUCKET_COUNT))
+}
+
+/// Create an empty LLVM local symbol table.
+fn llvmLocalSymTable_new() -> LlvmLocalSymTable {
+    LlvmLocalSymTable::Registers(llvmLocalSymTableBuckets_new(LLVM_LOCAL_BUCKET_COUNT))
+}
+
+/// Create an empty LLVM symbol table bundle.
+fn llvmSymTable_new() -> LlvmSymTable {
+    LlvmSymTable::SymTable(llvmGlobalSymTable_new(), llvmLocalSymTable_new())
+}
+
+/// Get immutable access to LLVM global symbols.
+fn llvmSymTable_global(symtable: &LlvmSymTable) -> &LlvmGlobalSymTable {
+    let LlvmSymTable::SymTable(global, _): &LlvmSymTable = symtable;
+    global
+}
+
+/// Get mutable access to LLVM global symbols.
+fn llvmSymTable_global_mut(symtable: &mut LlvmSymTable) -> &mut LlvmGlobalSymTable {
+    let LlvmSymTable::SymTable(global, _): &mut LlvmSymTable = symtable;
+    global
+}
+
+/// Get immutable access to LLVM local symbols.
+fn llvmSymTable_local(symtable: &LlvmSymTable) -> &LlvmLocalSymTable {
+    let LlvmSymTable::SymTable(_, local): &LlvmSymTable = symtable;
+    local
+}
+
+/// Get mutable access to LLVM local symbols.
+fn llvmSymTable_local_mut(symtable: &mut LlvmSymTable) -> &mut LlvmLocalSymTable {
+    let LlvmSymTable::SymTable(_, local): &mut LlvmSymTable = symtable;
+    local
+}
+
+/// Create an empty global symbol-table entry list.
+fn llvmGlobalSymTableEntryList_new() -> LlvmGlobalSymTableEntryList {
+    LlvmGlobalSymTableEntryList::Nil
+}
+
+/// Create an empty local symbol-table entry list.
+fn llvmLocalSymTableEntryList_new() -> LlvmLocalSymTableEntryList {
+    LlvmLocalSymTableEntryList::Nil
+}
+
+/// Append one global entry to a collision chain.
+fn llvmGlobalSymTableEntryList_append(
+    list: &mut LlvmGlobalSymTableEntryList,
+    entry: LlvmGlobalSymTableEntry,
+) {
+    let mut current: &mut LlvmGlobalSymTableEntryList = list;
+    while true {
+        match current {
+            LlvmGlobalSymTableEntryList::Nil => {
+                *current = LlvmGlobalSymTableEntryList::Cons(
+                    entry,
+                    llvmGlobalSymTableEntryListBox_new(LlvmGlobalSymTableEntryList::Nil),
+                );
+                return;
+            }
+            LlvmGlobalSymTableEntryList::Cons(_, tail) => {
+                current = llvmGlobalSymTableEntryListBox_deref_mut(tail)
+            }
+        }
+    }
+}
+
+/// Check whether a collision chain contains the given name.
+fn llvmGlobalSymTableEntryList_contains_name(
+    list: &LlvmGlobalSymTableEntryList,
+    name: &String,
+) -> bool {
+    match list {
+        LlvmGlobalSymTableEntryList::Cons(entry, tail) => {
+            let matches: bool = match entry {
+                LlvmGlobalSymTableEntry::String(entry_name, _) => string_eq(entry_name, name),
+                LlvmGlobalSymTableEntry::Function(entry_name, _) => string_eq(entry_name, name),
+            };
+            or(
+                matches,
+                llvmGlobalSymTableEntryList_contains_name(
+                    llvmGlobalSymTableEntryListBox_deref(tail),
+                    name,
+                ),
+            )
+        }
+        LlvmGlobalSymTableEntryList::Nil => false,
+    }
+}
+
+/// Lookup a function entry in a collision chain.
+fn llvmGlobalSymTableEntryList_lookup_function<'a>(
+    list: &'a LlvmGlobalSymTableEntryList,
+    name: &String,
+) -> LlvmFunctionRefOption<'a> {
+    match list {
+        LlvmGlobalSymTableEntryList::Cons(entry, tail) => match entry {
+            LlvmGlobalSymTableEntry::Function(entry_name, function) => {
+                if string_eq(entry_name, name) {
+                    LlvmFunctionRefOption::Some(function)
+                } else {
+                    llvmGlobalSymTableEntryList_lookup_function(
+                        llvmGlobalSymTableEntryListBox_deref(tail),
+                        name,
+                    )
+                }
+            }
+            _ => llvmGlobalSymTableEntryList_lookup_function(
+                llvmGlobalSymTableEntryListBox_deref(tail),
+                name,
+            ),
+        },
+        LlvmGlobalSymTableEntryList::Nil => LlvmFunctionRefOption::None,
+    }
+}
+
+/// Lookup a string entry in a collision chain.
+fn llvmGlobalSymTableEntryList_lookup_string<'a>(
+    list: &'a LlvmGlobalSymTableEntryList,
+    name: &String,
+) -> LlvmStringRefOption<'a> {
+    match list {
+        LlvmGlobalSymTableEntryList::Cons(entry, tail) => match entry {
+            LlvmGlobalSymTableEntry::String(entry_name, value) => {
+                if string_eq(entry_name, name) {
+                    LlvmStringRefOption::Some(value)
+                } else {
+                    llvmGlobalSymTableEntryList_lookup_string(
+                        llvmGlobalSymTableEntryListBox_deref(tail),
+                        name,
+                    )
+                }
+            }
+            _ => llvmGlobalSymTableEntryList_lookup_string(
+                llvmGlobalSymTableEntryListBox_deref(tail),
+                name,
+            ),
+        },
+        LlvmGlobalSymTableEntryList::Nil => LlvmStringRefOption::None,
+    }
+}
+
+/// Append one global bucket.
+fn llvmGlobalSymTableBuckets_append(
+    buckets: &mut LlvmGlobalSymTableBuckets,
+    bucket: LlvmGlobalSymTableEntryList,
+) {
+    let mut current: &mut LlvmGlobalSymTableBuckets = buckets;
+    while true {
+        match current {
+            LlvmGlobalSymTableBuckets::Nil => {
+                *current = LlvmGlobalSymTableBuckets::Cons(
+                    bucket,
+                    llvmGlobalSymTableBucketsBox_new(LlvmGlobalSymTableBuckets::Nil),
+                );
+                return;
+            }
+            LlvmGlobalSymTableBuckets::Cons(_, tail) => {
+                current = llvmGlobalSymTableBucketsBox_deref_mut(tail)
+            }
+        }
+    }
+}
+
+/// Create global buckets with a fixed size.
+fn llvmGlobalSymTableBuckets_new(size: usize) -> LlvmGlobalSymTableBuckets {
+    let mut buckets: LlvmGlobalSymTableBuckets = LlvmGlobalSymTableBuckets::Nil;
+    let mut i: usize = 0;
+    while i < size {
+        llvmGlobalSymTableBuckets_append(&mut buckets, llvmGlobalSymTableEntryList_new());
+        i = i + 1;
+    }
+    buckets
+}
+
+/// Get immutable access to one global bucket.
+fn llvmGlobalSymTableBuckets_get<'a>(
+    buckets: &'a LlvmGlobalSymTableBuckets,
+    index: usize,
+) -> &'a LlvmGlobalSymTableEntryList {
+    match buckets {
+        LlvmGlobalSymTableBuckets::Cons(bucket, tail) => {
+            if index == 0 {
+                bucket
+            } else {
+                llvmGlobalSymTableBuckets_get(llvmGlobalSymTableBucketsBox_deref(tail), index - 1)
+            }
+        }
+        LlvmGlobalSymTableBuckets::Nil => panic!("global bucket index out of range"),
+    }
+}
+
+/// Get mutable access to one global bucket.
+fn llvmGlobalSymTableBuckets_get_mut<'a>(
+    buckets: &'a mut LlvmGlobalSymTableBuckets,
+    index: usize,
+) -> &'a mut LlvmGlobalSymTableEntryList {
+    match buckets {
+        LlvmGlobalSymTableBuckets::Cons(bucket, tail) => {
+            if index == 0 {
+                bucket
+            } else {
+                llvmGlobalSymTableBuckets_get_mut(
+                    llvmGlobalSymTableBucketsBox_deref_mut(tail),
+                    index - 1,
+                )
+            }
+        }
+        LlvmGlobalSymTableBuckets::Nil => panic!("global bucket index out of range"),
+    }
+}
+
+/// Append one local entry to a collision chain.
+fn llvmLocalSymTableEntryList_append(
+    list: &mut LlvmLocalSymTableEntryList,
+    entry: LlvmLocalSymTableEntry,
+) {
+    let mut current: &mut LlvmLocalSymTableEntryList = list;
+    while true {
+        match current {
+            LlvmLocalSymTableEntryList::Nil => {
+                *current = LlvmLocalSymTableEntryList::Cons(
+                    entry,
+                    llvmLocalSymTableEntryListBox_new(LlvmLocalSymTableEntryList::Nil),
+                );
+                return;
+            }
+            LlvmLocalSymTableEntryList::Cons(_, tail) => {
+                current = llvmLocalSymTableEntryListBox_deref_mut(tail)
+            }
+        }
+    }
+}
+
+/// Lookup one register value in a collision chain.
+fn llvmLocalSymTableEntryList_lookup_register(
+    list: &LlvmLocalSymTableEntryList,
+    name: &String,
+) -> U64Option {
+    match list {
+        LlvmLocalSymTableEntryList::Cons(entry, tail) => match entry {
+            LlvmLocalSymTableEntry::Register(entry_name, value) => {
+                if string_eq(entry_name, name) {
+                    U64Option::Some(*value)
+                } else {
+                    llvmLocalSymTableEntryList_lookup_register(
+                        llvmLocalSymTableEntryListBox_deref(tail),
+                        name,
+                    )
+                }
+            }
+        },
+        LlvmLocalSymTableEntryList::Nil => U64Option::None,
+    }
+}
+
+/// Update one register in a collision chain. Returns true if updated.
+fn llvmLocalSymTableEntryList_set_register(
+    list: &mut LlvmLocalSymTableEntryList,
+    name: &String,
+    value: u64,
+) -> bool {
+    match list {
+        LlvmLocalSymTableEntryList::Cons(entry, tail) => match entry {
+            LlvmLocalSymTableEntry::Register(entry_name, entry_value) => {
+                if string_eq(entry_name, name) {
+                    *entry_value = value;
+                    true
+                } else {
+                    llvmLocalSymTableEntryList_set_register(
+                        llvmLocalSymTableEntryListBox_deref_mut(tail),
+                        name,
+                        value,
+                    )
+                }
+            }
+        },
+        LlvmLocalSymTableEntryList::Nil => false,
+    }
+}
+
+/// Append one local bucket.
+fn llvmLocalSymTableBuckets_append(
+    buckets: &mut LlvmLocalSymTableBuckets,
+    bucket: LlvmLocalSymTableEntryList,
+) {
+    let mut current: &mut LlvmLocalSymTableBuckets = buckets;
+    while true {
+        match current {
+            LlvmLocalSymTableBuckets::Nil => {
+                *current = LlvmLocalSymTableBuckets::Cons(
+                    bucket,
+                    llvmLocalSymTableBucketsBox_new(LlvmLocalSymTableBuckets::Nil),
+                );
+                return;
+            }
+            LlvmLocalSymTableBuckets::Cons(_, tail) => {
+                current = llvmLocalSymTableBucketsBox_deref_mut(tail)
+            }
+        }
+    }
+}
+
+/// Create local buckets with a fixed size.
+fn llvmLocalSymTableBuckets_new(size: usize) -> LlvmLocalSymTableBuckets {
+    let mut buckets: LlvmLocalSymTableBuckets = LlvmLocalSymTableBuckets::Nil;
+    let mut i: usize = 0;
+    while i < size {
+        llvmLocalSymTableBuckets_append(&mut buckets, llvmLocalSymTableEntryList_new());
+        i = i + 1;
+    }
+    buckets
+}
+
+/// Get immutable access to one local bucket.
+fn llvmLocalSymTableBuckets_get<'a>(
+    buckets: &'a LlvmLocalSymTableBuckets,
+    index: usize,
+) -> &'a LlvmLocalSymTableEntryList {
+    match buckets {
+        LlvmLocalSymTableBuckets::Cons(bucket, tail) => {
+            if index == 0 {
+                bucket
+            } else {
+                llvmLocalSymTableBuckets_get(llvmLocalSymTableBucketsBox_deref(tail), index - 1)
+            }
+        }
+        LlvmLocalSymTableBuckets::Nil => panic!("local bucket index out of range"),
+    }
+}
+
+/// Get mutable access to one local bucket.
+fn llvmLocalSymTableBuckets_get_mut<'a>(
+    buckets: &'a mut LlvmLocalSymTableBuckets,
+    index: usize,
+) -> &'a mut LlvmLocalSymTableEntryList {
+    match buckets {
+        LlvmLocalSymTableBuckets::Cons(bucket, tail) => {
+            if index == 0 {
+                bucket
+            } else {
+                llvmLocalSymTableBuckets_get_mut(
+                    llvmLocalSymTableBucketsBox_deref_mut(tail),
+                    index - 1,
+                )
+            }
+        }
+        LlvmLocalSymTableBuckets::Nil => panic!("local bucket index out of range"),
+    }
+}
+
+/// Check whether a global symbol already exists.
+fn llvmGlobalSymTable_contains(symtable: &LlvmGlobalSymTable, name: &String) -> bool {
+    let bucket_index: usize = string_hash(&name, LLVM_GLOBAL_BUCKET_COUNT);
+    match symtable {
+        LlvmGlobalSymTable::Globals(buckets) => {
+            let bucket: &LlvmGlobalSymTableEntryList =
+                llvmGlobalSymTableBuckets_get(buckets, bucket_index);
+            llvmGlobalSymTableEntryList_contains_name(bucket, name)
+        }
+    }
+}
+
+/// Insert a global string entry. Returns false on duplicate name.
+fn llvmGlobalSymTable_insert_string(
+    symtable: &mut LlvmGlobalSymTable,
+    name: String,
+    value: String,
+) -> bool {
+    if llvmGlobalSymTable_contains(symtable, &name) {
+        return false;
+    }
+    let bucket_index: usize = string_hash(&name, LLVM_GLOBAL_BUCKET_COUNT);
+    match symtable {
+        LlvmGlobalSymTable::Globals(buckets) => {
+            let bucket: &mut LlvmGlobalSymTableEntryList =
+                llvmGlobalSymTableBuckets_get_mut(buckets, bucket_index);
+            llvmGlobalSymTableEntryList_append(
+                bucket,
+                LlvmGlobalSymTableEntry::String(name, value),
+            );
+            true
+        }
+    }
+}
+
+/// Insert a global function entry. Returns false on duplicate name.
+fn llvmGlobalSymTable_insert_function(
+    symtable: &mut LlvmGlobalSymTable,
+    name: String,
+    function: LlvmFunction,
+) -> bool {
+    if llvmGlobalSymTable_contains(symtable, &name) {
+        return false;
+    }
+    let bucket_index: usize = string_hash(&name, LLVM_GLOBAL_BUCKET_COUNT);
+    match symtable {
+        LlvmGlobalSymTable::Globals(buckets) => {
+            let bucket: &mut LlvmGlobalSymTableEntryList =
+                llvmGlobalSymTableBuckets_get_mut(buckets, bucket_index);
+            llvmGlobalSymTableEntryList_append(
+                bucket,
+                LlvmGlobalSymTableEntry::Function(name, function),
+            );
+            true
+        }
+    }
+}
+
+/// Lookup a function by name.
+fn llvmGlobalSymTable_lookup_function<'a>(
+    symtable: &'a LlvmGlobalSymTable,
+    name: &String,
+) -> &'a LlvmFunction {
+    let bucket_index: usize = string_hash(&name, LLVM_GLOBAL_BUCKET_COUNT);
+    match symtable {
+        LlvmGlobalSymTable::Globals(buckets) => {
+            let bucket: &LlvmGlobalSymTableEntryList =
+                llvmGlobalSymTableBuckets_get(buckets, bucket_index);
+            match llvmGlobalSymTableEntryList_lookup_function(bucket, name) {
+                LlvmFunctionRefOption::Some(function) => function,
+                LlvmFunctionRefOption::None => panic!("unknown LLVM function"),
+            }
+        }
+    }
+}
+
+/// Lookup a global string by name.
+fn llvmGlobalSymTable_lookup_string<'a>(
+    symtable: &'a LlvmGlobalSymTable,
+    name: &String,
+) -> &'a String {
+    let bucket_index: usize = string_hash(&name, LLVM_GLOBAL_BUCKET_COUNT);
+    match symtable {
+        LlvmGlobalSymTable::Globals(buckets) => {
+            let bucket: &LlvmGlobalSymTableEntryList =
+                llvmGlobalSymTableBuckets_get(buckets, bucket_index);
+            match llvmGlobalSymTableEntryList_lookup_string(bucket, name) {
+                LlvmStringRefOption::Some(value) => value,
+                LlvmStringRefOption::None => panic!("unknown LLVM global value"),
+            }
+        }
+    }
+}
+
+/// Clear local register table buckets.
+fn llvmLocalSymTable_clear(symtable: &mut LlvmLocalSymTable) {
+    match symtable {
+        LlvmLocalSymTable::Registers(buckets) => {
+            let mut i: usize = 0;
+            while i < LLVM_LOCAL_BUCKET_COUNT {
+                let bucket: &mut LlvmLocalSymTableEntryList =
+                    llvmLocalSymTableBuckets_get_mut(buckets, i);
+                *bucket = llvmLocalSymTableEntryList_new();
+                i = i + 1;
+            }
+        }
+    }
+}
+
+/// Lookup register value by name.
+fn llvmLocalSymTable_lookup_register(symtable: &LlvmLocalSymTable, name: &String) -> U64Option {
+    let bucket_index: usize = string_hash(name, LLVM_LOCAL_BUCKET_COUNT);
+    match symtable {
+        LlvmLocalSymTable::Registers(buckets) => {
+            let bucket: &LlvmLocalSymTableEntryList =
+                llvmLocalSymTableBuckets_get(buckets, bucket_index);
+            llvmLocalSymTableEntryList_lookup_register(bucket, name)
+        }
+    }
+}
+
+/// Insert register value. Returns false on duplicate.
+fn llvmLocalSymTable_insert_register(
+    symtable: &mut LlvmLocalSymTable,
+    name: String,
+    value: u64,
+) -> bool {
+    let bucket_index: usize = string_hash(&name, LLVM_LOCAL_BUCKET_COUNT);
+    match symtable {
+        LlvmLocalSymTable::Registers(buckets) => {
+            let bucket: &mut LlvmLocalSymTableEntryList =
+                llvmLocalSymTableBuckets_get_mut(buckets, bucket_index);
+            match llvmLocalSymTableEntryList_lookup_register(bucket, &name) {
+                U64Option::Some(_) => false,
+                U64Option::None => {
+                    llvmLocalSymTableEntryList_append(
+                        bucket,
+                        LlvmLocalSymTableEntry::Register(name, value),
+                    );
+                    true
+                }
+            }
+        }
+    }
+}
+
+/// Set register value, inserting when missing.
+fn llvmLocalSymTable_set_register(symtable: &mut LlvmLocalSymTable, name: String, value: u64) {
+    let bucket_index: usize = string_hash(&name, LLVM_LOCAL_BUCKET_COUNT);
+    match symtable {
+        LlvmLocalSymTable::Registers(buckets) => {
+            let bucket: &mut LlvmLocalSymTableEntryList =
+                llvmLocalSymTableBuckets_get_mut(buckets, bucket_index);
+            if not(llvmLocalSymTableEntryList_set_register(
+                bucket, &name, value,
+            )) {
+                llvmLocalSymTableEntryList_append(
+                    bucket,
+                    LlvmLocalSymTableEntry::Register(name, value),
+                );
+            }
+        }
+    }
+}
+
+/// Insert a global string into the LLVM symbol table.
+fn llvmSymTable_insert_string(symtable: &mut LlvmSymTable, name: String, value: String) -> bool {
+    llvmGlobalSymTable_insert_string(llvmSymTable_global_mut(symtable), name, value)
+}
+
+/// Insert a global function into the LLVM symbol table.
+fn llvmSymTable_insert_function(
+    symtable: &mut LlvmSymTable,
+    name: String,
+    function: LlvmFunction,
+) -> bool {
+    llvmGlobalSymTable_insert_function(llvmSymTable_global_mut(symtable), name, function)
+}
+
+/// Lookup a function by name and return immutable access.
+fn llvmSymTable_lookup_function<'a>(symtable: &'a LlvmSymTable, name: &String) -> &'a LlvmFunction {
+    llvmGlobalSymTable_lookup_function(llvmSymTable_global(symtable), name)
+}
+
+/// Lookup a global string by name and return immutable access.
+fn llvmSymTable_lookup_string<'a>(symtable: &'a LlvmSymTable, name: &String) -> &'a String {
+    llvmGlobalSymTable_lookup_string(llvmSymTable_global(symtable), name)
+}
+
+/// Clear the local-register table in the LLVM symbol table bundle.
+fn llvmSymTable_clear_locals(symtable: &mut LlvmSymTable) {
+    llvmLocalSymTable_clear(llvmSymTable_local_mut(symtable))
+}
+
+/// Create an LLVM parser and prime the first token.
+fn llvmParser_new(source: String) -> LlvmParser {
+    LlvmParser::Parser(llvmLexer_new(source), llvmSymTable_new())
+}
+
+/// Create an LLVM parser from a string slice.
+fn llvmParser_from_str(source: &str) -> LlvmParser {
+    llvmParser_new(string_from_str(source))
+}
+
+/// Get immutable parser lexer access.
+fn llvmParser_lexer(parser: &LlvmParser) -> &LlvmLexer {
+    let LlvmParser::Parser(lexer, _): &LlvmParser = parser;
+    lexer
+}
+
+/// Get mutable parser lexer access.
+fn llvmParser_lexer_mut(parser: &mut LlvmParser) -> &mut LlvmLexer {
+    let LlvmParser::Parser(lexer, _): &mut LlvmParser = parser;
+    lexer
+}
+
+/// Get immutable parser symbol table access.
+fn llvmParser_symtable(parser: &LlvmParser) -> &LlvmSymTable {
+    let LlvmParser::Parser(_, symtable): &LlvmParser = parser;
+    symtable
+}
+
+/// Get mutable parser symbol table access.
+fn llvmParser_symtable_mut(parser: &mut LlvmParser) -> &mut LlvmSymTable {
+    let LlvmParser::Parser(_, symtable): &mut LlvmParser = parser;
+    symtable
+}
+
+/// Get current LLVM parser token.
+fn llvmParser_current_token(parser: &LlvmParser) -> &LlvmToken {
+    llvmLexer_current_token(llvmParser_lexer(parser))
+}
+
+/// Advance and return next LLVM parser token.
+fn llvmParser_next_token(parser: &mut LlvmParser) -> LlvmToken {
+    llvmLexer_next_token(llvmParser_lexer_mut(parser))
+}
+
+/// Check whether parser current token equals expected token.
+fn llvmParser_current_token_eq(parser: &LlvmParser, token: &LlvmToken) -> bool {
+    llvmToken_eq(llvmParser_current_token(parser), token)
+}
+
+/// Emit an LLVM parser error and panic.
+fn llvmParser_error(parser: &LlvmParser, message: &str) -> ! {
+    let SourceLocation::Coords(line, col): &SourceLocation =
+        llvmLexer_location(llvmParser_lexer(parser));
+    panic!("llvm parser error at {}:{}: {}", line, col, message);
+}
+
+/// Try consuming one token and report success.
+fn llvmParser_try_consume(parser: &mut LlvmParser, token: &LlvmToken) -> bool {
+    if llvmParser_current_token_eq(parser, token) {
+        llvmParser_next_token(parser);
+        true
+    } else {
+        false
+    }
+}
+
+/// Require and consume one token.
+fn llvmParser_expect_token(parser: &mut LlvmParser, token: &LlvmToken) {
+    if not(llvmParser_try_consume(parser, token)) {
+        llvmParser_error(parser, "unexpected LLVM token");
+    }
+}
+
+/// Read and consume one identifier token.
+fn llvmParser_expect_identifier(parser: &mut LlvmParser) -> String {
+    match llvmParser_current_token(parser) {
+        LlvmToken::Identifier(identifier) => {
+            let value: String = string_clone(identifier);
+            llvmParser_next_token(parser);
+            value
+        }
+        _ => llvmParser_error(parser, "expected LLVM identifier"),
+    }
+}
+
+fn llvmParser_parse_global_name(parser: &mut LlvmParser) -> String {
+    llvmParser_expect_token(parser, &LlvmToken::At);
+    llvmParser_expect_identifier(parser)
+}
+
+fn llvmParser_parse_register_name(parser: &mut LlvmParser) -> String {
+    llvmParser_expect_token(parser, &LlvmToken::Percent);
+    llvmParser_expect_identifier(parser)
+}
+
+fn llvmParser_parse_non_negative_number(parser: &mut LlvmParser) -> usize {
+    match llvmParser_current_token(parser) {
+        LlvmToken::Integer(value) => {
+            let result: usize = *value;
+            llvmParser_next_token(parser);
+            result
+        }
+        _ => llvmParser_error(parser, "expected LLVM number"),
+    }
+}
+
+fn llvmParser_parse_number_literal(parser: &mut LlvmParser) -> u64 {
+    let negative: bool = llvmParser_try_consume(parser, &LlvmToken::Minus);
+    match llvmParser_current_token(parser) {
+        LlvmToken::Integer(value) => {
+            let magnitude: u64 = *value as u64;
+            llvmParser_next_token(parser);
+            if negative {
+                (!magnitude).wrapping_add(1)
+            } else {
+                magnitude
+            }
+        }
+        _ => llvmParser_error(parser, "expected LLVM integer literal"),
+    }
+}
+
+fn llvmParser_parse_type(parser: &mut LlvmParser) -> LlvmType {
+    match llvmParser_current_token(parser) {
+        LlvmToken::I1 => {
+            llvmParser_next_token(parser);
+            LlvmType::I1
+        }
+        LlvmToken::I8 => {
+            llvmParser_next_token(parser);
+            LlvmType::I8
+        }
+        LlvmToken::I32 => {
+            llvmParser_next_token(parser);
+            LlvmType::I32
+        }
+        LlvmToken::I64 => {
+            llvmParser_next_token(parser);
+            LlvmType::I64
+        }
+        LlvmToken::Void => {
+            llvmParser_next_token(parser);
+            LlvmType::Void
+        }
+        LlvmToken::Ptr => {
+            llvmParser_next_token(parser);
+            LlvmType::Ptr
+        }
+        LlvmToken::LBracket => {
+            llvmParser_next_token(parser);
+            let len: usize = llvmParser_parse_non_negative_number(parser);
+            match llvmParser_current_token(parser) {
+                LlvmToken::Identifier(separator) => {
+                    if not(string_eq(separator, &string_from_str("x"))) {
+                        llvmParser_error(parser, "expected x in LLVM array type");
+                    }
+                    llvmParser_next_token(parser);
+                }
+                _ => llvmParser_error(parser, "expected x in LLVM array type"),
+            }
+            let inner: LlvmType = llvmParser_parse_type(parser);
+            llvmParser_expect_token(parser, &LlvmToken::RBracket);
+            LlvmType::Array(len, llvmTypeBox_new(inner))
+        }
+        _ => llvmParser_error(parser, "expected LLVM type"),
+    }
+}
+
+fn llvmParser_parse_value(parser: &mut LlvmParser) -> LlvmValue {
+    match llvmParser_current_token(parser) {
+        LlvmToken::Percent => LlvmValue::Register(llvmParser_parse_register_name(parser)),
+        LlvmToken::At => LlvmValue::Global(llvmParser_parse_global_name(parser)),
+        LlvmToken::Minus => LlvmValue::Literal(llvmParser_parse_number_literal(parser)),
+        LlvmToken::Integer(_) => LlvmValue::Literal(llvmParser_parse_number_literal(parser)),
+        _ => llvmParser_error(parser, "expected LLVM value"),
+    }
+}
+
+fn llvmParser_parse_typed_value(parser: &mut LlvmParser) -> LlvmTypedValue {
+    let ty: LlvmType = llvmParser_parse_type(parser);
+    let value: LlvmValue = llvmParser_parse_value(parser);
+    LlvmTypedValue::Pair(ty, value)
+}
+
+fn llvmParser_parse_parameter_list(parser: &mut LlvmParser) -> LlvmParameterList {
+    let mut parameters: LlvmParameterList = llvmParameterList_new();
+    llvmParser_expect_token(parser, &LlvmToken::LParen);
+    if not(llvmParser_current_token_eq(parser, &LlvmToken::RParen)) {
+        while true {
+            let parameter_type: LlvmType = llvmParser_parse_type(parser);
+            let parameter_name: String = llvmParser_parse_register_name(parser);
+            if not(llvmLocalSymTable_insert_register(
+                llvmSymTable_local_mut(llvmParser_symtable_mut(parser)),
+                string_clone(&parameter_name),
+                0,
+            )) {
+                llvmParser_error(parser, "duplicate LLVM parameter register");
+            }
+            llvmParameterList_append(
+                &mut parameters,
+                LlvmParameter::Parameter(parameter_name, parameter_type),
+            );
+
+            if llvmParser_try_consume(parser, &LlvmToken::Comma) {
+                if llvmParser_current_token_eq(parser, &LlvmToken::RParen) {
+                    llvmParser_error(parser, "trailing comma in LLVM parameter list");
+                }
+            } else {
+                break;
+            }
+        }
+    }
+    llvmParser_expect_token(parser, &LlvmToken::RParen);
+    parameters
+}
+
+fn llvmParser_parse_string_constant(parser: &mut LlvmParser) {
+    let global_name: String = llvmParser_parse_global_name(parser);
+    llvmParser_expect_token(parser, &LlvmToken::Assign);
+    llvmParser_expect_token(parser, &LlvmToken::Constant);
+    llvmParser_parse_type(parser);
+
+    let literal: String = match llvmParser_current_token(parser) {
+        LlvmToken::CString(value) => {
+            let string_value: String = string_clone(value);
+            llvmParser_next_token(parser);
+            string_value
+        }
+        _ => llvmParser_error(parser, "expected LLVM c-string literal"),
+    };
+
+    if not(llvmSymTable_insert_string(
+        llvmParser_symtable_mut(parser),
+        global_name,
+        literal,
+    )) {
+        llvmParser_error(parser, "duplicate LLVM global symbol");
+    }
+}
+
+fn llvmParser_parse_binary_assign(
+    parser: &mut LlvmParser,
+    operator_token: LlvmToken,
+    operator: BinaryOp,
+) -> AssignOp {
+    llvmParser_expect_token(parser, &operator_token);
+    let ty: LlvmType = llvmParser_parse_type(parser);
+    let left: LlvmValue = llvmParser_parse_value(parser);
+    llvmParser_expect_token(parser, &LlvmToken::Comma);
+    let right: LlvmValue = llvmParser_parse_value(parser);
+    AssignOp::Binary(operator, ty, left, right)
+}
+
+fn llvmParser_parse_icmp_assign(parser: &mut LlvmParser) -> AssignOp {
+    llvmParser_expect_token(parser, &LlvmToken::Icmp);
+    llvmParser_expect_token(parser, &LlvmToken::Ult);
+    let ty: LlvmType = llvmParser_parse_type(parser);
+    let left: LlvmValue = llvmParser_parse_value(parser);
+    llvmParser_expect_token(parser, &LlvmToken::Comma);
+    let right: LlvmValue = llvmParser_parse_value(parser);
+    AssignOp::Binary(BinaryOp::IcmpUlt, ty, left, right)
+}
+
+fn llvmParser_parse_call_assign(parser: &mut LlvmParser) -> AssignOp {
+    llvmParser_expect_token(parser, &LlvmToken::Call);
+    let return_type: LlvmType = llvmParser_parse_type(parser);
+    let callee: String = llvmParser_parse_global_name(parser);
+    let mut arguments: LlvmTypedValueList = llvmTypedValueList_new();
+
+    llvmParser_expect_token(parser, &LlvmToken::LParen);
+    if not(llvmParser_current_token_eq(parser, &LlvmToken::RParen)) {
+        while true {
+            let argument: LlvmTypedValue = llvmParser_parse_typed_value(parser);
+            llvmTypedValueList_append(&mut arguments, argument);
+            if llvmParser_try_consume(parser, &LlvmToken::Comma) {
+                if llvmParser_current_token_eq(parser, &LlvmToken::RParen) {
+                    llvmParser_error(parser, "trailing comma in LLVM call argument list");
+                }
+            } else {
+                break;
+            }
+        }
+    }
+    llvmParser_expect_token(parser, &LlvmToken::RParen);
+
+    AssignOp::Call(return_type, callee, arguments)
+}
+
+fn llvmParser_parse_gep_assign(parser: &mut LlvmParser) -> AssignOp {
+    llvmParser_expect_token(parser, &LlvmToken::Gep);
+    let base_type: LlvmType = llvmParser_parse_type(parser);
+    llvmParser_expect_token(parser, &LlvmToken::Comma);
+    llvmParser_expect_token(parser, &LlvmToken::Ptr);
+    let pointer_value: LlvmValue = llvmParser_parse_value(parser);
+    llvmParser_expect_token(parser, &LlvmToken::Comma);
+
+    let mut indexes: LlvmTypedValueList = llvmTypedValueList_new();
+    let first_index: LlvmTypedValue = llvmParser_parse_typed_value(parser);
+    llvmTypedValueList_append(&mut indexes, first_index);
+    while llvmParser_try_consume(parser, &LlvmToken::Comma) {
+        let index: LlvmTypedValue = llvmParser_parse_typed_value(parser);
+        llvmTypedValueList_append(&mut indexes, index);
+    }
+
+    AssignOp::Gep(base_type, pointer_value, indexes)
+}
+
+fn llvmParser_parse_assign_instruction(parser: &mut LlvmParser) -> AssignInstruction {
+    let target_register: String = llvmParser_parse_register_name(parser);
+    if not(llvmLocalSymTable_insert_register(
+        llvmSymTable_local_mut(llvmParser_symtable_mut(parser)),
+        string_clone(&target_register),
+        0,
+    )) {
+        llvmParser_error(parser, "duplicate LLVM register assignment");
+    }
+
+    llvmParser_expect_token(parser, &LlvmToken::Assign);
+    let operation: AssignOp = match llvmParser_current_token(parser) {
+        LlvmToken::Add => llvmParser_parse_binary_assign(parser, LlvmToken::Add, BinaryOp::Add),
+        LlvmToken::Sub => llvmParser_parse_binary_assign(parser, LlvmToken::Sub, BinaryOp::Sub),
+        LlvmToken::Mul => llvmParser_parse_binary_assign(parser, LlvmToken::Mul, BinaryOp::Mul),
+        LlvmToken::Udiv => llvmParser_parse_binary_assign(parser, LlvmToken::Udiv, BinaryOp::Udiv),
+        LlvmToken::Urem => llvmParser_parse_binary_assign(parser, LlvmToken::Urem, BinaryOp::Urem),
+        LlvmToken::Icmp => llvmParser_parse_icmp_assign(parser),
+        LlvmToken::Call => llvmParser_parse_call_assign(parser),
+        LlvmToken::Gep => llvmParser_parse_gep_assign(parser),
+        _ => llvmParser_error(parser, "expected LLVM assignment operation"),
+    };
+    AssignInstruction::Assign(target_register, operation)
+}
+
+fn llvmParser_parse_return_instruction(parser: &mut LlvmParser) -> TerminatorInstruction {
+    llvmParser_expect_token(parser, &LlvmToken::Ret);
+    if llvmParser_try_consume(parser, &LlvmToken::Void) {
+        TerminatorInstruction::RetVoid
+    } else {
+        let returned_type: LlvmType = llvmParser_parse_type(parser);
+        let returned_value: LlvmValue = llvmParser_parse_value(parser);
+        TerminatorInstruction::Ret(returned_type, returned_value)
+    }
+}
+
+fn llvmParser_parse_branch_instruction(parser: &mut LlvmParser) -> TerminatorInstruction {
+    llvmParser_expect_token(parser, &LlvmToken::Br);
+    let branch: Branch = if llvmParser_try_consume(parser, &LlvmToken::Label) {
+        let target_label: String = llvmParser_parse_register_name(parser);
+        Branch::Unconditional(target_label)
+    } else {
+        llvmParser_expect_token(parser, &LlvmToken::I1);
+        let condition: LlvmValue = llvmParser_parse_value(parser);
+        llvmParser_expect_token(parser, &LlvmToken::Comma);
+        llvmParser_expect_token(parser, &LlvmToken::Label);
+        let then_label: String = llvmParser_parse_register_name(parser);
+        llvmParser_expect_token(parser, &LlvmToken::Comma);
+        llvmParser_expect_token(parser, &LlvmToken::Label);
+        let else_label: String = llvmParser_parse_register_name(parser);
+        Branch::Conditional(condition, then_label, else_label)
+    };
+    TerminatorInstruction::Br(branch)
+}
+
+fn llvmParser_parse_instruction(parser: &mut LlvmParser) -> (Instruction, bool) {
+    match llvmParser_current_token(parser) {
+        LlvmToken::Ret => (
+            Instruction::Terminator(llvmParser_parse_return_instruction(parser)),
+            true,
+        ),
+        LlvmToken::Br => (
+            Instruction::Terminator(llvmParser_parse_branch_instruction(parser)),
+            true,
+        ),
+        LlvmToken::Percent => (
+            Instruction::Assignment(llvmParser_parse_assign_instruction(parser)),
+            false,
+        ),
+        _ => llvmParser_error(parser, "expected LLVM instruction"),
+    }
+}
+
+fn llvmParser_parse_instruction_list(
+    parser: &mut LlvmParser,
+    stop_at_next_label: bool,
+) -> InstructionList {
+    let mut instructions: InstructionList = instructionList_new();
+    let mut has_terminator: bool = false;
+
+    while not(llvmParser_current_token_eq(parser, &LlvmToken::RBrace)) {
+        if stop_at_next_label {
+            match llvmParser_current_token(parser) {
+                LlvmToken::Identifier(_) => break,
+                _ => (),
+            }
+        }
+
+        let (instruction, is_terminator): (Instruction, bool) =
+            llvmParser_parse_instruction(parser);
+        instructionList_append(&mut instructions, instruction);
+
+        if is_terminator {
+            has_terminator = true;
+            break;
+        }
+    }
+
+    if not(has_terminator) {
+        llvmParser_error(parser, "LLVM block must end in terminator");
+    }
+    instructions
+}
+
+fn llvmParser_parse_block_label(parser: &mut LlvmParser) -> String {
+    let label: String = llvmParser_expect_identifier(parser);
+    llvmParser_expect_token(parser, &LlvmToken::Colon);
+    label
+}
+
+fn llvmParser_parse_explicit_block_list(parser: &mut LlvmParser) -> InstructionBlockList {
+    let mut blocks: InstructionBlockList = instructionBlockList_new();
+    while not(llvmParser_current_token_eq(parser, &LlvmToken::RBrace)) {
+        let label: String = llvmParser_parse_block_label(parser);
+        let instructions: InstructionList = llvmParser_parse_instruction_list(parser, true);
+        instructionBlockList_append(&mut blocks, InstructionBlock::Block(label, instructions));
+    }
+    blocks
+}
+
+fn llvmParser_parse_implicit_entry_block(parser: &mut LlvmParser) -> InstructionBlockList {
+    let mut blocks: InstructionBlockList = instructionBlockList_new();
+    let entry_label: String = string_from_str("entry");
+    let instructions: InstructionList = llvmParser_parse_instruction_list(parser, false);
+    instructionBlockList_append(
+        &mut blocks,
+        InstructionBlock::Block(entry_label, instructions),
+    );
+    blocks
+}
+
+fn llvmParser_parse_function(parser: &mut LlvmParser) {
+    llvmParser_expect_token(parser, &LlvmToken::Define);
+    let return_type: LlvmType = llvmParser_parse_type(parser);
+    let function_name: String = llvmParser_parse_global_name(parser);
+
+    llvmSymTable_clear_locals(llvmParser_symtable_mut(parser));
+    let parameters: LlvmParameterList = llvmParser_parse_parameter_list(parser);
+
+    llvmParser_expect_token(parser, &LlvmToken::LBrace);
+    let blocks: InstructionBlockList = match llvmParser_current_token(parser) {
+        LlvmToken::Identifier(_) => llvmParser_parse_explicit_block_list(parser),
+        _ => llvmParser_parse_implicit_entry_block(parser),
+    };
+    llvmParser_expect_token(parser, &LlvmToken::RBrace);
+
+    let function: LlvmFunction = LlvmFunction::Function(return_type, parameters, blocks);
+    if not(llvmSymTable_insert_function(
+        llvmParser_symtable_mut(parser),
+        function_name,
+        function,
+    )) {
+        llvmParser_error(parser, "duplicate LLVM global function");
+    }
+}
+
+fn llvmParser_parse_language(parser: &mut LlvmParser) {
+    while not(llvmParser_current_token_eq(parser, &LlvmToken::Eof)) {
+        match llvmParser_current_token(parser) {
+            LlvmToken::Define => llvmParser_parse_function(parser),
+            LlvmToken::At => llvmParser_parse_string_constant(parser),
+            _ => llvmParser_error(parser, "expected LLVM top-level item"),
+        }
+    }
+}
+
+/// Parse LLVM source into LLVM AST and symbol tables.
+fn llvmParser_parse_to_ast(source: &str) -> LlvmSymTable {
+    let mut parser: LlvmParser = llvmParser_from_str(source);
+    llvmParser_parse_language(&mut parser);
+    let LlvmParser::Parser(_, symtable): LlvmParser = parser;
+    symtable
+}
+
+/// Execution control flow after one instruction.
+enum LlvmExecFlow {
+    Continue,
+    Jump(String),
+    Return(u64),
+}
+
+fn instructionBlockList_first_label(blocks: &InstructionBlockList) -> String {
+    match blocks {
+        InstructionBlockList::Cons(block, _) => match block {
+            InstructionBlock::Block(label, _) => string_clone(label),
+        },
+        InstructionBlockList::Nil => panic!("cannot execute function with no blocks"),
+    }
+}
+
+fn instructionBlockList_find<'a>(
+    blocks: &'a InstructionBlockList,
+    label: &String,
+) -> &'a InstructionBlock {
+    match blocks {
+        InstructionBlockList::Cons(block, tail) => match block {
+            InstructionBlock::Block(block_label, _) => {
+                if string_eq(block_label, label) {
+                    block
+                } else {
+                    instructionBlockList_find(instructionBlockListBox_deref(tail), label)
+                }
+            }
+        },
+        InstructionBlockList::Nil => panic!("branch target label not found"),
+    }
+}
+
+fn llvm_global_value_address(symtable: &LlvmSymTable, name: &String) -> u64 {
+    llvmSymTable_lookup_string(symtable, name);
+    let mut hash: u64 = 1469598103934665603;
+    let mut i: usize = 0;
+    while i < string_len(name) {
+        hash = hash
+            .wrapping_mul(1099511628211)
+            .wrapping_add(unwrap_char(string_get(name, i)) as u64);
+        i = i + 1;
+    }
+    hash
+}
+
+fn llvm_eval_value(symtable: &LlvmSymTable, locals: &LlvmLocalSymTable, value: &LlvmValue) -> u64 {
+    match value {
+        LlvmValue::Register(name) => match llvmLocalSymTable_lookup_register(locals, name) {
+            U64Option::Some(register_value) => register_value,
+            U64Option::None => panic!("unknown LLVM register"),
+        },
+        LlvmValue::Literal(number) => *number,
+        LlvmValue::Global(name) => llvm_global_value_address(symtable, name),
+    }
+}
+
+fn llvm_execute_function_named(
+    symtable: &LlvmSymTable,
+    function_name: &String,
+    arguments: &LlvmTypedValueList,
+    caller_locals: &LlvmLocalSymTable,
+) -> u64 {
+    let function: &LlvmFunction = llvmSymTable_lookup_function(symtable, function_name);
+    llvm_execute_function(symtable, function, arguments, caller_locals)
+}
+
+fn llvm_execute_function(
+    symtable: &LlvmSymTable,
+    function: &LlvmFunction,
+    arguments: &LlvmTypedValueList,
+    caller_locals: &LlvmLocalSymTable,
+) -> u64 {
+    let LlvmFunction::Function(_, parameters, blocks): &LlvmFunction = function;
+    let mut locals: LlvmLocalSymTable = llvmLocalSymTable_new();
+
+    let mut parameter_cursor: &LlvmParameterList = parameters;
+    let mut argument_cursor: &LlvmTypedValueList = arguments;
+    while true {
+        match (parameter_cursor, argument_cursor) {
+            (LlvmParameterList::Nil, LlvmTypedValueList::Nil) => break,
+            (
+                LlvmParameterList::Cons(parameter, parameter_tail),
+                LlvmTypedValueList::Cons(argument, argument_tail),
+            ) => {
+                let LlvmParameter::Parameter(name, _) = parameter;
+                let LlvmTypedValue::Pair(_, argument_value) = argument;
+                let runtime_argument: u64 =
+                    llvm_eval_value(symtable, caller_locals, argument_value);
+                llvmLocalSymTable_set_register(&mut locals, string_clone(name), runtime_argument);
+                parameter_cursor = llvmParameterListBox_deref(parameter_tail);
+                argument_cursor = llvmTypedValueListBox_deref(argument_tail);
+            }
+            _ => panic!("LLVM call argument count mismatch"),
+        }
+    }
+
+    let mut current_label: String = instructionBlockList_first_label(blocks);
+    while true {
+        let block: &InstructionBlock = instructionBlockList_find(blocks, &current_label);
+        let flow: LlvmExecFlow = match block {
+            InstructionBlock::Block(_, instructions) => {
+                llvm_execute_instruction_list(symtable, &instructions, &mut locals)
+            }
+        };
+
+        match flow {
+            LlvmExecFlow::Continue => panic!("LLVM block did not terminate"),
+            LlvmExecFlow::Jump(next_label) => current_label = next_label,
+            LlvmExecFlow::Return(value) => return value,
+        }
+    }
+    0
+}
+
+fn llvm_execute_instruction_list(
+    symtable: &LlvmSymTable,
+    instructions: &InstructionList,
+    locals: &mut LlvmLocalSymTable,
+) -> LlvmExecFlow {
+    let mut cursor: &InstructionList = instructions;
+    while true {
+        match cursor {
+            InstructionList::Nil => return LlvmExecFlow::Continue,
+            InstructionList::Cons(instruction, tail) => {
+                match instruction {
+                    Instruction::Assignment(assign_instruction) => {
+                        llvm_execute_assign_instruction(symtable, assign_instruction, locals);
+                    }
+                    Instruction::Terminator(terminator) => {
+                        return llvm_execute_terminator_instruction(symtable, terminator, locals);
+                    }
+                }
+                cursor = instructionListBox_deref(tail);
+            }
+        }
+    }
+    LlvmExecFlow::Continue
+}
+
+fn llvm_execute_assign_instruction(
+    symtable: &LlvmSymTable,
+    instruction: &AssignInstruction,
+    locals: &mut LlvmLocalSymTable,
+) {
+    let AssignInstruction::Assign(target, operation): &AssignInstruction = instruction;
+    let value: u64 = llvm_eval_assign_op(symtable, operation, locals);
+    llvmLocalSymTable_set_register(locals, string_clone(target), value);
+}
+
+fn llvm_eval_assign_op(
+    symtable: &LlvmSymTable,
+    operation: &AssignOp,
+    locals: &LlvmLocalSymTable,
+) -> u64 {
+    match operation {
+        AssignOp::Binary(operator, _, left, right) => {
+            let lhs: u64 = llvm_eval_value(symtable, locals, left);
+            let rhs: u64 = llvm_eval_value(symtable, locals, right);
+            match operator {
+                BinaryOp::Add => lhs.wrapping_add(rhs),
+                BinaryOp::Sub => lhs.wrapping_sub(rhs),
+                BinaryOp::Mul => lhs.wrapping_mul(rhs),
+                BinaryOp::Udiv => lhs / rhs,
+                BinaryOp::Urem => lhs % rhs,
+                BinaryOp::IcmpUlt => {
+                    if lhs < rhs {
+                        1
+                    } else {
+                        0
+                    }
+                }
+            }
+        }
+        AssignOp::Call(_, callee, arguments) => {
+            llvm_execute_function_named(symtable, callee, arguments, locals)
+        }
+        AssignOp::Gep(_, pointer, indexes) => {
+            let mut address: u64 = llvm_eval_value(symtable, locals, pointer);
+            let mut cursor: &LlvmTypedValueList = indexes;
+            while true {
+                match cursor {
+                    LlvmTypedValueList::Nil => return address,
+                    LlvmTypedValueList::Cons(typed_value, tail) => {
+                        let LlvmTypedValue::Pair(_, index_value) = typed_value;
+                        address =
+                            address.wrapping_add(llvm_eval_value(symtable, locals, index_value));
+                        cursor = llvmTypedValueListBox_deref(tail);
+                    }
+                }
+            }
+            address
+        }
+    }
+}
+
+fn llvm_execute_terminator_instruction(
+    symtable: &LlvmSymTable,
+    terminator: &TerminatorInstruction,
+    locals: &LlvmLocalSymTable,
+) -> LlvmExecFlow {
+    match terminator {
+        TerminatorInstruction::RetVoid => LlvmExecFlow::Return(0),
+        TerminatorInstruction::Ret(_, value) => {
+            LlvmExecFlow::Return(llvm_eval_value(symtable, locals, value))
+        }
+        TerminatorInstruction::Br(branch) => match branch {
+            Branch::Unconditional(target_label) => LlvmExecFlow::Jump(string_clone(target_label)),
+            Branch::Conditional(condition, then_label, else_label) => {
+                let condition_value: u64 = llvm_eval_value(symtable, locals, condition);
+                if condition_value == 0 {
+                    LlvmExecFlow::Jump(string_clone(else_label))
+                } else {
+                    LlvmExecFlow::Jump(string_clone(then_label))
+                }
+            }
+        },
+    }
+}
+
+/// Parse and emulate LLVM source and return the raw return value of @main.
+fn llvm_emulate_source_str(source: &str) -> usize {
+    let symtable: LlvmSymTable = llvmParser_parse_to_ast(source);
+    let main_name: String = string_from_str("main");
+    let empty_args: LlvmTypedValueList = llvmTypedValueList_new();
+    let caller_locals: LlvmLocalSymTable = llvmLocalSymTable_new();
+    llvm_execute_function_named(&symtable, &main_name, &empty_args, &caller_locals) as usize
+}
+
+/// Convert emulator return value to a shell-compatible exit code.
+fn llvm_exit_code_to_shell(code: usize) -> i32 {
+    (code % 256) as i32
+}
+
 // -----------------------------------------------------------------
 // -----------------------------------------------------------------
-// ------------------------- Library -------------------------------
+// ---------------------- Library (continued) ----------------------
 // -----------------------------------------------------------------
 // -----------------------------------------------------------------
 
