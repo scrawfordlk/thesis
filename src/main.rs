@@ -1569,42 +1569,53 @@ fn type_to_llvm_name(ty: &Type) -> String {
 // ---------------------- Lexical Analysis -------------------------
 // -----------------------------------------------------------------
 
-/// Tokens used by the LLVM lexer.
+/// Tokens produced by the LLVM lexer.
 enum LlvmToken {
-    Define,  // "define"
-    Ret,     // "ret"
-    Add,     // "add"
-    Sub,     // "sub"
-    Mul,     // "mul"
-    Udiv,    // "udiv"
-    Urem,    // "urem"
-    Icmp,    // "icmp"
-    Call,    // "call"
-    Ult,     // "ult"
-    I64,     // "i64"
-    I1,      // "i1"
-    Void,    // "void"
-    At,      // "@"
-    Percent, // "%"
-    LParen,  // "("
-    RParen,  // ")"
-    LBrace,  // "{"
-    RBrace,  // "}"
-    Comma,   // ","
-    Minus,   // "-"
-    Assign,  // "="
+    Define,          // "define"
+    Ret,             // "ret"
+    Br,              // "br"
+    Label,           // "label"
+    Add,             // "add"
+    Sub,             // "sub"
+    Mul,             // "mul"
+    Udiv,            // "udiv"
+    Urem,            // "urem"
+    Icmp,            // "icmp"
+    Call,            // "call"
+    Gep,             // "getelementptr"
+    Constant,        // "constant"
+    Ult,             // "ult"
+    Ptr,             // "ptr"
+    I64,             // "i64"
+    I32,             // "i32"
+    I8,              // "i8"
+    I1,              // "i1"
+    Void,            // "void"
+    At,              // "@"
+    Percent,         // "%"
+    LParen,          // "("
+    RParen,          // ")"
+    LBrace,          // "{"
+    RBrace,          // "}"
+    LBracket,        // "["
+    RBracket,        // "]"
+    Comma,           // ","
+    Minus,           // "-"
+    Assign,          // "="
+    Colon,           // ":"
+    CString(String), // c"..."
     Identifier(String),
     Integer(usize),
     Eof,
 }
 
-/// A type that encapsulates the state of the lexer for the LLVM-IR parser
+/// A type that encapsulates the state of the lexer for the LLVM-IR parser.
 enum LlvmLexer {
     /// LLVM-IR human-readable source file, current token
     Lexer(SourceFile, LlvmToken),
 }
 
-/// Create a new LLVM lexer and prime the first token.
+/// Create a new LLVM lexer and scan the first token.
 fn llvmLexer_new(source: String) -> LlvmLexer {
     let source_file: SourceFile = SourceFile::SourceFile(source, 0, SourceLocation::Coords(1, 1));
     let mut lexer: LlvmLexer = LlvmLexer::Lexer(source_file, LlvmToken::Eof);
@@ -1648,6 +1659,27 @@ fn llvmLexer_peek_char(lexer: &LlvmLexer) -> CharOption {
     string_get(content, *index)
 }
 
+/// Peek the next source character after the current one and return true if it is the expected
+/// character
+fn llvmLexer_next_char_eq(lexer: &LlvmLexer, expected: char) -> bool {
+    let SourceFile::SourceFile(content, index, _): &SourceFile = llvmLexer_sourcefile(lexer);
+    match string_get(content, *index + 1) {
+        CharOption::Some(character) => character == expected,
+        _ => false,
+    }
+}
+
+fn llvmLexer_expect_char(lexer: &mut LlvmLexer, expected: char) {
+    match llvmLexer_consume_char(lexer) {
+        CharOption::Some(c) => {
+            if c != expected {
+                panic!("unexpected character");
+            }
+        }
+        _ => panic!("unexpected EOF"),
+    }
+}
+
 /// Consume and return the current source character.
 fn llvmLexer_consume_char(lexer: &mut LlvmLexer) -> CharOption {
     let SourceFile::SourceFile(source, index, location): &mut SourceFile =
@@ -1677,7 +1709,10 @@ fn llvmLexer_next_token(lexer: &mut LlvmLexer) -> LlvmToken {
 
     let token: LlvmToken = match llvmLexer_peek_char(lexer) {
         CharOption::Some(ch) => {
-            if is_alpha(ch) {
+            if and(ch == 'c', llvmLexer_next_char_eq(lexer, '"')) {
+                let value: String = llvmLexer_scan_cstring(lexer);
+                LlvmToken::CString(value)
+            } else if or(is_alpha(ch), ch == '.') {
                 let ident: String = llvmLexer_scan_identifier_or_keyword(lexer);
                 llvm_identifier_to_token(ident)
             } else if is_digit(ch) {
@@ -1692,6 +1727,48 @@ fn llvmLexer_next_token(lexer: &mut LlvmLexer) -> LlvmToken {
 
     llvmLexer_set_current_token(lexer, llvmToken_clone(&token));
     token
+}
+
+/// Scan and return a c"..." string literal.
+fn llvmLexer_scan_cstring(lexer: &mut LlvmLexer) -> String {
+    let mut literal: String = string_new();
+    llvmLexer_expect_char(lexer, 'c');
+    llvmLexer_expect_char(lexer, '"');
+
+    while true {
+        match llvmLexer_consume_char(lexer) {
+            CharOption::Some('"') => return literal,
+            CharOption::Some('\\') => {
+                let character: char = llvmLexer_scan_escape(lexer);
+                string_push(&mut literal, character);
+            }
+            CharOption::Some(ch) => string_push(&mut literal, ch),
+            CharOption::None => panic!("unterminated LLVM c-string"),
+        }
+    }
+    literal // satisfy compiler
+}
+
+fn llvmLexer_scan_escape(lexer: &mut LlvmLexer) -> char {
+    match llvmLexer_consume_char(lexer) {
+        CharOption::Some(hex_digit) => {
+            if is_hexadecimal_digit(hex_digit) {
+                match llvmLexer_consume_char(lexer) {
+                    CharOption::Some(second_hex_digit) => {
+                        let mut char_byte: String = string_new();
+                        string_push(&mut char_byte, hex_digit);
+                        string_push(&mut char_byte, second_hex_digit);
+
+                        unwrap_usize(string_to_integer(&mut char_byte, 16)) as u8 as char
+                    }
+                    _ => panic!("expected second digit for escaped character byte"),
+                }
+            } else {
+                hex_digit
+            }
+        }
+        CharOption::None => panic!("unterminated LLVM c-string"),
+    }
 }
 
 fn llvmLexer_scan_identifier_or_keyword(lexer: &mut LlvmLexer) -> String {
@@ -1717,6 +1794,10 @@ fn llvm_identifier_to_token(identifier: String) -> LlvmToken {
         LlvmToken::Define
     } else if string_eq(&identifier, &string_from_str("ret")) {
         LlvmToken::Ret
+    } else if string_eq(&identifier, &string_from_str("br")) {
+        LlvmToken::Br
+    } else if string_eq(&identifier, &string_from_str("label")) {
+        LlvmToken::Label
     } else if string_eq(&identifier, &string_from_str("add")) {
         LlvmToken::Add
     } else if string_eq(&identifier, &string_from_str("sub")) {
@@ -1731,10 +1812,20 @@ fn llvm_identifier_to_token(identifier: String) -> LlvmToken {
         LlvmToken::Icmp
     } else if string_eq(&identifier, &string_from_str("call")) {
         LlvmToken::Call
+    } else if string_eq(&identifier, &string_from_str("getelementptr")) {
+        LlvmToken::Gep
+    } else if string_eq(&identifier, &string_from_str("constant")) {
+        LlvmToken::Constant
     } else if string_eq(&identifier, &string_from_str("ult")) {
         LlvmToken::Ult
+    } else if string_eq(&identifier, &string_from_str("ptr")) {
+        LlvmToken::Ptr
     } else if string_eq(&identifier, &string_from_str("i64")) {
         LlvmToken::I64
+    } else if string_eq(&identifier, &string_from_str("i32")) {
+        LlvmToken::I32
+    } else if string_eq(&identifier, &string_from_str("i8")) {
+        LlvmToken::I8
     } else if string_eq(&identifier, &string_from_str("i1")) {
         LlvmToken::I1
     } else if string_eq(&identifier, &string_from_str("void")) {
@@ -1771,9 +1862,12 @@ fn llvmLexer_scan_symbol(lexer: &mut LlvmLexer) -> LlvmToken {
         ')' => LlvmToken::RParen,
         '{' => LlvmToken::LBrace,
         '}' => LlvmToken::RBrace,
+        '[' => LlvmToken::LBracket,
+        ']' => LlvmToken::RBracket,
         ',' => LlvmToken::Comma,
         '-' => LlvmToken::Minus,
         '=' => LlvmToken::Assign,
+        ':' => LlvmToken::Colon,
         _ => panic!("unsupported token in LLVM input"),
     }
 }
@@ -2456,6 +2550,14 @@ fn llvmToken_eq(left: &LlvmToken, right: &LlvmToken) -> bool {
             LlvmToken::Ret => true,
             _ => false,
         },
+        LlvmToken::Br => match right {
+            LlvmToken::Br => true,
+            _ => false,
+        },
+        LlvmToken::Label => match right {
+            LlvmToken::Label => true,
+            _ => false,
+        },
         LlvmToken::Add => match right {
             LlvmToken::Add => true,
             _ => false,
@@ -2484,12 +2586,32 @@ fn llvmToken_eq(left: &LlvmToken, right: &LlvmToken) -> bool {
             LlvmToken::Call => true,
             _ => false,
         },
+        LlvmToken::Gep => match right {
+            LlvmToken::Gep => true,
+            _ => false,
+        },
+        LlvmToken::Constant => match right {
+            LlvmToken::Constant => true,
+            _ => false,
+        },
         LlvmToken::Ult => match right {
             LlvmToken::Ult => true,
             _ => false,
         },
+        LlvmToken::Ptr => match right {
+            LlvmToken::Ptr => true,
+            _ => false,
+        },
         LlvmToken::I64 => match right {
             LlvmToken::I64 => true,
+            _ => false,
+        },
+        LlvmToken::I32 => match right {
+            LlvmToken::I32 => true,
+            _ => false,
+        },
+        LlvmToken::I8 => match right {
+            LlvmToken::I8 => true,
             _ => false,
         },
         LlvmToken::I1 => match right {
@@ -2524,6 +2646,14 @@ fn llvmToken_eq(left: &LlvmToken, right: &LlvmToken) -> bool {
             LlvmToken::RBrace => true,
             _ => false,
         },
+        LlvmToken::LBracket => match right {
+            LlvmToken::LBracket => true,
+            _ => false,
+        },
+        LlvmToken::RBracket => match right {
+            LlvmToken::RBracket => true,
+            _ => false,
+        },
         LlvmToken::Comma => match right {
             LlvmToken::Comma => true,
             _ => false,
@@ -2534,6 +2664,14 @@ fn llvmToken_eq(left: &LlvmToken, right: &LlvmToken) -> bool {
         },
         LlvmToken::Assign => match right {
             LlvmToken::Assign => true,
+            _ => false,
+        },
+        LlvmToken::Colon => match right {
+            LlvmToken::Colon => true,
+            _ => false,
+        },
+        LlvmToken::CString(left_value) => match right {
+            LlvmToken::CString(right_value) => string_eq(left_value, right_value),
             _ => false,
         },
         LlvmToken::Identifier(left_name) => match right {
@@ -2719,6 +2857,8 @@ fn llvmToken_clone(token: &LlvmToken) -> LlvmToken {
     match token {
         LlvmToken::Define => LlvmToken::Define,
         LlvmToken::Ret => LlvmToken::Ret,
+        LlvmToken::Br => LlvmToken::Br,
+        LlvmToken::Label => LlvmToken::Label,
         LlvmToken::Add => LlvmToken::Add,
         LlvmToken::Sub => LlvmToken::Sub,
         LlvmToken::Mul => LlvmToken::Mul,
@@ -2726,8 +2866,13 @@ fn llvmToken_clone(token: &LlvmToken) -> LlvmToken {
         LlvmToken::Urem => LlvmToken::Urem,
         LlvmToken::Icmp => LlvmToken::Icmp,
         LlvmToken::Call => LlvmToken::Call,
+        LlvmToken::Gep => LlvmToken::Gep,
+        LlvmToken::Constant => LlvmToken::Constant,
         LlvmToken::Ult => LlvmToken::Ult,
+        LlvmToken::Ptr => LlvmToken::Ptr,
         LlvmToken::I64 => LlvmToken::I64,
+        LlvmToken::I32 => LlvmToken::I32,
+        LlvmToken::I8 => LlvmToken::I8,
         LlvmToken::I1 => LlvmToken::I1,
         LlvmToken::Void => LlvmToken::Void,
         LlvmToken::At => LlvmToken::At,
@@ -2736,9 +2881,13 @@ fn llvmToken_clone(token: &LlvmToken) -> LlvmToken {
         LlvmToken::RParen => LlvmToken::RParen,
         LlvmToken::LBrace => LlvmToken::LBrace,
         LlvmToken::RBrace => LlvmToken::RBrace,
+        LlvmToken::LBracket => LlvmToken::LBracket,
+        LlvmToken::RBracket => LlvmToken::RBracket,
         LlvmToken::Comma => LlvmToken::Comma,
         LlvmToken::Minus => LlvmToken::Minus,
         LlvmToken::Assign => LlvmToken::Assign,
+        LlvmToken::Colon => LlvmToken::Colon,
+        LlvmToken::CString(value) => LlvmToken::CString(string_clone(value)),
         LlvmToken::Identifier(name) => LlvmToken::Identifier(string_clone(name)),
         LlvmToken::Integer(value) => LlvmToken::Integer(*value),
         LlvmToken::Eof => LlvmToken::Eof,
