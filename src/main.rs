@@ -1971,38 +1971,6 @@ fn to_uppercase(c: char) -> char {
 }
 
 // -----------------------------------------------------------------
-// ------------------------ General Utilities ------------------------------
-// -----------------------------------------------------------------
-
-/// Converts a string into an integer given the base.
-/// Returns None if the integer contained in the string is invalid for 64-bit integers.
-fn string_to_integer(string: &mut String, base: usize) -> UsizeOption {
-    let mut value: usize = 0;
-
-    let mut i: usize = 0;
-    while i < string_len(string) {
-        let digit: char = unwrap_char(string_get(string, i));
-
-        let digit_value: usize = if is_digit(digit) {
-            digit as usize - '0' as usize
-        } else {
-            digit as usize - 'A' as usize + 10
-        };
-
-        let max: usize = 18446744073709551615; // 2^64 - 1
-
-        if or(digit_value > base - 1, value > max / base) {
-            return UsizeOption::None;
-        }
-
-        value = value * base + digit_value;
-
-        i = i + 1;
-    }
-    UsizeOption::Some(value)
-}
-
-// -----------------------------------------------------------------
 // ------------------------ Option<T> ------------------------------
 // -----------------------------------------------------------------
 
@@ -2918,6 +2886,34 @@ fn string_push_string(string: &mut String, other: &String) {
 
     unsafe { memcopy(ptr, other_ptr, other_len) }
     *len = *len + other_len;
+}
+
+/// Converts a string into an integer given the base.
+/// Returns None if the integer contained in the string is invalid for 64-bit integers.
+fn string_to_integer(string: &mut String, base: usize) -> UsizeOption {
+    let mut value: usize = 0;
+
+    let mut i: usize = 0;
+    while i < string_len(string) {
+        let digit: char = unwrap_char(string_get(string, i));
+
+        let digit_value: usize = if is_digit(digit) {
+            digit as usize - '0' as usize
+        } else {
+            digit as usize - 'A' as usize + 10
+        };
+
+        let max: usize = 18446744073709551615; // 2^64 - 1
+
+        if or(digit_value > base - 1, value > max / base) {
+            return UsizeOption::None;
+        }
+
+        value = value * base + digit_value;
+
+        i = i + 1;
+    }
+    UsizeOption::Some(value)
 }
 
 /// Ensure the string has space for additional bytes.
