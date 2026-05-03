@@ -1902,12 +1902,12 @@ fn llvmLexer_skip_line(lexer: &mut LlvmLexer) {
 
 /// Type that encapsulates the LLVM Parser's state
 enum LlvmParser {
-    Parser(LlvmLexer, LlvmSymTable),
+    Parser(LlvmLexer, LlvmAST),
 }
 
 /// Create an LLVM parser and prime the first token.
 fn llvmParser_new(source: String) -> LlvmParser {
-    LlvmParser::Parser(llvmLexer_new(source), llvmSymTable_new())
+    LlvmParser::Parser(llvmLexer_new(source), llvmAST_new())
 }
 
 /// Create an LLVM parser from a string slice.
@@ -1927,16 +1927,16 @@ fn llvmParser_lexer_mut(parser: &mut LlvmParser) -> &mut LlvmLexer {
     lexer
 }
 
-/// Get immutable parser symbol table access.
-fn llvmParser_symtable(parser: &LlvmParser) -> &LlvmSymTable {
-    let LlvmParser::Parser(_, symtable): &LlvmParser = parser;
-    symtable
+/// Get immutable parser AST access.
+fn llvmParser_ast(parser: &LlvmParser) -> &LlvmAST {
+    let LlvmParser::Parser(_, ast): &LlvmParser = parser;
+    ast
 }
 
-/// Get mutable parser symbol table access.
-fn llvmParser_symtable_mut(parser: &mut LlvmParser) -> &mut LlvmSymTable {
-    let LlvmParser::Parser(_, symtable): &mut LlvmParser = parser;
-    symtable
+/// Get mutable parser AST access.
+fn llvmParser_ast_mut(parser: &mut LlvmParser) -> &mut LlvmAST {
+    let LlvmParser::Parser(_, ast): &mut LlvmParser = parser;
+    ast
 }
 
 /// Get current LLVM parser token.
