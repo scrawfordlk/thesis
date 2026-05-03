@@ -1900,6 +1900,99 @@ fn llvmLexer_skip_line(lexer: &mut LlvmLexer) {
     }
 }
 
+/// Type that encapsulates the LLVM Parser's state
+enum LlvmParser {
+    Parser(LlvmLexer, LlvmSymTable),
+}
+
+/// Create an LLVM parser and prime the first token.
+fn llvmParser_new(source: String) -> LlvmParser {
+    LlvmParser::Parser(llvmLexer_new(source), llvmSymTable_new())
+}
+
+/// Create an LLVM parser from a string slice.
+fn llvmParser_from_str(source: &str) -> LlvmParser {
+    llvmParser_new(string_from_str(source))
+}
+
+/// Get immutable parser lexer access.
+fn llvmParser_lexer(parser: &LlvmParser) -> &LlvmLexer {
+    let LlvmParser::Parser(lexer, _): &LlvmParser = parser;
+    lexer
+}
+
+/// Get mutable parser lexer access.
+fn llvmParser_lexer_mut(parser: &mut LlvmParser) -> &mut LlvmLexer {
+    let LlvmParser::Parser(lexer, _): &mut LlvmParser = parser;
+    lexer
+}
+
+/// Get immutable parser symbol table access.
+fn llvmParser_symtable(parser: &LlvmParser) -> &LlvmSymTable {
+    let LlvmParser::Parser(_, symtable): &LlvmParser = parser;
+    symtable
+}
+
+/// Get mutable parser symbol table access.
+fn llvmParser_symtable_mut(parser: &mut LlvmParser) -> &mut LlvmSymTable {
+    let LlvmParser::Parser(_, symtable): &mut LlvmParser = parser;
+    symtable
+}
+
+/// Get current LLVM parser token.
+fn llvmParser_current_token(parser: &LlvmParser) -> &LlvmToken {
+    llvmLexer_current_token(llvmParser_lexer(parser))
+}
+
+/// Advance and return next LLVM parser token.
+fn llvmParser_next_token(parser: &mut LlvmParser) -> LlvmToken {
+    llvmLexer_next_token(llvmParser_lexer_mut(parser))
+}
+
+/// Check whether parser current token equals expected token.
+fn llvmParser_current_token_eq(parser: &LlvmParser, token: &LlvmToken) -> bool {
+    llvmToken_eq(llvmParser_current_token(parser), token)
+}
+
+/// Try consuming one token and report success.
+fn llvmParser_try_consume(parser: &mut LlvmParser, token: &LlvmToken) -> bool {
+    if llvmParser_current_token_eq(parser, token) {
+        llvmParser_next_token(parser);
+        true
+    } else {
+        false
+    }
+}
+
+/// Require and consume one token.
+fn llvmParser_expect_token(parser: &mut LlvmParser, token: &LlvmToken) {
+    if not(llvmParser_try_consume(parser, token)) {
+        llvmParser_error(parser, "unexpected LLVM token");
+    }
+}
+
+/// Read and consume one identifier token.
+fn llvmParser_expect_identifier(parser: &mut LlvmParser) -> String {
+    match llvmParser_current_token(parser) {
+        LlvmToken::Identifier(identifier) => {
+            let value: String = string_clone(identifier);
+            llvmParser_next_token(parser);
+            value
+        }
+        _ => llvmParser_error(parser, "expected LLVM identifier"),
+    }
+}
+
+    }
+}
+
+/// Require and consume one token.
+fn llvmParser_expect_token(parser: &mut LlvmParser, token: &LlvmToken) {
+    if not(llvmParser_try_consume(parser, token)) {
+        llvmParser_error(parser, "unexpected LLVM token");
+    }
+}
+
 // -----------------------------------------------------------------
 // -----------------------------------------------------------------
 // ------------------------- Library -------------------------------
@@ -1982,6 +2075,13 @@ fn lexer_error(lexer: &Lexer, message: &str) -> ! {
 /// Emit an error at the parser current location and abort.
 fn parser_error(parser: &Parser, message: &str) -> ! {
     lexer_error(parser_lexer(parser), message)
+}
+
+/// Emit an LLVM parser error and panic.
+fn llvmParser_error(parser: &LlvmParser, message: &str) -> ! {
+    let SourceLocation::Coords(line, col): &SourceLocation =
+        llvmLexer_location(llvmParser_lexer(parser));
+    panic!("llvm parser error at {}:{}: {}", line, col, message);
 }
 
 // -----------------------------------------------------------------
