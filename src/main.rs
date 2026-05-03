@@ -1983,16 +1983,6 @@ fn llvmParser_expect_identifier(parser: &mut LlvmParser) -> String {
     }
 }
 
-    }
-}
-
-/// Require and consume one token.
-fn llvmParser_expect_token(parser: &mut LlvmParser, token: &LlvmToken) {
-    if not(llvmParser_try_consume(parser, token)) {
-        llvmParser_error(parser, "unexpected LLVM token");
-    }
-}
-
 // -----------------------------------------------------------------
 // -----------------------------------------------------------------
 // ------------------------- Library -------------------------------
