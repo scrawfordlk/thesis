@@ -1,14 +1,14 @@
-// ----------------------- CharOption --------------------------
+// ----------------------- Option<char> --------------------------
 
 #[test]
 fn test_unwrap_char_some() {
-    assert_eq!(unwrap_char(CharOption::Some('a')), 'a');
+    assert_eq!(unwrap(Option::Some('a')), 'a');
 }
 
 #[test]
-#[should_panic(expected = "tried to unwrap None variant of CharOption")]
+#[should_panic(expected = "tried to unwrap None variant of Option<T>")]
 fn test_unwrap_char_none() {
-    unwrap_char(CharOption::None);
+    unwrap(Option::<char>::None);
 }
 
 // ------------------------- String ----------------------------
@@ -65,14 +65,14 @@ fn test_string_push_and_push_str_combined() {
 #[test]
 fn test_string_get_out_of_bounds() {
     let s = string_new();
-    assert!(matches!(string_get(&s, 0), CharOption::None));
+    assert!(matches!(string_get(&s, 0), Option::None));
 }
 
 #[test]
 fn test_string_get_out_of_bounds_nonempty() {
     let mut s = string_new();
     string_push(&mut s, 'x');
-    assert!(matches!(string_get(&s, 1), CharOption::None));
+    assert!(matches!(string_get(&s, 1), Option::None));
 }
 
 #[test]
@@ -168,19 +168,23 @@ fn parser_type_match(a: &Type, b: &Type) -> bool {
     }
 }
 
-fn parser_typeList_match(a: &TypeList, b: &TypeList) -> bool {
+fn parser_typeList_match(a: &List<Type>, b: &List<Type>) -> bool {
     match (a, b) {
-        (TypeList::Nil, TypeList::Nil) => true,
-        (TypeList::Cons(a_head, a_tail), TypeList::Cons(b_head, b_tail)) => and(
+        (List::Nil, List::Nil) => true,
+        (List::Cons(a_head, a_tail), List::Cons(b_head, b_tail)) => and(
             parser_type_match(a_head, b_head),
-            parser_typeList_match(typeListBox_deref(a_tail), typeListBox_deref(b_tail)),
+            parser_typeList_match(box_deref(a_tail), box_deref(b_tail)),
         ),
         _ => false,
     }
 }
 
-fn typeList_single(t: Type) -> TypeList {
-    TypeList::Cons(t, typeListBox_new(TypeList::Nil))
+fn typeList_single(t: Type) -> List<Type> {
+    List::Cons(t, box_new(List::Nil))
+}
+
+fn clone_type_list(list: &List<Type>) -> List<Type> {
+    list_clone(list, type_clone)
 }
 
 // ------------------------- Bool ----------------------------
@@ -225,10 +229,7 @@ fn test_global_symtable_prepend_and_contains() {
     assert!(!globalSymTable_contains(&global, &string_from_str("f")));
 
     let mut global = GlobalSymTable::Nil;
-    let entry = SymTableEntry::Function(
-        string_from_str("f"),
-        FnSignature::Fn(TypeList::Nil, Type::U8),
-    );
+    let entry = SymTableEntry::Function(string_from_str("f"), FnSignature::Fn(List::Nil, Type::U8));
     globalSymTable_prepend(&mut global, entry);
     match &global {
         GlobalSymTable::Cons(head, _) => {
@@ -244,7 +245,7 @@ fn test_global_symtable_insert_function() {
     assert!(globalSymTable_insert_function(
         &mut global,
         string_from_str("f"),
-        TypeList::Nil,
+        List::Nil,
         Type::Usize
     ));
 }
@@ -255,7 +256,7 @@ fn test_global_symtable_insert_enum() {
     assert!(globalSymTable_insert_enum(
         &mut global,
         string_from_str("Color"),
-        TypeList::Nil
+        List::Nil
     ));
 }
 
@@ -313,7 +314,7 @@ fn test_symtable_insert_function() {
     assert!(symTable_insert_function(
         &mut symtable,
         string_from_str("f"),
-        TypeList::Nil,
+        List::Nil,
         Type::Usize
     ));
 }
@@ -324,7 +325,7 @@ fn test_symtable_insert_enum() {
     assert!(symTable_insert_enum(
         &mut symtable,
         string_from_str("State"),
-        TypeList::Nil
+        List::Nil
     ));
 }
 
@@ -348,16 +349,14 @@ fn test_symtable_scope_and_variables() {
 
 #[test]
 fn test_symtable_entry_name() {
-    let fn_entry = SymTableEntry::Function(
-        string_from_str("f"),
-        FnSignature::Fn(TypeList::Nil, Type::Unit),
-    );
+    let fn_entry =
+        SymTableEntry::Function(string_from_str("f"), FnSignature::Fn(List::Nil, Type::Unit));
     assert!(string_eq(
         symTableEntry_name(&fn_entry),
         &string_from_str("f")
     ));
 
-    let enum_entry = SymTableEntry::Enum(string_from_str("E"), TypeList::Nil);
+    let enum_entry = SymTableEntry::Enum(string_from_str("E"), List::Nil);
     assert!(string_eq(
         symTableEntry_name(&enum_entry),
         &string_from_str("E")
@@ -380,7 +379,7 @@ fn test_type_clone() {
 #[test]
 fn test_type_list_clone() {
     let types = typeList_single(Type::Custom(string_from_str("Node")));
-    let cloned = typeList_clone(&types);
+    let cloned = list_clone(&types, type_clone);
     assert!(parser_typeList_match(&types, &cloned));
 }
 
@@ -444,48 +443,36 @@ fn test_local_symtable_stack_clone() {
 
 #[test]
 fn test_global_symtable_box_new_deref_clone() {
-    let ptr = globalSymTableBox_new(GlobalSymTable::Nil);
-    assert!(matches!(globalSymTableBox_deref(&ptr), GlobalSymTable::Nil));
+    let ptr = box_new(GlobalSymTable::Nil);
+    assert!(matches!(box_deref(&ptr), GlobalSymTable::Nil));
 
-    let cloned_ptr = globalSymTableBox_clone(&ptr);
-    assert!(matches!(
-        globalSymTableBox_deref(&cloned_ptr),
-        GlobalSymTable::Nil
-    ));
+    let cloned_ptr = box_clone(&ptr, globalSymTable_clone);
+    assert!(matches!(box_deref(&cloned_ptr), GlobalSymTable::Nil));
 }
 
 #[test]
 fn test_local_symtable_box_new_deref_clone() {
-    let ptr = localSymTableBox_new(LocalSymTable::Nil);
-    assert!(matches!(localSymTableBox_deref(&ptr), LocalSymTable::Nil));
+    let ptr = box_new(LocalSymTable::Nil);
+    assert!(matches!(box_deref(&ptr), LocalSymTable::Nil));
 
-    let cloned_ptr = localSymTableBox_clone(&ptr);
-    assert!(matches!(
-        localSymTableBox_deref(&cloned_ptr),
-        LocalSymTable::Nil
-    ));
+    let cloned_ptr = box_clone(&ptr, localSymTable_clone);
+    assert!(matches!(box_deref(&cloned_ptr), LocalSymTable::Nil));
 }
 
 #[test]
 fn test_local_symtable_stack_box_new_deref_clone() {
-    let ptr = localSymTableStackBox_new(LocalSymTableStack::Nil);
-    assert!(matches!(
-        localSymTableStackBox_deref(&ptr),
-        LocalSymTableStack::Nil
-    ));
+    let ptr = box_new(LocalSymTableStack::Nil);
+    assert!(matches!(box_deref(&ptr), LocalSymTableStack::Nil));
 
-    let cloned_ptr = localSymTableStackBox_clone(&ptr);
-    assert!(matches!(
-        localSymTableStackBox_deref(&cloned_ptr),
-        LocalSymTableStack::Nil
-    ));
+    let cloned_ptr = box_clone(&ptr, localSymTableStack_clone);
+    assert!(matches!(box_deref(&cloned_ptr), LocalSymTableStack::Nil));
 }
 
 #[test]
 fn test_type_list_box_new_deref_clone() {
-    let ptr = typeListBox_new(TypeList::Nil);
-    assert!(matches!(typeListBox_deref(&ptr), TypeList::Nil));
+    let ptr = box_new(List::Nil);
+    assert!(matches!(box_deref(&ptr), List::Nil));
 
-    let cloned_ptr = typeListBox_clone(&ptr);
-    assert!(matches!(typeListBox_deref(&cloned_ptr), TypeList::Nil));
+    let cloned_ptr = box_clone(&ptr, clone_type_list);
+    assert!(matches!(box_deref(&cloned_ptr), List::Nil));
 }

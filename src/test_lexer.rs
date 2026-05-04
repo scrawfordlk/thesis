@@ -7,8 +7,8 @@ fn make_lexer(input: &str) -> Lexer {
     Lexer::Lexer(source, Token::Eof)
 }
 
-fn collect_tokens(lexer: &mut Lexer) -> Vec<Token> {
-    let mut tokens = Vec::new();
+fn collect_tokens(lexer: &mut Lexer) -> std::vec::Vec<Token> {
+    let mut tokens: std::vec::Vec<Token> = std::vec::Vec::new();
     loop {
         let tok = lexer_next_token(lexer);
         let is_eof = matches!(tok, Token::Eof);
@@ -52,7 +52,7 @@ fn tokens_match(a: &Token, b: &Token) -> bool {
     token_eq(a, b)
 }
 
-fn assert_tokens(actual: Vec<Token>, expected: Vec<Token>) {
+fn assert_tokens(actual: std::vec::Vec<Token>, expected: std::vec::Vec<Token>) {
     assert_eq!(
         actual.len(),
         expected.len(),
@@ -115,13 +115,13 @@ fn test_is_alphanumeric() {
 #[test]
 fn test_lexer_peek() {
     let lexer = make_lexer("a");
-    assert!(matches!(lexer_peek_char(&lexer), CharOption::Some('a')));
+    assert!(matches!(lexer_peek_char(&lexer), Option::Some('a')));
 }
 
 #[test]
 fn test_lexer_peek_empty() {
     let lexer = make_lexer("");
-    assert!(matches!(lexer_peek_char(&lexer), CharOption::None));
+    assert!(matches!(lexer_peek_char(&lexer), Option::None));
 }
 
 #[test]
@@ -129,21 +129,21 @@ fn test_lexer_consume() {
     let mut lexer = make_lexer("ab");
     assert!(matches!(
         lexer_consume_char(&mut lexer),
-        CharOption::Some('a')
+        Option::Some('a')
     ));
     assert!(matches!(
         lexer_consume_char(&mut lexer),
-        CharOption::Some('b')
+        Option::Some('b')
     ));
-    assert!(matches!(lexer_consume_char(&mut lexer), CharOption::None));
+    assert!(matches!(lexer_consume_char(&mut lexer), Option::None));
 }
 
 #[test]
 fn test_lexer_eof_detection() {
     let mut lexer = make_lexer("a");
-    assert!(matches!(lexer_peek_char(&lexer), CharOption::Some('a')));
+    assert!(matches!(lexer_peek_char(&lexer), Option::Some('a')));
     lexer_consume_char(&mut lexer);
-    assert!(matches!(lexer_peek_char(&lexer), CharOption::None));
+    assert!(matches!(lexer_peek_char(&lexer), Option::None));
 }
 
 #[test]
@@ -175,7 +175,7 @@ fn test_lexer_sourcefile() {
 fn test_lexer_expect_char_success() {
     let mut lexer = make_lexer("xyz");
     lexer_expect_char(&mut lexer, 'x');
-    assert!(matches!(lexer_peek_char(&lexer), CharOption::Some('y')));
+    assert!(matches!(lexer_peek_char(&lexer), Option::Some('y')));
 }
 
 #[test]
@@ -183,7 +183,7 @@ fn test_scan_identifier_direct() {
     let mut lexer = make_lexer("hello_42!");
     let ident = lexer_scan_identifier(&mut lexer);
     assert!(string_eq(&ident, &string_from_str("hello_42")));
-    assert!(matches!(lexer_peek_char(&lexer), CharOption::Some('!')));
+    assert!(matches!(lexer_peek_char(&lexer), Option::Some('!')));
 }
 
 #[test]
@@ -206,14 +206,14 @@ fn test_scan_integer_direct() {
     let mut lexer = make_lexer("123abc");
     let value = lexer_scan_integer(&mut lexer);
     assert_eq!(value, 123);
-    assert!(matches!(lexer_peek_char(&lexer), CharOption::Some('a')));
+    assert!(matches!(lexer_peek_char(&lexer), Option::Some('a')));
 }
 
 #[test]
 fn test_scan_char_literal_direct() {
     let mut lexer = make_lexer("'x'");
     assert_eq!(lexer_scan_char_literal(&mut lexer), 'x');
-    assert!(matches!(lexer_peek_char(&lexer), CharOption::None));
+    assert!(matches!(lexer_peek_char(&lexer), Option::None));
 }
 
 #[test]
@@ -221,7 +221,7 @@ fn test_scan_string_literal_direct() {
     let mut lexer = make_lexer("\"ab\\n\"");
     let s = lexer_scan_string_literal(&mut lexer);
     assert!(string_eq(&s, &string_from_str("ab\n")));
-    assert!(matches!(lexer_peek_char(&lexer), CharOption::None));
+    assert!(matches!(lexer_peek_char(&lexer), Option::None));
 }
 
 #[test]
@@ -241,14 +241,14 @@ fn test_scan_symbol_direct() {
 fn test_scan_slash_direct() {
     let mut lexer = make_lexer("x");
     assert!(matches!(lexer_scan_slash(&mut lexer), Token::Slash));
-    assert!(matches!(lexer_peek_char(&lexer), CharOption::Some('x')));
+    assert!(matches!(lexer_peek_char(&lexer), Option::Some('x')));
 }
 
 #[test]
 fn test_scan_colon_direct() {
     let mut lexer = make_lexer("x");
     assert!(matches!(lexer_scan_colon(&mut lexer), Token::Colon));
-    assert!(matches!(lexer_peek_char(&lexer), CharOption::Some('x')));
+    assert!(matches!(lexer_peek_char(&lexer), Option::Some('x')));
 }
 
 #[test]
@@ -288,14 +288,14 @@ fn test_scan_greater_direct() {
 fn test_skip_whitespace_direct() {
     let mut lexer = make_lexer("  \n\tabc");
     skip_whitespace(&mut lexer);
-    assert!(matches!(lexer_peek_char(&lexer), CharOption::Some('a')));
+    assert!(matches!(lexer_peek_char(&lexer), Option::Some('a')));
 }
 
 #[test]
 fn test_skip_line_comment_direct() {
     let mut lexer = make_lexer("comment text\nz");
     skip_line_comment(&mut lexer);
-    assert!(matches!(lexer_peek_char(&lexer), CharOption::Some('z')));
+    assert!(matches!(lexer_peek_char(&lexer), Option::Some('z')));
 }
 
 #[test]
