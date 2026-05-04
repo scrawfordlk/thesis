@@ -9,8 +9,8 @@ mod tests {
     // Helper to convert our String to std::string::String for easy comparison
     fn to_std_string(s: &String) -> std::string::String {
         (0..string_len(s))
-            .map(|i| unwrap_char(string_get(s, i)))
-            .collect()
+            .map(|i| unwrap::<char>(string_get(s, i)))
+            .collect::<std::string::String>()
     }
 
     include!("test_library.rs");

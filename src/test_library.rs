@@ -2,13 +2,13 @@
 
 #[test]
 fn test_unwrap_char_some() {
-    assert_eq!(unwrap(Option::Some('a')), 'a');
+    assert_eq!(unwrap::<char>(Option::Some('a')), 'a');
 }
 
 #[test]
 #[should_panic(expected = "tried to unwrap None variant of Option<T>")]
 fn test_unwrap_char_none() {
-    unwrap(Option::<char>::None);
+    unwrap::<char>(Option::None);
 }
 
 // ------------------------- String ----------------------------
@@ -173,18 +173,21 @@ fn parser_typeList_match(a: &List<Type>, b: &List<Type>) -> bool {
         (List::Nil, List::Nil) => true,
         (List::Cons(a_head, a_tail), List::Cons(b_head, b_tail)) => and(
             parser_type_match(a_head, b_head),
-            parser_typeList_match(box_deref(a_tail), box_deref(b_tail)),
+            parser_typeList_match(
+                box_deref::<List<Type>>(a_tail),
+                box_deref::<List<Type>>(b_tail),
+            ),
         ),
         _ => false,
     }
 }
 
 fn typeList_single(t: Type) -> List<Type> {
-    List::Cons(t, box_new(List::Nil))
+    List::Cons(t, box_new::<List<Type>>(List::Nil))
 }
 
 fn clone_type_list(list: &List<Type>) -> List<Type> {
-    list_clone(list, type_clone)
+    list_clone::<Type>(list, type_clone)
 }
 
 // ------------------------- Bool ----------------------------
@@ -379,7 +382,7 @@ fn test_type_clone() {
 #[test]
 fn test_type_list_clone() {
     let types = typeList_single(Type::Custom(string_from_str("Node")));
-    let cloned = list_clone(&types, type_clone);
+    let cloned = list_clone::<Type>(&types, type_clone);
     assert!(parser_typeList_match(&types, &cloned));
 }
 
@@ -443,36 +446,54 @@ fn test_local_symtable_stack_clone() {
 
 #[test]
 fn test_global_symtable_box_new_deref_clone() {
-    let ptr = box_new(GlobalSymTable::Nil);
-    assert!(matches!(box_deref(&ptr), GlobalSymTable::Nil));
+    let ptr = box_new::<GlobalSymTable>(GlobalSymTable::Nil);
+    assert!(matches!(
+        box_deref::<GlobalSymTable>(&ptr),
+        GlobalSymTable::Nil
+    ));
 
-    let cloned_ptr = box_clone(&ptr, globalSymTable_clone);
-    assert!(matches!(box_deref(&cloned_ptr), GlobalSymTable::Nil));
+    let cloned_ptr = box_clone::<GlobalSymTable>(&ptr, globalSymTable_clone);
+    assert!(matches!(
+        box_deref::<GlobalSymTable>(&cloned_ptr),
+        GlobalSymTable::Nil
+    ));
 }
 
 #[test]
 fn test_local_symtable_box_new_deref_clone() {
-    let ptr = box_new(LocalSymTable::Nil);
-    assert!(matches!(box_deref(&ptr), LocalSymTable::Nil));
+    let ptr = box_new::<LocalSymTable>(LocalSymTable::Nil);
+    assert!(matches!(
+        box_deref::<LocalSymTable>(&ptr),
+        LocalSymTable::Nil
+    ));
 
-    let cloned_ptr = box_clone(&ptr, localSymTable_clone);
-    assert!(matches!(box_deref(&cloned_ptr), LocalSymTable::Nil));
+    let cloned_ptr = box_clone::<LocalSymTable>(&ptr, localSymTable_clone);
+    assert!(matches!(
+        box_deref::<LocalSymTable>(&cloned_ptr),
+        LocalSymTable::Nil
+    ));
 }
 
 #[test]
 fn test_local_symtable_stack_box_new_deref_clone() {
-    let ptr = box_new(LocalSymTableStack::Nil);
-    assert!(matches!(box_deref(&ptr), LocalSymTableStack::Nil));
+    let ptr = box_new::<LocalSymTableStack>(LocalSymTableStack::Nil);
+    assert!(matches!(
+        box_deref::<LocalSymTableStack>(&ptr),
+        LocalSymTableStack::Nil
+    ));
 
-    let cloned_ptr = box_clone(&ptr, localSymTableStack_clone);
-    assert!(matches!(box_deref(&cloned_ptr), LocalSymTableStack::Nil));
+    let cloned_ptr = box_clone::<LocalSymTableStack>(&ptr, localSymTableStack_clone);
+    assert!(matches!(
+        box_deref::<LocalSymTableStack>(&cloned_ptr),
+        LocalSymTableStack::Nil
+    ));
 }
 
 #[test]
 fn test_type_list_box_new_deref_clone() {
-    let ptr = box_new(List::Nil);
-    assert!(matches!(box_deref(&ptr), List::Nil));
+    let ptr = box_new::<List<Type>>(List::Nil);
+    assert!(matches!(box_deref::<List<Type>>(&ptr), List::Nil));
 
-    let cloned_ptr = box_clone(&ptr, clone_type_list);
-    assert!(matches!(box_deref(&cloned_ptr), List::Nil));
+    let cloned_ptr = box_clone::<List<Type>>(&ptr, clone_type_list);
+    assert!(matches!(box_deref::<List<Type>>(&cloned_ptr), List::Nil));
 }

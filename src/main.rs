@@ -7,7 +7,7 @@ fn main() {
 
     let mut i: usize = 0;
     while i < string_len(&str) {
-        print!("{}", unwrap(string_get(&str, i)));
+        print!("{}", unwrap::<char>(string_get(&str, i)));
         i = i + 1;
     }
 }
@@ -332,7 +332,7 @@ fn lexer_scan_escape_char(lexer: &mut Lexer) -> char {
 }
 
 fn lexer_scan_symbol(lexer: &mut Lexer) -> Token {
-    match unwrap(lexer_consume_char(lexer)) {
+    match unwrap::<char>(lexer_consume_char(lexer)) {
         '{' => Token::LBrace,
         '}' => Token::RBrace,
         '(' => Token::LParen,
@@ -612,13 +612,13 @@ fn parse_function(parser: &mut Parser) {
 
     let function_name: String = parser_expect_identifier(parser);
     symTable_enter_scope(parser_symtable_mut(parser));
-    let mut parameter_types: List<Type> = list_new();
+    let mut parameter_types: List<Type> = list_new::<Type>();
 
     parser_expect_token(parser, &Token::LParen);
     if not(parser_current_token_eq(parser, &Token::RParen)) {
         let first_parameter: Variable = parse_variable(parser);
         let Variable::Var(pattern, param_type, is_mutable): Variable = first_parameter;
-        list_append(&mut parameter_types, type_clone(&param_type));
+        list_append::<Type>(&mut parameter_types, type_clone(&param_type));
 
         match pattern {
             Pattern::Identifier(name) => {
@@ -635,7 +635,7 @@ fn parse_function(parser: &mut Parser) {
         ) {
             let parameter: Variable = parse_variable(parser);
             let Variable::Var(pattern, param_type, is_mutable): Variable = parameter;
-            list_append(&mut parameter_types, type_clone(&param_type));
+            list_append::<Type>(&mut parameter_types, type_clone(&param_type));
 
             match pattern {
                 Pattern::Identifier(name) => {
@@ -701,15 +701,15 @@ fn parse_enum(parser: &mut Parser) {
     let enum_name: String = parser_expect_identifier(parser);
     parser_expect_token(parser, &Token::LBrace);
 
-    let mut variants: List<Type> = list_new();
+    let mut variants: List<Type> = list_new::<Type>();
     let first_variant_type: Type = parse_variant(parser);
-    list_append(&mut variants, first_variant_type);
+    list_append::<Type>(&mut variants, first_variant_type);
     parser_expect_token(parser, &Token::Comma);
 
     while not(parser_current_token_eq(parser, &Token::RBrace)) {
         let variant_type: Type = parse_variant(parser);
         // TODO: check for duplicate variants
-        list_append(&mut variants, variant_type);
+        list_append::<Type>(&mut variants, variant_type);
         parser_expect_token(parser, &Token::Comma);
     }
     parser_expect_token(parser, &Token::RBrace);
@@ -832,19 +832,19 @@ fn parse_type(parser: &mut Parser) -> Type {
             parser_next_token(parser);
             if parser_try_consume(parser, &Token::Mut) {
                 let inner: Type = parse_type(parser);
-                Type::ReferenceMut(box_new(inner))
+                Type::ReferenceMut(box_new::<Type>(inner))
             } else if parser_try_consume(parser, &Token::Str) {
-                Type::Reference(box_new(Type::Custom(string_from_str("str"))))
+                Type::Reference(box_new::<Type>(Type::Custom(string_from_str("str"))))
             } else {
                 let inner: Type = parse_type(parser);
-                Type::Reference(box_new(inner))
+                Type::Reference(box_new::<Type>(inner))
             }
         }
         Token::Star => {
             parser_next_token(parser);
             parser_expect_token(parser, &Token::Mut);
             let inner: Type = parse_type(parser);
-            Type::RawPointerMut(box_new(inner))
+            Type::RawPointerMut(box_new::<Type>(inner))
         }
         Token::Identifier(_) => Type::Custom(parser_expect_identifier(parser)),
         _ => parser_error(parser, "expected type"),
@@ -993,9 +993,9 @@ fn parse_factor(parser: &mut Parser) -> Type {
             parser_next_token(parser);
             let inner: Type = parse_factor(parser);
             match inner {
-                Type::RawPointerMut(pointed) => type_clone(box_deref(&pointed)),
-                Type::Reference(pointed) => type_clone(box_deref(&pointed)),
-                Type::ReferenceMut(pointed) => type_clone(box_deref(&pointed)),
+                Type::RawPointerMut(pointed) => type_clone(box_deref::<Type>(&pointed)),
+                Type::Reference(pointed) => type_clone(box_deref::<Type>(&pointed)),
+                Type::ReferenceMut(pointed) => type_clone(box_deref::<Type>(&pointed)),
                 _ => parser_error(parser, "cannot dereference this expression"),
             }
         }
@@ -1004,9 +1004,9 @@ fn parse_factor(parser: &mut Parser) -> Type {
             let mutable: bool = parser_try_consume(parser, &Token::Mut);
             let inner: Type = parse_factor(parser);
             if mutable {
-                Type::ReferenceMut(box_new(inner))
+                Type::ReferenceMut(box_new::<Type>(inner))
             } else {
-                Type::Reference(box_new(inner))
+                Type::Reference(box_new::<Type>(inner))
             }
         }
         Token::Literal(_) => parse_literal(parser),
@@ -1136,9 +1136,9 @@ fn parse_pattern(parser: &mut Parser) -> Pattern {
             match current_literal {
                 Literal::Int(_) => Pattern::Literal(Type::Usize),
                 Literal::Char(_) => Pattern::Literal(Type::Char),
-                Literal::String(_) => Pattern::Literal(Type::Reference(box_new(Type::Custom(
-                    string_from_str("str"),
-                )))),
+                Literal::String(_) => Pattern::Literal(Type::Reference(box_new::<Type>(
+                    Type::Custom(string_from_str("str")),
+                ))),
                 Literal::Bool(_) => Pattern::Literal(Type::Bool),
             }
         }
@@ -1172,24 +1172,24 @@ fn parse_pattern(parser: &mut Parser) -> Pattern {
 fn parse_call(parser: &mut Parser, function_name: String) -> Type {
     parser_expect_token(parser, &Token::LParen);
 
-    let mut argument_types: List<Type> = list_new();
+    let mut argument_types: List<Type> = list_new::<Type>();
     if not(parser_current_token_eq(parser, &Token::RParen)) {
         let first_argument_type: Type = parse_expression(parser);
-        list_append(&mut argument_types, first_argument_type);
+        list_append::<Type>(&mut argument_types, first_argument_type);
 
         while and(
             parser_try_consume(parser, &Token::Comma),
             not(parser_current_token_eq(parser, &Token::RParen)),
         ) {
             let argument_type: Type = parse_expression(parser);
-            list_append(&mut argument_types, argument_type);
+            list_append::<Type>(&mut argument_types, argument_type);
         }
     }
     parser_expect_token(parser, &Token::RParen);
 
     match symTable_lookup_function_signature(parser_symtable(parser), &function_name) {
         Option::Some(FnSignature::Fn(parameter_types, return_type)) => {
-            if not(list_eq(&parameter_types, &argument_types, type_eq)) {
+            if not(list_eq::<Type>(&parameter_types, &argument_types, type_eq)) {
                 parser_error(parser, "function call does not match function signature");
             }
 
@@ -1210,7 +1210,7 @@ fn parse_literal(parser: &mut Parser) -> Type {
             match current_literal {
                 Literal::Int(_) => Type::Usize,
                 Literal::String(_) => {
-                    Type::Reference(box_new(Type::Custom(string_from_str("str"))))
+                    Type::Reference(box_new::<Type>(Type::Custom(string_from_str("str"))))
                 }
                 Literal::Char(_) => Type::Char,
                 Literal::Bool(_) => Type::Bool,
@@ -1310,7 +1310,7 @@ enum GlobalSymTable {
 /// Prepend an entry to the global table.
 fn globalSymTable_prepend(symtable: &mut GlobalSymTable, entry: SymTableEntry) {
     let old_copy: GlobalSymTable = globalSymTable_clone(symtable);
-    let tail: Box<GlobalSymTable> = box_new(old_copy);
+    let tail: Box<GlobalSymTable> = box_new::<GlobalSymTable>(old_copy);
     *symtable = GlobalSymTable::Cons(entry, tail);
 }
 
@@ -1321,7 +1321,7 @@ fn globalSymTable_contains(symtable: &GlobalSymTable, name: &String) -> bool {
             let entry_name: &String = symTableEntry_name(&head);
             or(
                 string_eq(entry_name, name),
-                globalSymTable_contains(box_deref(tail), name),
+                globalSymTable_contains(box_deref::<GlobalSymTable>(tail), name),
             )
         }
         GlobalSymTable::Nil => false,
@@ -1339,10 +1339,13 @@ fn globalSymTable_lookup_function_signature(
                 if string_eq(entry_name, name) {
                     Option::Some(fnSignature_clone(signature))
                 } else {
-                    globalSymTable_lookup_function_signature(box_deref(tail), name)
+                    globalSymTable_lookup_function_signature(
+                        box_deref::<GlobalSymTable>(tail),
+                        name,
+                    )
                 }
             }
-            _ => globalSymTable_lookup_function_signature(box_deref(tail), name),
+            _ => globalSymTable_lookup_function_signature(box_deref::<GlobalSymTable>(tail), name),
         },
         GlobalSymTable::Nil => Option::None,
     }
@@ -1390,7 +1393,7 @@ enum LocalSymTableStack {
 /// Push a new empty local scope onto the stack.
 fn localSymTableStack_push(stack: &mut LocalSymTableStack) {
     let old_copy: LocalSymTableStack = localSymTableStack_clone(stack);
-    let tail: Box<LocalSymTableStack> = box_new(old_copy);
+    let tail: Box<LocalSymTableStack> = box_new::<LocalSymTableStack>(old_copy);
     *stack = LocalSymTableStack::Cons(LocalSymTable::Nil, tail);
 }
 
@@ -1398,7 +1401,7 @@ fn localSymTableStack_push(stack: &mut LocalSymTableStack) {
 fn localSymTableStack_pop(stack: &mut LocalSymTableStack) -> bool {
     match stack {
         LocalSymTableStack::Cons(_, tail) => {
-            *stack = localSymTableStack_clone(box_deref(tail));
+            *stack = localSymTableStack_clone(box_deref::<LocalSymTableStack>(tail));
             true
         }
         LocalSymTableStack::Nil => false,
@@ -1410,7 +1413,7 @@ fn localSymTableStack_contains(stack: &LocalSymTableStack, name: &String) -> boo
     match stack {
         LocalSymTableStack::Cons(local, tail) => or(
             localSymTable_contains(local, name),
-            localSymTableStack_contains(box_deref(tail), name),
+            localSymTableStack_contains(box_deref::<LocalSymTableStack>(tail), name),
         ),
         LocalSymTableStack::Nil => false,
     }
@@ -1425,7 +1428,10 @@ fn localSymTableStack_lookup_variable_type(
         LocalSymTableStack::Cons(local, tail) => {
             match localSymTable_lookup_variable_type(local, name) {
                 Option::Some(variable_type) => Option::Some(variable_type),
-                Option::None => localSymTableStack_lookup_variable_type(box_deref(tail), name),
+                Option::None => localSymTableStack_lookup_variable_type(
+                    box_deref::<LocalSymTableStack>(tail),
+                    name,
+                ),
             }
         }
         LocalSymTableStack::Nil => Option::None,
@@ -1442,7 +1448,7 @@ enum LocalSymTable {
 /// Prepend an entry to a local scope.
 fn localSymTable_prepend(symtable: &mut LocalSymTable, entry: SymTableEntry) {
     let old_copy: LocalSymTable = localSymTable_clone(symtable);
-    let tail: Box<LocalSymTable> = box_new(old_copy);
+    let tail: Box<LocalSymTable> = box_new::<LocalSymTable>(old_copy);
     *symtable = LocalSymTable::Cons(entry, tail);
 }
 
@@ -1452,7 +1458,10 @@ fn localSymTable_contains(symtable: &LocalSymTable, name: &String) -> bool {
         LocalSymTable::Cons(head, tail) => {
             let entry_name: &String = symTableEntry_name(head);
             let matches: bool = string_eq(entry_name, name);
-            or(matches, localSymTable_contains(box_deref(tail), name))
+            or(
+                matches,
+                localSymTable_contains(box_deref::<LocalSymTable>(tail), name),
+            )
         }
         LocalSymTable::Nil => false,
     }
@@ -1466,10 +1475,10 @@ fn localSymTable_lookup_variable_type(symtable: &LocalSymTable, name: &String) -
                 if string_eq(entry_name, name) {
                     Option::Some(type_clone(variable_type))
                 } else {
-                    localSymTable_lookup_variable_type(box_deref(tail), name)
+                    localSymTable_lookup_variable_type(box_deref::<LocalSymTable>(tail), name)
                 }
             }
-            _ => localSymTable_lookup_variable_type(box_deref(tail), name),
+            _ => localSymTable_lookup_variable_type(box_deref::<LocalSymTable>(tail), name),
         },
         LocalSymTable::Nil => Option::None,
     }
@@ -1753,7 +1762,7 @@ fn llvmLexer_scan_escape(lexer: &mut LlvmLexer) -> char {
                         string_push(&mut char_byte, hex_digit);
                         string_push(&mut char_byte, second_hex_digit);
 
-                        unwrap(string_to_integer(&mut char_byte, 16)) as u8 as char
+                        unwrap::<usize>(string_to_integer(&mut char_byte, 16)) as u8 as char
                     }
                     _ => panic!("expected second digit for escaped character byte"),
                 }
@@ -1849,7 +1858,7 @@ fn llvmLexer_scan_integer(lexer: &mut LlvmLexer) -> usize {
 }
 
 fn llvmLexer_scan_symbol(lexer: &mut LlvmLexer) -> LlvmToken {
-    match unwrap(llvmLexer_consume_char(lexer)) {
+    match unwrap::<char>(llvmLexer_consume_char(lexer)) {
         '@' => LlvmToken::At,
         '%' => LlvmToken::Percent,
         '(' => LlvmToken::LParen,
@@ -2202,10 +2211,10 @@ fn list_append<T>(list: &mut List<T>, value: T) {
     while true {
         match current {
             List::Nil => {
-                *current = List::Cons(value, box_new(List::Nil));
+                *current = List::Cons(value, box_new::<List<T>>(List::Nil));
                 return;
             }
-            List::Cons(_, tail) => current = box_deref_mut(tail),
+            List::Cons(_, tail) => current = box_deref_mut::<List<T>>(tail),
         }
     }
 }
@@ -2241,7 +2250,7 @@ fn box_deref_mut<T>(ptr_wrap: &mut Box<T>) -> &mut T {
 
 /// Clone a boxed value.
 fn box_clone<T>(ptr: &Box<T>, clone_fn: fn(&T) -> T) -> Box<T> {
-    box_new(clone_fn(box_deref(ptr)))
+    box_new::<T>(clone_fn(box_deref::<T>(ptr)))
 }
 
 // ----------------------------------------------------------------
@@ -2257,7 +2266,7 @@ enum Vec<T> {
 
 /// Create an empty vector.
 fn vec_new<T>() -> Vec<T> {
-    vec_with_capacity(10)
+    vec_with_capacity::<T>(10)
 }
 
 /// Create a vector with fixed starting capacity.
@@ -2302,8 +2311,8 @@ fn vec_ptr_add<T>(ptr: *mut T, n: usize) -> *mut T {
 
 /// Ensure capacity for extra elements.
 fn vec_accomodate_extra_space<T>(vec: &mut Vec<T>, space: usize) {
-    let len: usize = vec_len(vec);
-    let capacity: usize = vec_capacity(vec);
+    let len: usize = vec_len::<T>(vec);
+    let capacity: usize = vec_capacity::<T>(vec);
     if capacity < len + space {
         let Vec::Vec(ptr, len_ref, capacity_ref): &mut Vec<T> = vec;
         *capacity_ref = *capacity_ref * 2;
@@ -2323,15 +2332,15 @@ fn vec_accomodate_extra_space<T>(vec: &mut Vec<T>, space: usize) {
         let new_ptr: *mut T = alloc(new_byte_len, std::mem::align_of::<T>()) as *mut T;
         unsafe { memcopy(new_ptr as *mut u8, *ptr as *mut u8, old_byte_len) };
         *ptr = new_ptr;
-        vec_accomodate_extra_space(vec, space);
+        vec_accomodate_extra_space::<T>(vec, space);
     }
 }
 
 /// Append one element.
 fn vec_push<T>(vec: &mut Vec<T>, value: T) {
-    vec_accomodate_extra_space(vec, 1);
+    vec_accomodate_extra_space::<T>(vec, 1);
     let Vec::Vec(ptr, len, _): &mut Vec<T> = vec;
-    unsafe { *vec_ptr_add(*ptr, *len) = value }
+    unsafe { *vec_ptr_add::<T>(*ptr, *len) = value }
     *len = *len + 1;
 }
 
@@ -2343,10 +2352,10 @@ fn vec_set_len<T>(vec: &mut Vec<T>, len: usize) {
 
 /// Get a pointer to element at index.
 fn vec_get_ptr<T>(vec: &Vec<T>, index: usize) -> Option<*mut T> {
-    if index >= vec_len(vec) {
+    if index >= vec_len::<T>(vec) {
         Option::None
     } else {
-        Option::Some(vec_ptr_add(vec_ptr(vec), index))
+        Option::Some(vec_ptr_add::<T>(vec_ptr::<T>(vec), index))
     }
 }
 
@@ -2366,16 +2375,17 @@ enum StringMap<T> {
 
 /// Create a map with default bucket count.
 fn stringMap_new<T>() -> StringMap<T> {
-    stringMap_with_bucket_count(1024)
+    stringMap_with_bucket_count::<T>(1024)
 }
 
 /// Create a map with explicit bucket count.
 fn stringMap_with_bucket_count<T>(bucket_count: usize) -> StringMap<T> {
     let count: usize = if bucket_count == 0 { 1 } else { bucket_count };
-    let mut buckets: Vec<List<StringMapEntry<T>>> = vec_with_capacity(count);
+    let mut buckets: Vec<List<StringMapEntry<T>>> =
+        vec_with_capacity::<List<StringMapEntry<T>>>(count);
     let mut i: usize = 0;
     while i < count {
-        vec_push(&mut buckets, List::Nil);
+        vec_push::<List<StringMapEntry<T>>>(&mut buckets, List::Nil);
         i = i + 1;
     }
     StringMap::Map(buckets)
@@ -2392,20 +2402,30 @@ fn stringMap_buckets_mut<T>(map: &mut StringMap<T>) -> &mut Vec<List<StringMapEn
 }
 
 fn stringMap_bucket_index<T>(map: &StringMap<T>, key: &String) -> usize {
-    string_hash(key, vec_len(stringMap_buckets(map)))
+    string_hash(
+        key,
+        vec_len::<List<StringMapEntry<T>>>(stringMap_buckets::<T>(map)),
+    )
 }
 
 fn stringMap_insert_in_bucket<T>(bucket: &mut List<StringMapEntry<T>>, key: String, value: T) {
     match bucket {
         List::Nil => {
-            *bucket = List::Cons(StringMapEntry::Entry(key, value), box_new(List::Nil));
+            *bucket = List::Cons(
+                StringMapEntry::Entry(key, value),
+                box_new::<List<StringMapEntry<T>>>(List::Nil),
+            );
         }
         List::Cons(entry, tail) => match entry {
             StringMapEntry::Entry(entry_key, entry_value) => {
                 if string_eq(entry_key, &key) {
                     *entry_value = value;
                 } else {
-                    stringMap_insert_in_bucket(box_deref_mut(tail), key, value);
+                    stringMap_insert_in_bucket::<T>(
+                        box_deref_mut::<List<StringMapEntry<T>>>(tail),
+                        key,
+                        value,
+                    );
                 }
             }
         },
@@ -2414,10 +2434,12 @@ fn stringMap_insert_in_bucket<T>(bucket: &mut List<StringMapEntry<T>>, key: Stri
 
 /// Insert or replace a key/value pair.
 fn stringMap_insert<T>(map: &mut StringMap<T>, key: String, value: T) {
-    let bucket_index: usize = stringMap_bucket_index(map, &key);
-    let buckets: &mut Vec<List<StringMapEntry<T>>> = stringMap_buckets_mut(map);
-    let bucket_ptr: *mut List<StringMapEntry<T>> = unwrap(vec_get_ptr(buckets, bucket_index));
-    unsafe { stringMap_insert_in_bucket(&mut *bucket_ptr, key, value) };
+    let bucket_index: usize = stringMap_bucket_index::<T>(map, &key);
+    let buckets: &mut Vec<List<StringMapEntry<T>>> = stringMap_buckets_mut::<T>(map);
+    let bucket_ptr: *mut List<StringMapEntry<T>> = unwrap::<*mut List<StringMapEntry<T>>>(
+        vec_get_ptr::<List<StringMapEntry<T>>>(buckets, bucket_index),
+    );
+    unsafe { stringMap_insert_in_bucket::<T>(&mut *bucket_ptr, key, value) };
 }
 
 fn stringMap_get_from_bucket<'a, T>(
@@ -2431,7 +2453,7 @@ fn stringMap_get_from_bucket<'a, T>(
                 if string_eq(entry_key, key) {
                     Option::Some(entry_value)
                 } else {
-                    stringMap_get_from_bucket(box_deref(tail), key)
+                    stringMap_get_from_bucket::<T>(box_deref::<List<StringMapEntry<T>>>(tail), key)
                 }
             }
         },
@@ -2440,16 +2462,16 @@ fn stringMap_get_from_bucket<'a, T>(
 
 /// Get a shared reference to the value for a key.
 fn stringMap_get<'a, T>(map: &'a StringMap<T>, key: &String) -> Option<&'a T> {
-    let bucket_index: usize = stringMap_bucket_index(map, key);
-    match vec_get_ptr(stringMap_buckets(map), bucket_index) {
-        Option::Some(bucket_ptr) => unsafe { stringMap_get_from_bucket(&*bucket_ptr, key) },
+    let bucket_index: usize = stringMap_bucket_index::<T>(map, key);
+    match vec_get_ptr::<List<StringMapEntry<T>>>(stringMap_buckets::<T>(map), bucket_index) {
+        Option::Some(bucket_ptr) => unsafe { stringMap_get_from_bucket::<T>(&*bucket_ptr, key) },
         Option::None => Option::None,
     }
 }
 
 /// Check whether a key exists.
 fn stringMap_contains<T>(map: &StringMap<T>, key: &String) -> bool {
-    match stringMap_get(map, key) {
+    match stringMap_get::<T>(map, key) {
         Option::Some(_) => true,
         Option::None => false,
     }
@@ -2705,15 +2727,17 @@ fn type_eq(a: &Type, b: &Type) -> bool {
             _ => false,
         },
         Type::Reference(left) => match b {
-            Type::Reference(right) => type_eq(box_deref(left), box_deref(right)),
+            Type::Reference(right) => type_eq(box_deref::<Type>(left), box_deref::<Type>(right)),
             _ => false,
         },
         Type::ReferenceMut(left) => match b {
-            Type::ReferenceMut(right) => type_eq(box_deref(left), box_deref(right)),
+            Type::ReferenceMut(right) => type_eq(box_deref::<Type>(left), box_deref::<Type>(right)),
             _ => false,
         },
         Type::RawPointerMut(left) => match b {
-            Type::RawPointerMut(right) => type_eq(box_deref(left), box_deref(right)),
+            Type::RawPointerMut(right) => {
+                type_eq(box_deref::<Type>(left), box_deref::<Type>(right))
+            }
             _ => false,
         },
     }
@@ -2729,7 +2753,11 @@ fn list_eq<T>(left: &List<T>, right: &List<T>, item_eq: fn(&T, &T) -> bool) -> b
         List::Cons(lhead, ltail) => match right {
             List::Cons(rhead, rtail) => and(
                 item_eq(lhead, rhead),
-                list_eq(box_deref(ltail), box_deref(rtail), item_eq),
+                list_eq::<T>(
+                    box_deref::<List<T>>(ltail),
+                    box_deref::<List<T>>(rtail),
+                    item_eq,
+                ),
             ),
             _ => false,
         },
@@ -2895,8 +2923,8 @@ fn string_eq(s1: &String, s2: &String) -> bool {
 
     let mut i: usize = 0;
     while i < len {
-        let c1: char = unwrap(string_get(s1, i));
-        let c2: char = unwrap(string_get(s2, i));
+        let c1: char = unwrap::<char>(string_get(s1, i));
+        let c2: char = unwrap::<char>(string_get(s2, i));
         if c1 != c2 {
             return false;
         }
@@ -2985,7 +3013,7 @@ fn symTableEntry_clone(entry: &SymTableEntry) -> SymTableEntry {
             SymTableEntry::Function(string_clone(name), fnSignature_clone(signature))
         }
         SymTableEntry::Enum(name, variants) => {
-            SymTableEntry::Enum(string_clone(name), list_clone(variants, type_clone))
+            SymTableEntry::Enum(string_clone(name), list_clone::<Type>(variants, type_clone))
         }
         SymTableEntry::Variable(name, variable_type, mutable) => {
             SymTableEntry::Variable(string_clone(name), type_clone(variable_type), *mutable)
@@ -2999,7 +3027,7 @@ fn globalSymTable_clone(symtable: &GlobalSymTable) -> GlobalSymTable {
         GlobalSymTable::Nil => GlobalSymTable::Nil,
         GlobalSymTable::Cons(head, tail) => GlobalSymTable::Cons(
             symTableEntry_clone(head),
-            box_clone(tail, globalSymTable_clone),
+            box_clone::<GlobalSymTable>(tail, globalSymTable_clone),
         ),
     }
 }
@@ -3010,7 +3038,7 @@ fn localSymTable_clone(symtable: &LocalSymTable) -> LocalSymTable {
         LocalSymTable::Nil => LocalSymTable::Nil,
         LocalSymTable::Cons(head, tail) => LocalSymTable::Cons(
             symTableEntry_clone(head),
-            box_clone(tail, localSymTable_clone),
+            box_clone::<LocalSymTable>(tail, localSymTable_clone),
         ),
     }
 }
@@ -3021,7 +3049,7 @@ fn localSymTableStack_clone(stack: &LocalSymTableStack) -> LocalSymTableStack {
         LocalSymTableStack::Nil => LocalSymTableStack::Nil,
         LocalSymTableStack::Cons(local, tail) => LocalSymTableStack::Cons(
             localSymTable_clone(local),
-            box_clone(tail, localSymTableStack_clone),
+            box_clone::<LocalSymTableStack>(tail, localSymTableStack_clone),
         ),
     }
 }
@@ -3030,7 +3058,7 @@ fn localSymTableStack_clone(stack: &LocalSymTableStack) -> LocalSymTableStack {
 fn fnSignature_clone(signature: &FnSignature) -> FnSignature {
     match signature {
         FnSignature::Fn(parameter_types, return_type) => FnSignature::Fn(
-            list_clone(parameter_types, type_clone),
+            list_clone::<Type>(parameter_types, type_clone),
             type_clone(return_type),
         ),
     }
@@ -3046,9 +3074,9 @@ fn type_clone(t: &Type) -> Type {
         Type::Unit => Type::Unit,
         Type::Never => Type::Never,
         Type::Custom(name) => Type::Custom(string_clone(name)),
-        Type::Reference(inner) => Type::Reference(box_clone(inner, type_clone)),
-        Type::ReferenceMut(inner) => Type::ReferenceMut(box_clone(inner, type_clone)),
-        Type::RawPointerMut(inner) => Type::RawPointerMut(box_clone(inner, type_clone)),
+        Type::Reference(inner) => Type::Reference(box_clone::<Type>(inner, type_clone)),
+        Type::ReferenceMut(inner) => Type::ReferenceMut(box_clone::<Type>(inner, type_clone)),
+        Type::RawPointerMut(inner) => Type::RawPointerMut(box_clone::<Type>(inner, type_clone)),
     }
 }
 
@@ -3100,7 +3128,7 @@ fn list_clone<T>(values: &List<T>, item_clone: fn(&T) -> T) -> List<T> {
         List::Nil => List::Nil,
         List::Cons(head, tail) => List::Cons(
             item_clone(head),
-            box_new(list_clone(box_deref(tail), item_clone)),
+            box_new::<List<T>>(list_clone::<T>(box_deref::<List<T>>(tail), item_clone)),
         ),
     }
 }
@@ -3112,7 +3140,7 @@ fn string_clone(string: &String) -> String {
     let mut clone: String = string_with_capacity(len);
     let mut i: usize = 0;
     while i < len {
-        let character: char = unwrap(string_get(string, i));
+        let character: char = unwrap::<char>(string_get(string, i));
         string_push(&mut clone, character);
         i = i + 1;
     }
@@ -3134,7 +3162,7 @@ fn string_new() -> String {
 
 /// Create a new string with the specified capacity
 fn string_with_capacity(initial_capacity: usize) -> String {
-    String::Inner(vec_with_capacity(initial_capacity))
+    String::Inner(vec_with_capacity::<u8>(initial_capacity))
 }
 
 /// Create a string from a string slice.
@@ -3147,25 +3175,25 @@ fn string_from_str(str: &str) -> String {
 /// Get the pointer to the start of the string data.
 fn string_ptr(string: &String) -> *mut u8 {
     let String::Inner(bytes): &String = string;
-    vec_ptr(bytes)
+    vec_ptr::<u8>(bytes)
 }
 
 /// Get the length of the string.
 fn string_len(string: &String) -> usize {
     let String::Inner(bytes): &String = string;
-    vec_len(bytes)
+    vec_len::<u8>(bytes)
 }
 
 /// Get the capacity of the string.
 fn string_capacity(string: &String) -> usize {
     let String::Inner(bytes): &String = string;
-    vec_capacity(bytes)
+    vec_capacity::<u8>(bytes)
 }
 
 /// Get the character at the given index.
 fn string_get(string: &String, index: usize) -> Option<char> {
     let String::Inner(bytes): &String = string;
-    match vec_get_ptr(bytes, index) {
+    match vec_get_ptr::<u8>(bytes, index) {
         Option::Some(ptr) => unsafe { Option::Some(*ptr as char) },
         Option::None => Option::None,
     }
@@ -3174,21 +3202,21 @@ fn string_get(string: &String, index: usize) -> Option<char> {
 /// Append a character to the string.
 fn string_push(string: &mut String, character: char) {
     let String::Inner(bytes): &mut String = string;
-    vec_push(bytes, character as u8);
+    vec_push::<u8>(bytes, character as u8);
 }
 
 /// Append a string slice to the string.
 fn string_push_str(string: &mut String, str: &str) {
     let str_len: usize = str.len();
     let String::Inner(bytes): &mut String = string;
-    vec_accomodate_extra_space(bytes, str_len);
+    vec_accomodate_extra_space::<u8>(bytes, str_len);
 
     let str_ptr: *mut u8 = str.as_ptr() as *mut u8;
-    let len: usize = vec_len(bytes);
-    let dest: *mut u8 = vec_ptr_add(vec_ptr(bytes), len);
+    let len: usize = vec_len::<u8>(bytes);
+    let dest: *mut u8 = vec_ptr_add::<u8>(vec_ptr::<u8>(bytes), len);
 
     unsafe { memcopy(dest, str_ptr, str_len) }
-    vec_set_len(bytes, len + str_len);
+    vec_set_len::<u8>(bytes, len + str_len);
 }
 
 /// Push a string onto another string.
@@ -3197,12 +3225,12 @@ fn string_push_string(string: &mut String, other: &String) {
     let other_ptr: *mut u8 = string_ptr(other);
 
     let String::Inner(bytes): &mut String = string;
-    vec_accomodate_extra_space(bytes, other_len);
-    let len: usize = vec_len(bytes);
-    let dest: *mut u8 = vec_ptr_add(vec_ptr(bytes), len);
+    vec_accomodate_extra_space::<u8>(bytes, other_len);
+    let len: usize = vec_len::<u8>(bytes);
+    let dest: *mut u8 = vec_ptr_add::<u8>(vec_ptr::<u8>(bytes), len);
 
     unsafe { memcopy(dest, other_ptr, other_len) }
-    vec_set_len(bytes, len + other_len);
+    vec_set_len::<u8>(bytes, len + other_len);
 }
 
 /// Converts a string into an integer given the base.
@@ -3212,7 +3240,7 @@ fn string_to_integer(string: &mut String, base: usize) -> Option<usize> {
 
     let mut i: usize = 0;
     while i < string_len(string) {
-        let digit: char = unwrap(string_get(string, i));
+        let digit: char = unwrap::<char>(string_get(string, i));
 
         let digit_value: usize = if is_digit(digit) {
             digit as usize - '0' as usize
@@ -3242,7 +3270,7 @@ fn string_hash(string: &String, bucket_count: usize) -> usize {
     let mut hash: usize = 0;
     let mut i: usize = 0;
     while i < string_len(string) {
-        let character: usize = unwrap(string_get(string, i)) as usize;
+        let character: usize = unwrap::<char>(string_get(string, i)) as usize;
         hash = hash * 67 + character;
         i = i + 1;
     }
@@ -3252,7 +3280,7 @@ fn string_hash(string: &String, bucket_count: usize) -> usize {
 /// Ensure the string has space for additional bytes.
 fn string_accomodate_extra_space(string: &mut String, space: usize) {
     let String::Inner(bytes): &mut String = string;
-    vec_accomodate_extra_space(bytes, space);
+    vec_accomodate_extra_space::<u8>(bytes, space);
 }
 
 // ------------------------- Memory -------------------------------

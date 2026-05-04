@@ -8,7 +8,7 @@ fn make_lexer(input: &str) -> Lexer {
 }
 
 fn collect_tokens(lexer: &mut Lexer) -> std::vec::Vec<Token> {
-    let mut tokens: std::vec::Vec<Token> = std::vec::Vec::new();
+    let mut tokens: std::vec::Vec<Token> = std::vec::Vec::<Token>::new();
     loop {
         let tok = lexer_next_token(lexer);
         let is_eof = matches!(tok, Token::Eof);
