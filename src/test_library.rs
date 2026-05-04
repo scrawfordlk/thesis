@@ -17,7 +17,6 @@ fn test_unwrap_char_none() {
 fn test_string_new() {
     let s = string_new();
     assert_eq!(string_len(&s), 0);
-    assert!(string_capacity(&s) > 0);
 }
 
 #[test]
@@ -76,14 +75,13 @@ fn test_string_get_out_of_bounds_nonempty() {
 }
 
 #[test]
-fn test_string_capacity_grows() {
+fn test_string_grows_for_many_pushes() {
     let mut s = string_new();
-    let initial_cap = string_capacity(&s);
-    for _ in 0..(initial_cap + 5) {
+    for _ in 0..128 {
         string_push(&mut s, 'x');
     }
-    assert!(string_capacity(&s) > initial_cap);
-    assert_eq!(string_len(&s), initial_cap + 5);
+    assert_eq!(string_len(&s), 128);
+    assert_eq!(to_std_string(&s), "x".repeat(128));
 }
 
 // ------------------------- Memory ----------------------------
@@ -94,7 +92,7 @@ fn test_ptr_add() {
     let ptr = data.as_ptr() as *mut u8;
     unsafe {
         for (i, &expected) in data.iter().enumerate() {
-            assert_eq!(*ptr_add(ptr, i), expected);
+            assert_eq!(*ptr_add::<u8>(ptr, i), expected);
         }
     }
 }
@@ -103,7 +101,7 @@ fn test_ptr_add() {
 fn test_memcopy() {
     let src = [1u8, 2, 3, 4];
     let mut dest = [0u8; 4];
-    unsafe { memcopy(dest.as_mut_ptr(), src.as_ptr() as *mut u8, 4) };
+    unsafe { memcopy::<u8>(dest.as_mut_ptr(), src.as_ptr() as *mut u8, 4) };
     assert_eq!(dest, src);
 }
 
@@ -112,7 +110,7 @@ fn test_memcopy_partial() {
     let src = [5u8, 6, 7, 8];
     let mut dest = [0u8; 4];
     println!("HEY");
-    unsafe { memcopy(dest.as_mut_ptr(), src.as_ptr() as *mut u8, 2) };
+    unsafe { memcopy::<u8>(dest.as_mut_ptr(), src.as_ptr() as *mut u8, 2) };
     assert_eq!(dest, [5, 6, 0, 0]);
 }
 
@@ -120,7 +118,7 @@ fn test_memcopy_partial() {
 fn test_memcopy_zero() {
     let src = [1u8, 2, 3, 4];
     let mut dest = [0u8; 4];
-    unsafe { memcopy(dest.as_mut_ptr(), src.as_ptr() as *mut u8, 0) };
+    unsafe { memcopy::<u8>(dest.as_mut_ptr(), src.as_ptr() as *mut u8, 0) };
     assert_eq!(dest, [0; 4]);
 }
 
@@ -131,23 +129,28 @@ fn test_alloc() {
     // Verify zeroed allocation
     unsafe {
         for i in 0..16 {
-            assert_eq!(*ptr_add(ptr, i), 0);
+            assert_eq!(*ptr_add::<u8>(ptr, i), 0);
         }
     }
 }
 
 #[test]
-fn test_string_ptr_non_null() {
-    let s = string_new();
-    assert!(!string_ptr(&s).is_null());
+fn test_string_push_string() {
+    let mut left = string_from_str("left");
+    let right = string_from_str("_right");
+    string_push_string(&mut left, &right);
+    assert_eq!(to_std_string(&left), "left_right");
 }
 
 #[test]
 fn test_string_accomodate_extra_space_direct() {
-    let mut s = string_new();
-    let before = string_capacity(&s);
-    string_accomodate_extra_space(&mut s, before + 5);
-    assert!(string_capacity(&s) >= before + 5);
+    let mut s = string_from_str("ab");
+    string_accomodate_extra_space(&mut s, 64);
+    for _ in 0..64 {
+        string_push(&mut s, 'x');
+    }
+    assert_eq!(string_len(&s), 66);
+    assert_eq!(to_std_string(&s), "ab".to_owned() + &"x".repeat(64));
 }
 
 #[test]
@@ -210,18 +213,22 @@ fn test_or() {
 
 #[test]
 fn test_string_with_capacity() {
-    let s = string_with_capacity(32);
+    let mut s = string_with_capacity(32);
     assert_eq!(string_len(&s), 0);
-    assert_eq!(string_capacity(&s), 32);
+    for _ in 0..32 {
+        string_push(&mut s, 'a');
+    }
+    assert_eq!(string_len(&s), 32);
+    assert_eq!(to_std_string(&s), "a".repeat(32));
 }
 
 #[test]
 fn test_string_clone() {
-    let mut s = string_new();
-    string_push_str(&mut s, "clone me");
+    let mut s = string_from_str("clone me");
     let clone = string_clone(&s);
-    assert!(string_eq(&s, &clone));
-    assert!(string_ptr(&s) != string_ptr(&clone));
+    string_push(&mut s, '!');
+    assert_eq!(to_std_string(&clone), "clone me");
+    assert_eq!(to_std_string(&s), "clone me!");
 }
 
 // ------------------------- Symbol Table ----------------------------

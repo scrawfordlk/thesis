@@ -2304,11 +2304,6 @@ fn vec_capacity<T>(vec: &Vec<T>) -> usize {
     *capacity
 }
 
-/// Compute ptr + n elements.
-fn vec_ptr_add<T>(ptr: *mut T, n: usize) -> *mut T {
-    ptr_add(ptr as *mut u8, n * std::mem::size_of::<T>()) as *mut T
-}
-
 /// Ensure capacity for extra elements.
 fn vec_accomodate_extra_space<T>(vec: &mut Vec<T>, space: usize) {
     let len: usize = vec_len::<T>(vec);
@@ -2323,16 +2318,11 @@ fn vec_accomodate_extra_space<T>(vec: &mut Vec<T>, space: usize) {
         } else {
             *capacity_ref * elem_size
         };
-        let old_byte_len: usize = if elem_size == 0 {
-            *len_ref
-        } else {
-            *len_ref * elem_size
-        };
 
         let new_ptr: *mut T = alloc(new_byte_len, std::mem::align_of::<T>()) as *mut T;
-        unsafe { memcopy(new_ptr as *mut u8, *ptr as *mut u8, old_byte_len) };
+        unsafe { memcopy::<T>(new_ptr, *ptr, *len_ref) };
         *ptr = new_ptr;
-        vec_accomodate_extra_space::<T>(vec, space);
+        vec_accomodate_extra_space::<T>(vec, space); // if doubling was not enough, double again
     }
 }
 
@@ -2340,7 +2330,7 @@ fn vec_accomodate_extra_space<T>(vec: &mut Vec<T>, space: usize) {
 fn vec_push<T>(vec: &mut Vec<T>, value: T) {
     vec_accomodate_extra_space::<T>(vec, 1);
     let Vec::Vec(ptr, len, _): &mut Vec<T> = vec;
-    unsafe { *vec_ptr_add::<T>(*ptr, *len) = value }
+    unsafe { *ptr_add::<T>(*ptr, *len) = value }
     *len = *len + 1;
 }
 
@@ -2355,8 +2345,20 @@ fn vec_get_ptr<T>(vec: &Vec<T>, index: usize) -> Option<*mut T> {
     if index >= vec_len::<T>(vec) {
         Option::None
     } else {
-        Option::Some(vec_ptr_add::<T>(vec_ptr::<T>(vec), index))
+        Option::Some(ptr_add::<T>(vec_ptr::<T>(vec), index))
     }
+}
+
+/// Append all elements from one vector to another.
+fn vec_extend<T>(vec: &mut Vec<T>, other: &Vec<T>) {
+    let other_len: usize = vec_len::<T>(other);
+    vec_accomodate_extra_space::<T>(vec, other_len);
+
+    let len: usize = vec_len::<T>(vec);
+    let dest: *mut T = ptr_add::<T>(vec_ptr::<T>(vec), len);
+    let src: *mut T = vec_ptr::<T>(other);
+    unsafe { memcopy::<T>(dest, src, other_len) };
+    vec_set_len::<T>(vec, len + other_len);
 }
 
 // ----------------------------------------------------------------
@@ -3172,22 +3174,10 @@ fn string_from_str(str: &str) -> String {
     s
 }
 
-/// Get the pointer to the start of the string data.
-fn string_ptr(string: &String) -> *mut u8 {
-    let String::Inner(bytes): &String = string;
-    vec_ptr::<u8>(bytes)
-}
-
 /// Get the length of the string.
 fn string_len(string: &String) -> usize {
     let String::Inner(bytes): &String = string;
     vec_len::<u8>(bytes)
-}
-
-/// Get the capacity of the string.
-fn string_capacity(string: &String) -> usize {
-    let String::Inner(bytes): &String = string;
-    vec_capacity::<u8>(bytes)
 }
 
 /// Get the character at the given index.
@@ -3213,24 +3203,17 @@ fn string_push_str(string: &mut String, str: &str) {
 
     let str_ptr: *mut u8 = str.as_ptr() as *mut u8;
     let len: usize = vec_len::<u8>(bytes);
-    let dest: *mut u8 = vec_ptr_add::<u8>(vec_ptr::<u8>(bytes), len);
+    let dest: *mut u8 = ptr_add::<u8>(vec_ptr::<u8>(bytes), len);
 
-    unsafe { memcopy(dest, str_ptr, str_len) }
+    unsafe { memcopy::<u8>(dest, str_ptr, str_len) }
     vec_set_len::<u8>(bytes, len + str_len);
 }
 
 /// Push a string onto another string.
 fn string_push_string(string: &mut String, other: &String) {
-    let other_len: usize = string_len(other);
-    let other_ptr: *mut u8 = string_ptr(other);
-
     let String::Inner(bytes): &mut String = string;
-    vec_accomodate_extra_space::<u8>(bytes, other_len);
-    let len: usize = vec_len::<u8>(bytes);
-    let dest: *mut u8 = vec_ptr_add::<u8>(vec_ptr::<u8>(bytes), len);
-
-    unsafe { memcopy(dest, other_ptr, other_len) }
-    vec_set_len::<u8>(bytes, len + other_len);
+    let String::Inner(other_bytes): &String = other;
+    vec_extend::<u8>(bytes, other_bytes);
 }
 
 /// Converts a string into an integer given the base.
@@ -3289,19 +3272,22 @@ fn string_accomodate_extra_space(string: &mut String, space: usize) {
 ///
 /// It must hold: forall 0 <= i < n, dest[i] can be written
 /// and src[i] can be read safely.
-unsafe fn memcopy(dest: *mut u8, src: *mut u8, n: usize) {
+unsafe fn memcopy<T>(dest: *mut T, src: *mut T, n: usize) {
+    let byte_count: usize = n * std::mem::size_of::<T>();
+    let dest_u8: *mut u8 = dest as *mut u8;
+    let src_u8: *mut u8 = src as *mut u8;
     let mut i: usize = 0;
-    while i < n {
+    while i < byte_count {
         unsafe {
-            *ptr_add(dest, i) = *ptr_add(src, i);
+            *ptr_add::<u8>(dest_u8, i) = *ptr_add::<u8>(src_u8, i);
         }
         i = i + 1;
     }
 }
 
-/// Increment a pointer by n. This is standard arithmetic, not pointer arithmetic.
-fn ptr_add(ptr: *mut u8, n: usize) -> *mut u8 {
-    (ptr as usize + n) as *mut u8
+/// Increment a pointer by n elements.
+fn ptr_add<T>(ptr: *mut T, n: usize) -> *mut T {
+    (ptr as usize + n * std::mem::size_of::<T>()) as *mut T
 }
 
 /// Heap-allocate memory for the given size and alignment.
