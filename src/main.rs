@@ -2179,6 +2179,14 @@ enum Option<T> {
     None,
 }
 
+/// Check whether an Option value is the None variant.
+fn option_is_none<T>(opt: &Option<T>) -> bool {
+    match opt {
+        Option::Some(_) => false,
+        Option::None => true,
+    }
+}
+
 /// Returns the value wrapped in Some.
 /// If the Option is None, end the program.
 fn unwrap<T>(opt: Option<T>) -> T {
@@ -2340,12 +2348,23 @@ fn vec_set_len<T>(vec: &mut Vec<T>, len: usize) {
     *old_len = len;
 }
 
-/// Get a pointer to element at index.
-fn vec_get_ptr<T>(vec: &Vec<T>, index: usize) -> Option<*mut T> {
+/// Get an immutable reference to an element by index.
+fn vec_get<'a, T>(vec: &'a Vec<T>, index: usize) -> Option<&'a T> {
     if index >= vec_len::<T>(vec) {
         Option::None
     } else {
-        Option::Some(ptr_add::<T>(vec_ptr::<T>(vec), index))
+        let ptr: *mut T = ptr_add::<T>(vec_ptr::<T>(vec), index);
+        unsafe { Option::Some(&*ptr) }
+    }
+}
+
+/// Get a mutable reference to an element by index.
+fn vec_get_mut<'a, T>(vec: &'a mut Vec<T>, index: usize) -> Option<&'a mut T> {
+    if index >= vec_len::<T>(vec) {
+        Option::None
+    } else {
+        let ptr: *mut T = ptr_add::<T>(vec_ptr::<T>(vec), index);
+        unsafe { Option::Some(&mut *ptr) }
     }
 }
 
@@ -2370,105 +2389,96 @@ enum StringMapEntry<T> {
     Entry(String, T),
 }
 
+/// Get the key stored in one StringMapEntry.
+fn stringMapEntry_get_key<T>(entry: &StringMapEntry<T>) -> &String {
+    let StringMapEntry::Entry(key, _) = entry;
+    key
+}
+
+/// Get the value stored in one StringMapEntry.
+fn stringMapEntry_get_value<T>(entry: &StringMapEntry<T>) -> &T {
+    let StringMapEntry::Entry(_, value) = entry;
+    value
+}
+
 /// Hash map from String keys to generic values.
 enum StringMap<T> {
     Map(Vec<List<StringMapEntry<T>>>),
 }
 
-/// Create a map with default bucket count.
+/// Create a map with default len.
 fn stringMap_new<T>() -> StringMap<T> {
-    stringMap_with_bucket_count::<T>(1024)
+    stringMap_with_len::<T>(1024)
 }
 
-/// Create a map with explicit bucket count.
-fn stringMap_with_bucket_count<T>(bucket_count: usize) -> StringMap<T> {
-    let count: usize = if bucket_count == 0 { 1 } else { bucket_count };
+/// Create a map with explicit len.
+fn stringMap_with_len<T>(len: usize) -> StringMap<T> {
+    let bucket_len: usize = if len == 0 { 1 } else { len };
     let mut buckets: Vec<List<StringMapEntry<T>>> =
-        vec_with_capacity::<List<StringMapEntry<T>>>(count);
+        vec_with_capacity::<List<StringMapEntry<T>>>(bucket_len);
     let mut i: usize = 0;
-    while i < count {
+    while i < bucket_len {
         vec_push::<List<StringMapEntry<T>>>(&mut buckets, List::Nil);
         i = i + 1;
     }
     StringMap::Map(buckets)
 }
 
-fn stringMap_buckets<T>(map: &StringMap<T>) -> &Vec<List<StringMapEntry<T>>> {
-    let StringMap::Map(buckets): &StringMap<T> = map;
-    buckets
-}
-
-fn stringMap_buckets_mut<T>(map: &mut StringMap<T>) -> &mut Vec<List<StringMapEntry<T>>> {
-    let StringMap::Map(buckets): &mut StringMap<T> = map;
-    buckets
-}
-
-fn stringMap_bucket_index<T>(map: &StringMap<T>, key: &String) -> usize {
-    string_hash(
-        key,
-        vec_len::<List<StringMapEntry<T>>>(stringMap_buckets::<T>(map)),
-    )
-}
-
-fn stringMap_insert_in_bucket<T>(bucket: &mut List<StringMapEntry<T>>, key: String, value: T) {
-    match bucket {
-        List::Nil => {
-            *bucket = List::Cons(
-                StringMapEntry::Entry(key, value),
-                box_new::<List<StringMapEntry<T>>>(List::Nil),
-            );
-        }
-        List::Cons(entry, tail) => match entry {
-            StringMapEntry::Entry(entry_key, entry_value) => {
-                if string_eq(entry_key, &key) {
-                    *entry_value = value;
-                } else {
-                    stringMap_insert_in_bucket::<T>(
-                        box_deref_mut::<List<StringMapEntry<T>>>(tail),
-                        key,
-                        value,
-                    );
-                }
-            }
-        },
-    }
-}
-
-/// Insert or replace a key/value pair.
+/// Insert a key/value pair by prepending it to the bucket list.
 fn stringMap_insert<T>(map: &mut StringMap<T>, key: String, value: T) {
-    let bucket_index: usize = stringMap_bucket_index::<T>(map, &key);
-    let buckets: &mut Vec<List<StringMapEntry<T>>> = stringMap_buckets_mut::<T>(map);
-    let bucket_ptr: *mut List<StringMapEntry<T>> = unwrap::<*mut List<StringMapEntry<T>>>(
-        vec_get_ptr::<List<StringMapEntry<T>>>(buckets, bucket_index),
-    );
-    unsafe { stringMap_insert_in_bucket::<T>(&mut *bucket_ptr, key, value) };
-}
+    let bucket_index: usize = {
+        let StringMap::Map(buckets): &StringMap<T> = map;
+        string_hash(&key, vec_len::<List<StringMapEntry<T>>>(buckets))
+    };
 
-fn stringMap_get_from_bucket<'a, T>(
-    bucket: &'a List<StringMapEntry<T>>,
-    key: &String,
-) -> Option<&'a T> {
-    match bucket {
-        List::Nil => Option::None,
-        List::Cons(entry, tail) => match entry {
-            StringMapEntry::Entry(entry_key, entry_value) => {
-                if string_eq(entry_key, key) {
-                    Option::Some(entry_value)
-                } else {
-                    stringMap_get_from_bucket::<T>(box_deref::<List<StringMapEntry<T>>>(tail), key)
-                }
-            }
-        },
+    let StringMap::Map(buckets): &mut StringMap<T> = map;
+    let bucket: &mut List<StringMapEntry<T>> = unwrap::<&mut List<StringMapEntry<T>>>(
+        vec_get_mut::<List<StringMapEntry<T>>>(buckets, bucket_index),
+    );
+
+    let mut old_bucket: List<StringMapEntry<T>> = List::Nil;
+    unsafe {
+        memcopy::<List<StringMapEntry<T>>>(
+            &mut old_bucket as *mut List<StringMapEntry<T>>,
+            bucket as *mut List<StringMapEntry<T>>,
+            1,
+        );
     }
+
+    *bucket = List::Cons(
+        StringMapEntry::Entry(key, value),
+        box_new::<List<StringMapEntry<T>>>(old_bucket),
+    );
 }
 
 /// Get a shared reference to the value for a key.
 fn stringMap_get<'a, T>(map: &'a StringMap<T>, key: &String) -> Option<&'a T> {
-    let bucket_index: usize = stringMap_bucket_index::<T>(map, key);
-    match vec_get_ptr::<List<StringMapEntry<T>>>(stringMap_buckets::<T>(map), bucket_index) {
-        Option::Some(bucket_ptr) => unsafe { stringMap_get_from_bucket::<T>(&*bucket_ptr, key) },
-        Option::None => Option::None,
+    let StringMap::Map(buckets): &'a StringMap<T> = map;
+    let bucket_index: usize = string_hash(key, vec_len::<List<StringMapEntry<T>>>(buckets));
+
+    let maybe_bucket: Option<&List<StringMapEntry<T>>> =
+        vec_get::<List<StringMapEntry<T>>>(buckets, bucket_index);
+    if option_is_none::<&List<StringMapEntry<T>>>(&maybe_bucket) {
+        return Option::None;
     }
+    let mut bucket: &List<StringMapEntry<T>> = unwrap::<&List<StringMapEntry<T>>>(maybe_bucket);
+
+    while true {
+        match bucket {
+            List::Cons(entry, tail) => {
+                let other_key: &String = stringMapEntry_get_key::<T>(entry);
+                if string_eq(other_key, key) {
+                    return Option::Some(stringMapEntry_get_value::<T>(entry));
+                }
+
+                // repeat with next bucket
+                bucket = box_deref::<List<StringMapEntry<T>>>(tail);
+            }
+
+            List::Nil => return Option::None,
+        }
+    }
+    Option::None
 }
 
 /// Check whether a key exists.
@@ -3183,8 +3193,8 @@ fn string_len(string: &String) -> usize {
 /// Get the character at the given index.
 fn string_get(string: &String, index: usize) -> Option<char> {
     let String::Inner(bytes): &String = string;
-    match vec_get_ptr::<u8>(bytes, index) {
-        Option::Some(ptr) => unsafe { Option::Some(*ptr as char) },
+    match vec_get::<u8>(bytes, index) {
+        Option::Some(value) => Option::Some(*value as char),
         Option::None => Option::None,
     }
 }
