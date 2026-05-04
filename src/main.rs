@@ -2,7 +2,7 @@
 
 fn main() {
     let str: String = parse_to_llvm(
-        &std::fs::read_to_string("tests/empty.rs").unwrap_or(std::string::String::new()),
+        &std::fs::read_to_string("tests/rust/empty.rs").unwrap_or(std::string::String::new()),
     );
 
     let mut i: usize = 0;
