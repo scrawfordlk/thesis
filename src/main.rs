@@ -2855,6 +2855,7 @@ fn llvm_emit_function_header(llvm: &mut String, fn_name: &String, return_type_na
     llvm_emit_str(llvm, " @");
     llvm_emit_string(llvm, fn_name);
     llvm_emit_line(llvm, "() {");
+    llvm_emit_line(llvm, "entry:");
 }
 
 /// Emit an enum comment line.
