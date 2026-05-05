@@ -2587,6 +2587,236 @@ fn llvmParser_parse_number_literal(parser: &mut LlvmParser) -> usize {
     }
 }
 
+// ------------------------- Interpreter -----------------------------
+
+/// Execution control flow after one instruction.
+enum LlvmExecFlow {
+    Continue,
+    /// label
+    Jump(String),
+    /// return value
+    Return(usize),
+}
+
+/// Type that encapsulates the state of the LLVM emulator.
+enum Llvmulator {
+    /// map of global values
+    Llvmulator(StringMap<usize>),
+}
+
+/// Create a new emulator state around one AST.
+fn llvmulator_new() -> Llvmulator {
+    Llvmulator::Llvmulator(stringMap_new::<usize>())
+}
+
+/// Get a shared reference to the global values.
+fn llvmulator_globals(emulator: &Llvmulator) -> &StringMap<usize> {
+    let Llvmulator::Llvmulator(globals): &Llvmulator = emulator;
+    globals
+}
+
+/// Parse and emulate LLVM source and return the return value of @main.
+fn llvmulator_execute_llvm(source: String) -> usize {
+    let mut emulator: Llvmulator = llvmulator_new();
+    let ast: LlvmAST = llvmParser_parse_to_ast(source);
+    let main_name: String = string_from_str("main");
+    let empty_args: Vec<LlvmTypedValue> = vec_new::<LlvmTypedValue>();
+    llvmulator_execute_function_named(&mut emulator, &ast, &main_name, &empty_args)
+}
+
+/// Lookup a function by name and execute it.
+fn llvmulator_execute_function_named(
+    emulator: &mut Llvmulator,
+    ast: &LlvmAST,
+    function_name: &String,
+    arguments: &Vec<LlvmTypedValue>,
+) -> usize {
+    let function: &LlvmFunction = llvmAST_lookup_function(ast, string_clone(function_name));
+    llvmulator_execute_function(emulator, ast, function, arguments)
+}
+
+/// Execute the given function's body.
+fn llvmulator_execute_function(
+    emulator: &mut Llvmulator,
+    ast: &LlvmAST,
+    function: &LlvmFunction,
+    arguments: &Vec<LlvmTypedValue>,
+) -> usize {
+    let LlvmFunction::Function(_, parameters, blocks): &LlvmFunction = function;
+    if vec_len::<LlvmParameter>(parameters) != vec_len::<LlvmTypedValue>(arguments) {
+        panic!("LLVM call argument count mismatch");
+    }
+
+    let mut local_register_values: StringMap<usize> = stringMap_new::<usize>();
+
+    let mut i: usize = 0;
+    while i < vec_len::<LlvmParameter>(parameters) {
+        let parameter: &LlvmParameter =
+            unwrap::<&LlvmParameter>(vec_get::<LlvmParameter>(parameters, i));
+        let argument: &LlvmTypedValue =
+            unwrap::<&LlvmTypedValue>(vec_get::<LlvmTypedValue>(arguments, i));
+
+        let LlvmParameter::Parameter(name, _): &LlvmParameter = parameter;
+        let LlvmTypedValue::Pair(_, argument_value): &LlvmTypedValue = argument;
+
+        let value: usize = llvm_eval_value(
+            llvmulator_globals(emulator),
+            &local_register_values,
+            argument_value,
+        );
+        stringMap_insert::<usize>(&mut local_register_values, string_clone(name), value);
+
+        i = i + 1;
+    }
+
+    let mut current_label: String = match vec_get::<InstructionBlock>(blocks, 0) {
+        Option::Some(label) => string_clone(instructionBlock_label(label)),
+        _ => panic!("empty function body!"),
+    };
+    while true {
+        let instructions: &Vec<Instruction> =
+            instructionBlock_fetch_instructions(blocks, string_clone(&current_label));
+
+        let flow: LlvmExecFlow = llvmulator_execute_instructions(
+            emulator,
+            ast,
+            &mut local_register_values,
+            instructions,
+        );
+
+        match flow {
+            LlvmExecFlow::Continue => panic!("LLVM block did not terminate"),
+            LlvmExecFlow::Jump(next_label) => current_label = next_label,
+            LlvmExecFlow::Return(value) => return value,
+        }
+    }
+    0
+}
+
+/// Execute a given list of instructions.
+fn llvmulator_execute_instructions(
+    emulator: &mut Llvmulator,
+    ast: &LlvmAST,
+    register_values: &mut StringMap<usize>,
+    instructions: &Vec<Instruction>,
+) -> LlvmExecFlow {
+    let mut i: usize = 0;
+    while i < vec_len::<Instruction>(instructions) {
+        let instruction: &Instruction =
+            unwrap::<&Instruction>(vec_get::<Instruction>(instructions, i));
+
+        match instruction {
+            Instruction::Assignment(assign_instruction) => {
+                llvmulator_execute_assignment(emulator, ast, register_values, assign_instruction);
+            }
+            Instruction::Terminator(terminator) => {
+                return llvmulator_execute_terminator(
+                    llvmulator_globals(emulator),
+                    register_values,
+                    terminator,
+                );
+            }
+        }
+
+        i = i + 1;
+    }
+    LlvmExecFlow::Continue
+}
+
+/// Execute the given assignment instruction.
+fn llvmulator_execute_assignment(
+    emulator: &mut Llvmulator,
+    ast: &LlvmAST,
+    register_values: &mut StringMap<usize>,
+    instruction: &AssignInstruction,
+) {
+    let AssignInstruction::Assign(target, operation): &AssignInstruction = instruction;
+    let value: usize = llvmulator_evaluate_assign_op(emulator, ast, register_values, operation);
+    stringMap_insert(register_values, string_clone(target), value);
+}
+
+/// Evaluate the value of the assignment operation.
+fn llvmulator_evaluate_assign_op(
+    emulator: &mut Llvmulator,
+    ast: &LlvmAST,
+    register_values: &mut StringMap<usize>,
+    operation: &AssignOp,
+) -> usize {
+    let global_values: &StringMap<usize> = llvmulator_globals(emulator);
+    match operation {
+        AssignOp::Binary(operator, _, left, right) => {
+            let lhs: usize = llvm_eval_value(global_values, register_values, left);
+            let rhs: usize = llvm_eval_value(llvmulator_globals(emulator), register_values, right);
+            match operator {
+                BinaryOp::Add => lhs + rhs,
+                BinaryOp::Sub => lhs - rhs,
+                BinaryOp::Mul => lhs * rhs,
+                BinaryOp::Udiv => lhs / rhs,
+                BinaryOp::Urem => lhs % rhs,
+                BinaryOp::IcmpUlt => (lhs < rhs) as usize,
+            }
+        }
+        AssignOp::Call(_, callee, arguments) => {
+            llvmulator_execute_function_named(emulator, ast, callee, arguments)
+        }
+        AssignOp::Gep(_, pointer, indexes) => {
+            let mut address: usize = llvm_eval_value(global_values, register_values, pointer);
+            let mut i: usize = 0;
+            while i < vec_len::<LlvmTypedValue>(indexes) {
+                let typed_value: &LlvmTypedValue =
+                    unwrap::<&LlvmTypedValue>(vec_get::<LlvmTypedValue>(indexes, i));
+                let LlvmTypedValue::Pair(_, index_value): &LlvmTypedValue = typed_value;
+                address = address + llvm_eval_value(global_values, register_values, index_value);
+                i = i + 1;
+            }
+            address
+        }
+    }
+}
+
+/// Execute the given terminator instruction.
+fn llvmulator_execute_terminator(
+    global_values: &StringMap<usize>,
+    register_values: &StringMap<usize>,
+    terminator: &TerminatorInstruction,
+) -> LlvmExecFlow {
+    match terminator {
+        TerminatorInstruction::RetVoid => LlvmExecFlow::Return(0),
+        TerminatorInstruction::Ret(_, value) => {
+            LlvmExecFlow::Return(llvm_eval_value(global_values, register_values, value))
+        }
+        TerminatorInstruction::Br(branch) => match branch {
+            Branch::Unconditional(target_label) => LlvmExecFlow::Jump(string_clone(target_label)),
+            Branch::Conditional(condition, then_label, else_label) => {
+                let condition_value: usize =
+                    llvm_eval_value(global_values, register_values, condition);
+                if condition_value == 1 {
+                    LlvmExecFlow::Jump(string_clone(then_label))
+                } else {
+                    LlvmExecFlow::Jump(string_clone(else_label))
+                }
+            }
+        },
+    }
+}
+
+/// Evaluate the value of a virtual register, global name or literal.
+fn llvm_eval_value(
+    global_values: &StringMap<usize>,
+    register_values: &StringMap<usize>,
+    value: &LlvmValue,
+) -> usize {
+    match value {
+        LlvmValue::Literal(number) => *number,
+        LlvmValue::Register(name) => match stringMap_get(register_values, name) {
+            Option::Some(register_value) => *register_value,
+            Option::None => panic!("unknown LLVM register"),
+        },
+        LlvmValue::Global(name) => match stringMap_get::<usize>(global_values, name) {
+            Option::Some(value) => *value,
+            Option::None => panic!("unknown LLVM global value"),
+        },
+    }
 }
 
 // -----------------------------------------------------------------
