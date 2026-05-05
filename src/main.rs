@@ -2342,17 +2342,13 @@ fn llvmParser_parse_block(parser: &mut LlvmParser) -> InstructionBlock {
     let mut instructions: Vec<Instruction> = vec_new::<Instruction>();
     let mut is_terminator: bool = false;
 
-    while not(llvmParser_current_token_eq(parser, &LlvmToken::RBrace)) {
+    while not(is_terminator) {
         let instruction: Instruction = llvmParser_parse_instruction(parser);
         match &instruction {
             Instruction::Terminator(_) => is_terminator = true,
             Instruction::Assignment(_) => is_terminator = false,
         }
         vec_push::<Instruction>(&mut instructions, instruction);
-    }
-
-    if not(is_terminator) {
-        llvmParser_error(parser, "LLVM block must end in terminator");
     }
 
     InstructionBlock::Block(label, instructions)
