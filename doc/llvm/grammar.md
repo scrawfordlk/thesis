@@ -1,25 +1,25 @@
 # Grammar of LLVM-IR
 
 ```
-llvm -> { function | string }
-
-function -> "define" type global "("
-              [ type register { "," type register } ] ")"
-              "{" { block } "}"
+llvm -> { string | function }
 
 string -> global "=" "constant" array "c"" { printable_character } "\""
+
+function -> "define" type global  parameters "{" blocks "}"
+
+parameters -> "(" [ type register { "," type register } ] ")" 
 
 global -> "@" identifier
 ```
 
 ```
-block -> label { instruction }
+blocks -> { block }
+
+block -> identifier ":" { instruction }
 
 register -> "%" identifier
 
-instruction -> label | return | branch | assignment
-
-label -> identifier ":"
+instruction -> return | branch | assignment
 
 return -> "ret" ( "void" | type value )
 
@@ -36,9 +36,7 @@ binary -> ( "add" | "sub" | "mul" | "udiv" | "urem" ) type value "," value
 
 icmp -> "icmp" "ult" type value "," value
 
-call -> "call" type global "(" [ argument { "," argument } ] ")"
-
-argument -> type value
+call -> "call" type global "(" [ type value { "," type value } ] ")"
 
 gep -> "getelementptr" type "," "ptr" value "," type value { "," type value }
 

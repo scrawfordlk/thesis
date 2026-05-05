@@ -1909,12 +1909,16 @@ fn llvmLexer_skip_line(lexer: &mut LlvmLexer) {
 
 /// Type that encapsulates the LLVM Parser's state
 enum LlvmParser {
-    Parser(LlvmLexer, LlvmAST),
+    Parser(LlvmLexer, LlvmAST, LlvmLocalSymTable),
 }
 
 /// Create an LLVM parser and prime the first token.
 fn llvmParser_new(source: String) -> LlvmParser {
-    LlvmParser::Parser(llvmLexer_new(source), llvmAST_new())
+    LlvmParser::Parser(
+        llvmLexer_new(source),
+        llvmAST_new(),
+        llvmLocalSymTable_new(),
+    )
 }
 
 /// Create an LLVM parser from a string slice.
@@ -1924,25 +1928,43 @@ fn llvmParser_from_str(source: &str) -> LlvmParser {
 
 /// Get immutable parser lexer access.
 fn llvmParser_lexer(parser: &LlvmParser) -> &LlvmLexer {
-    let LlvmParser::Parser(lexer, _): &LlvmParser = parser;
+    let LlvmParser::Parser(lexer, _, _): &LlvmParser = parser;
     lexer
 }
 
 /// Get mutable parser lexer access.
 fn llvmParser_lexer_mut(parser: &mut LlvmParser) -> &mut LlvmLexer {
-    let LlvmParser::Parser(lexer, _): &mut LlvmParser = parser;
+    let LlvmParser::Parser(lexer, _, _): &mut LlvmParser = parser;
     lexer
 }
 
 /// Get immutable parser AST access.
 fn llvmParser_ast(parser: &LlvmParser) -> &LlvmAST {
-    let LlvmParser::Parser(_, ast): &LlvmParser = parser;
+    let LlvmParser::Parser(_, ast, _): &LlvmParser = parser;
     ast
 }
 
 /// Get mutable parser AST access.
 fn llvmParser_ast_mut(parser: &mut LlvmParser) -> &mut LlvmAST {
-    let LlvmParser::Parser(_, ast): &mut LlvmParser = parser;
+    let LlvmParser::Parser(_, ast, _): &mut LlvmParser = parser;
+    ast
+}
+
+fn llvmParser_local(parser: &LlvmParser) -> &LlvmLocalSymTable {
+    let LlvmParser::Parser(_, _, local): &LlvmParser = parser;
+    local
+}
+
+fn llvmParser_local_mut(parser: &mut LlvmParser) -> &mut LlvmLocalSymTable {
+    let LlvmParser::Parser(_, _, local): &mut LlvmParser = parser;
+    local
+}
+
+/// Parse LLVM source into LLVM AST.
+fn llvmParser_parse_to_ast(source: String) -> LlvmAST {
+    let mut parser: LlvmParser = llvmParser_new(source);
+    llvmParser_parse_language(&mut parser);
+    let LlvmParser::Parser(_, ast, _): LlvmParser = parser;
     ast
 }
 
@@ -1991,11 +2013,580 @@ fn llvmParser_expect_identifier(parser: &mut LlvmParser) -> String {
 }
 
 enum LlvmAST {
-    AST(),
+    AST(StringMap<LlvmFunction>),
 }
 
+/// Create an empty LLVM AST.
 fn llvmAST_new() -> LlvmAST {
-    LlvmAST::AST()
+    LlvmAST::AST(stringMap_new::<LlvmFunction>())
+}
+
+/// Get immutable access to the top-level function map.
+fn llvmAST_functions(ast: &LlvmAST) -> &StringMap<LlvmFunction> {
+    let LlvmAST::AST(functions): &LlvmAST = ast;
+    functions
+}
+
+/// Get mutable access to the top-level function map.
+fn llvmAST_functions_mut(ast: &mut LlvmAST) -> &mut StringMap<LlvmFunction> {
+    let LlvmAST::AST(functions): &mut LlvmAST = ast;
+    functions
+}
+
+/// Insert a function entry into the AST. Returns false on duplicate name.
+fn llvmAST_insert_function(ast: &mut LlvmAST, name: String, function: LlvmFunction) -> bool {
+    match stringMap_get::<LlvmFunction>(llvmAST_functions(ast), &name) {
+        Option::Some(_) => false,
+        Option::None => {
+            stringMap_insert::<LlvmFunction>(llvmAST_functions_mut(ast), name, function);
+            true
+        }
+    }
+}
+
+/// Lookup a function in the AST by name.
+fn llvmAST_lookup_function(ast: &LlvmAST, name: String) -> &LlvmFunction {
+    match stringMap_get::<LlvmFunction>(llvmAST_functions(ast), &name) {
+        Option::Some(function) => function,
+        Option::None => panic!("unknown LLVM function"),
+    }
+}
+
+/// Local symbol table for LLVM
+enum LlvmLocalSymTable {
+    Registers(List<LlvmLocalSymTableEntry>),
+}
+
+/// Create an empty LLVM local symbol table.
+fn llvmLocalSymTable_new() -> LlvmLocalSymTable {
+    LlvmLocalSymTable::Registers(list_new::<LlvmLocalSymTableEntry>())
+}
+
+/// Clear local register table buckets.
+fn llvmLocalSymTable_clear(symtable: &mut LlvmLocalSymTable) {
+    match symtable {
+        LlvmLocalSymTable::Registers(registers) => {
+            *registers = list_new::<LlvmLocalSymTableEntry>()
+        }
+    }
+}
+
+/// Insert register value. Returns false on duplicate.
+/// TODO: should pass type instead of value
+fn llvmLocalSymTable_insert_register(
+    symtable: &mut LlvmLocalSymTable,
+    name: String,
+    value: usize,
+) -> bool {
+    match symtable {
+        LlvmLocalSymTable::Registers(registers) => {
+            let mut cursor: &List<LlvmLocalSymTableEntry> = registers;
+            while true {
+                match cursor {
+                    List::Nil => {
+                        list_append::<LlvmLocalSymTableEntry>(
+                            registers,
+                            LlvmLocalSymTableEntry::Register(name, value),
+                        );
+                        return true;
+                    }
+                    List::Cons(entry, tail) => {
+                        let LlvmLocalSymTableEntry::Register(register_name, _) = entry;
+                        if string_eq(register_name, &name) {
+                            return false;
+                        }
+                        cursor = box_deref::<List<LlvmLocalSymTableEntry>>(tail);
+                    }
+                }
+            }
+            false
+        }
+    }
+}
+
+/// Virtual register entry of a LlvmLocalSymTable
+enum LlvmLocalSymTableEntry {
+    /// identifier, value
+    Register(String, usize),
+}
+
+enum LlvmFunction {
+    /// return type, parameters, instructions, local symbols
+    Function(LlvmType, Vec<LlvmParameter>, Vec<InstructionBlock>),
+}
+
+/// Represents a parameter of an LLVM function.
+enum LlvmParameter {
+    /// identifier, type
+    Parameter(String, LlvmType),
+}
+
+/// Supported types of LLVM.
+enum LlvmType {
+    I1,
+    I8,
+    I32,
+    I64,
+    Ptr,
+    Array(usize, Box<LlvmType>),
+    Void,
+}
+
+/// Represents an instruction block.
+enum InstructionBlock {
+    /// label, instructions
+    Block(String, Vec<Instruction>),
+}
+
+/// Get a shared reference to the label of an instruction block.
+fn instructionBlock_label(instruction_block: &InstructionBlock) -> &String {
+    let InstructionBlock::Block(label, _): &InstructionBlock = instruction_block;
+    label
+}
+
+/// Get a shared reference to the instructions of an instruction block.
+fn instructionBlock_instructions(instruction_block: &InstructionBlock) -> &Vec<Instruction> {
+    let InstructionBlock::Block(_, instructions): &InstructionBlock = instruction_block;
+    instructions
+}
+
+/// Get the instructions of the block labelled by the given label.
+fn instructionBlock_fetch_instructions(
+    blocks: &Vec<InstructionBlock>,
+    label: String,
+) -> &Vec<Instruction> {
+    let mut i: usize = 0;
+    while i < vec_len::<InstructionBlock>(blocks) {
+        let block: &InstructionBlock =
+            unwrap::<&InstructionBlock>(vec_get::<InstructionBlock>(blocks, i));
+
+        let other_label: &String = instructionBlock_label(block);
+        if string_eq(other_label, &label) {
+            return instructionBlock_instructions(block);
+        }
+
+        i = i + 1;
+    }
+    panic!("unknown LLVM block label");
+}
+
+/// Represents an instruction inside an instruction block
+enum Instruction {
+    Assignment(AssignInstruction),
+    Terminator(TerminatorInstruction),
+}
+
+/// Represents an instruction which terminates an instruction block.
+enum TerminatorInstruction {
+    RetVoid,
+    /// type, value
+    Ret(LlvmType, LlvmValue),
+    Br(Branch),
+}
+
+/// Represents "br", either a conditional or unconditional jump.
+enum Branch {
+    /// label
+    Unconditional(String),
+    /// condition, then label, else label
+    Conditional(LlvmValue, String, String),
+}
+
+/// Represents an assignment instruction.
+enum AssignInstruction {
+    Assign(String, AssignOp),
+}
+
+/// Represents the right-hand-side of an assignment
+enum AssignOp {
+    /// operation, type, left operand, right operand
+    Binary(BinaryOp, LlvmType, LlvmValue, LlvmValue),
+    /// return type, callee, arguments
+    Call(LlvmType, String, Vec<LlvmTypedValue>),
+    /// type, pointer, indexes
+    Gep(LlvmType, LlvmValue, Vec<LlvmTypedValue>),
+}
+
+/// Binary operations that can only appear in assignments.
+enum BinaryOp {
+    Add,
+    Sub,
+    Mul,
+    Udiv,
+    Urem,
+    IcmpUlt,
+}
+
+/// Represents a value in a register, global or as a literal.
+enum LlvmValue {
+    /// identifier
+    Register(String),
+    /// integer value
+    Literal(usize),
+    /// identifier
+    Global(String),
+}
+
+/// Represents a value with a specified type.
+// TODO: drop this: the AST does not need to know about types. Parser ensures type safety.
+enum LlvmTypedValue {
+    Pair(LlvmType, LlvmValue),
+}
+
+fn llvmParser_parse_language(parser: &mut LlvmParser) {
+    while not(llvmParser_current_token_eq(parser, &LlvmToken::Eof)) {
+        match llvmParser_current_token(parser) {
+            LlvmToken::At => llvmParser_parse_string(parser),
+            LlvmToken::Define => llvmParser_parse_function(parser),
+            _ => llvmParser_error(parser, "expected LLVM top-level item"),
+        }
+    }
+}
+
+fn llvmParser_parse_string(parser: &mut LlvmParser) {
+    let name: String = llvmParser_parse_global_name(parser);
+    llvmParser_expect_token(parser, &LlvmToken::Assign);
+    llvmParser_expect_token(parser, &LlvmToken::Constant);
+    llvmParser_parse_type(parser);
+
+    match llvmParser_current_token(parser) {
+        LlvmToken::CString(value) => {
+            let string_value: String = string_clone(value);
+            llvmParser_next_token(parser);
+        }
+        _ => llvmParser_error(parser, "expected LLVM c-string literal"),
+    }
+}
+
+fn llvmParser_parse_function(parser: &mut LlvmParser) {
+    llvmParser_expect_token(parser, &LlvmToken::Define);
+    let return_type: LlvmType = llvmParser_parse_type(parser);
+    let function_name: String = llvmParser_parse_global_name(parser);
+
+    llvmLocalSymTable_clear(llvmParser_local_mut(parser));
+
+    let parameters: Vec<LlvmParameter> = llvmParser_parse_parameters(parser);
+
+    llvmParser_expect_token(parser, &LlvmToken::LBrace);
+    let blocks: Vec<InstructionBlock> = llvmParser_parse_blocks(parser);
+    llvmParser_expect_token(parser, &LlvmToken::RBrace);
+
+    let function: LlvmFunction = LlvmFunction::Function(return_type, parameters, blocks);
+    if not(llvmAST_insert_function(
+        llvmParser_ast_mut(parser),
+        function_name,
+        function,
+    )) {
+        llvmParser_error(parser, "duplicate LLVM function definition");
+    }
+}
+
+fn llvmParser_parse_parameters(parser: &mut LlvmParser) -> Vec<LlvmParameter> {
+    let mut parameters: Vec<LlvmParameter> = vec_new::<LlvmParameter>();
+
+    llvmParser_expect_token(parser, &LlvmToken::LParen);
+
+    if not(llvmParser_current_token_eq(parser, &LlvmToken::RParen)) {
+        let parameter_type: LlvmType = llvmParser_parse_type(parser);
+        let param_name: String = llvmParser_parse_register(parser);
+        llvmLocalSymTable_insert_register(
+            llvmParser_local_mut(parser),
+            string_clone(&param_name),
+            0,
+        );
+
+        let parameter: LlvmParameter = LlvmParameter::Parameter(param_name, parameter_type);
+        vec_push::<LlvmParameter>(&mut parameters, parameter);
+
+        while llvmParser_current_token_eq(parser, &LlvmToken::Comma) {
+            llvmParser_next_token(parser);
+
+            let parameter_type: LlvmType = llvmParser_parse_type(parser);
+            let param_name: String = llvmParser_parse_register(parser);
+
+            if not(llvmLocalSymTable_insert_register(
+                llvmParser_local_mut(parser),
+                string_clone(&param_name),
+                0,
+            )) {
+                llvmParser_error(parser, "duplicate parameters in LLVM function");
+            }
+
+            let parameter: LlvmParameter = LlvmParameter::Parameter(param_name, parameter_type);
+            vec_push::<LlvmParameter>(&mut parameters, parameter);
+        }
+    }
+    llvmParser_expect_token(parser, &LlvmToken::RParen);
+    parameters
+}
+
+fn llvmParser_parse_global_name(parser: &mut LlvmParser) -> String {
+    llvmParser_expect_token(parser, &LlvmToken::At);
+    llvmParser_expect_identifier(parser)
+}
+
+fn llvmParser_parse_blocks(parser: &mut LlvmParser) -> Vec<InstructionBlock> {
+    let mut blocks: Vec<InstructionBlock> = vec_new::<InstructionBlock>();
+    while not(llvmParser_current_token_eq(parser, &LlvmToken::RBrace)) {
+        let block: InstructionBlock = llvmParser_parse_block(parser);
+        vec_push::<InstructionBlock>(&mut blocks, block);
+    }
+    blocks
+}
+
+fn llvmParser_parse_block(parser: &mut LlvmParser) -> InstructionBlock {
+    let label: String = llvmParser_expect_identifier(parser);
+    llvmParser_expect_token(parser, &LlvmToken::Colon);
+    // TODO: insert into symbol table
+
+    let mut instructions: Vec<Instruction> = vec_new::<Instruction>();
+    let mut is_terminator: bool = false;
+
+    while not(llvmParser_current_token_eq(parser, &LlvmToken::RBrace)) {
+        let instruction: Instruction = llvmParser_parse_instruction(parser);
+        match &instruction {
+            Instruction::Terminator(_) => is_terminator = true,
+            Instruction::Assignment(_) => is_terminator = false,
+        }
+        vec_push::<Instruction>(&mut instructions, instruction);
+    }
+
+    if not(is_terminator) {
+        llvmParser_error(parser, "LLVM block must end in terminator");
+    }
+
+    InstructionBlock::Block(label, instructions)
+}
+
+fn llvmParser_parse_register(parser: &mut LlvmParser) -> String {
+    llvmParser_expect_token(parser, &LlvmToken::Percent);
+    llvmParser_expect_identifier(parser)
+}
+
+fn llvmParser_parse_instruction(parser: &mut LlvmParser) -> Instruction {
+    match llvmParser_current_token(parser) {
+        LlvmToken::Ret => Instruction::Terminator(llvmParser_parse_return(parser)),
+        LlvmToken::Br => Instruction::Terminator(llvmParser_parse_branch(parser)),
+        LlvmToken::Percent => Instruction::Assignment(llvmParser_parse_assignment(parser)),
+        _ => llvmParser_error(parser, "expected LLVM instruction"),
+    }
+}
+
+fn llvmParser_parse_return(parser: &mut LlvmParser) -> TerminatorInstruction {
+    llvmParser_expect_token(parser, &LlvmToken::Ret);
+    if llvmParser_try_consume(parser, &LlvmToken::Void) {
+        TerminatorInstruction::RetVoid
+    } else {
+        let returned_type: LlvmType = llvmParser_parse_type(parser);
+        let returned_value: LlvmValue = llvmParser_parse_value(parser);
+        TerminatorInstruction::Ret(returned_type, returned_value)
+    }
+}
+
+fn llvmParser_parse_branch(parser: &mut LlvmParser) -> TerminatorInstruction {
+    llvmParser_expect_token(parser, &LlvmToken::Br);
+    let branch: Branch = if llvmParser_try_consume(parser, &LlvmToken::Label) {
+        let target_label: String = llvmParser_parse_register(parser);
+        Branch::Unconditional(target_label)
+    } else {
+        llvmParser_expect_token(parser, &LlvmToken::I1);
+        let condition: LlvmValue = llvmParser_parse_value(parser);
+        llvmParser_expect_token(parser, &LlvmToken::Comma);
+
+        llvmParser_expect_token(parser, &LlvmToken::Label);
+        let then_label: String = llvmParser_parse_register(parser);
+        llvmParser_expect_token(parser, &LlvmToken::Comma);
+
+        llvmParser_expect_token(parser, &LlvmToken::Label);
+        let else_label: String = llvmParser_parse_register(parser);
+
+        Branch::Conditional(condition, then_label, else_label)
+    };
+    TerminatorInstruction::Br(branch)
+}
+
+fn llvmParser_parse_assignment(parser: &mut LlvmParser) -> AssignInstruction {
+    let target_register: String = llvmParser_parse_register(parser);
+    if not(llvmLocalSymTable_insert_register(
+        llvmParser_local_mut(parser),
+        string_clone(&target_register),
+        0,
+    )) {
+        llvmParser_error(
+            parser,
+            "SSA violation: duplicate virtual register assignment",
+        );
+    }
+
+    llvmParser_expect_token(parser, &LlvmToken::Assign);
+    let operation: AssignOp = match llvmParser_current_token(parser) {
+        LlvmToken::Add => llvmParser_parse_binary_assign(parser, LlvmToken::Add, BinaryOp::Add),
+        LlvmToken::Sub => llvmParser_parse_binary_assign(parser, LlvmToken::Sub, BinaryOp::Sub),
+        LlvmToken::Mul => llvmParser_parse_binary_assign(parser, LlvmToken::Mul, BinaryOp::Mul),
+        LlvmToken::Udiv => llvmParser_parse_binary_assign(parser, LlvmToken::Udiv, BinaryOp::Udiv),
+        LlvmToken::Urem => llvmParser_parse_binary_assign(parser, LlvmToken::Urem, BinaryOp::Urem),
+        LlvmToken::Icmp => llvmParser_parse_icmp_assign(parser),
+        LlvmToken::Call => llvmParser_parse_call_assign(parser),
+        LlvmToken::Gep => llvmParser_parse_gep_assign(parser),
+        _ => llvmParser_error(parser, "expected LLVM assignment operation"),
+    };
+    AssignInstruction::Assign(target_register, operation)
+}
+
+fn llvmParser_parse_binary_assign(
+    parser: &mut LlvmParser,
+    operator_token: LlvmToken,
+    operator: BinaryOp,
+) -> AssignOp {
+    llvmParser_expect_token(parser, &operator_token);
+    let ty: LlvmType = llvmParser_parse_type(parser);
+    let left: LlvmValue = llvmParser_parse_value(parser);
+    llvmParser_expect_token(parser, &LlvmToken::Comma);
+    let right: LlvmValue = llvmParser_parse_value(parser);
+    AssignOp::Binary(operator, ty, left, right)
+}
+
+fn llvmParser_parse_icmp_assign(parser: &mut LlvmParser) -> AssignOp {
+    llvmParser_expect_token(parser, &LlvmToken::Icmp);
+    llvmParser_expect_token(parser, &LlvmToken::Ult);
+    let ty: LlvmType = llvmParser_parse_type(parser);
+    let left: LlvmValue = llvmParser_parse_value(parser);
+    llvmParser_expect_token(parser, &LlvmToken::Comma);
+    let right: LlvmValue = llvmParser_parse_value(parser);
+    AssignOp::Binary(BinaryOp::IcmpUlt, ty, left, right)
+}
+
+fn llvmParser_parse_call_assign(parser: &mut LlvmParser) -> AssignOp {
+    llvmParser_expect_token(parser, &LlvmToken::Call);
+    let return_type: LlvmType = llvmParser_parse_type(parser);
+    let callee: String = llvmParser_parse_global_name(parser);
+    let mut arguments: Vec<LlvmTypedValue> = vec_new::<LlvmTypedValue>();
+
+    llvmParser_expect_token(parser, &LlvmToken::LParen);
+    if not(llvmParser_current_token_eq(parser, &LlvmToken::RParen)) {
+        let argument: LlvmTypedValue = llvmParser_parse_typed_value(parser);
+        vec_push::<LlvmTypedValue>(&mut arguments, argument);
+
+        while llvmParser_current_token_eq(parser, &LlvmToken::Comma) {
+            llvmParser_next_token(parser);
+            let argument: LlvmTypedValue = llvmParser_parse_typed_value(parser);
+            vec_push::<LlvmTypedValue>(&mut arguments, argument);
+        }
+    }
+    llvmParser_expect_token(parser, &LlvmToken::RParen);
+
+    AssignOp::Call(return_type, callee, arguments)
+}
+
+fn llvmParser_parse_gep_assign(parser: &mut LlvmParser) -> AssignOp {
+    llvmParser_expect_token(parser, &LlvmToken::Gep);
+    let base_type: LlvmType = llvmParser_parse_type(parser);
+    llvmParser_expect_token(parser, &LlvmToken::Comma);
+    llvmParser_expect_token(parser, &LlvmToken::Ptr);
+    let pointer_value: LlvmValue = llvmParser_parse_value(parser);
+    llvmParser_expect_token(parser, &LlvmToken::Comma);
+
+    let mut indexes: Vec<LlvmTypedValue> = vec_new::<LlvmTypedValue>();
+    let first_index: LlvmTypedValue = llvmParser_parse_typed_value(parser);
+    vec_push::<LlvmTypedValue>(&mut indexes, first_index);
+    while llvmParser_try_consume(parser, &LlvmToken::Comma) {
+        let index: LlvmTypedValue = llvmParser_parse_typed_value(parser);
+        vec_push::<LlvmTypedValue>(&mut indexes, index);
+    }
+
+    AssignOp::Gep(base_type, pointer_value, indexes)
+}
+
+fn llvmParser_parse_type(parser: &mut LlvmParser) -> LlvmType {
+    match llvmParser_current_token(parser) {
+        LlvmToken::I1 => {
+            llvmParser_next_token(parser);
+            LlvmType::I1
+        }
+        LlvmToken::I8 => {
+            llvmParser_next_token(parser);
+            LlvmType::I8
+        }
+        LlvmToken::I32 => {
+            llvmParser_next_token(parser);
+            LlvmType::I32
+        }
+        LlvmToken::I64 => {
+            llvmParser_next_token(parser);
+            LlvmType::I64
+        }
+        LlvmToken::Void => {
+            llvmParser_next_token(parser);
+            LlvmType::Void
+        }
+        LlvmToken::Ptr => {
+            llvmParser_next_token(parser);
+            LlvmType::Ptr
+        }
+        LlvmToken::LBracket => {
+            llvmParser_next_token(parser);
+            let len: usize = llvmParser_parse_non_negative_number(parser);
+            match llvmParser_current_token(parser) {
+                LlvmToken::Identifier(separator) => {
+                    if not(string_eq(separator, &string_from_str("x"))) {
+                        llvmParser_error(parser, "expected x in LLVM array type");
+                    }
+                    llvmParser_next_token(parser);
+                }
+                _ => llvmParser_error(parser, "expected x in LLVM array type"),
+            }
+            let inner: LlvmType = llvmParser_parse_type(parser);
+            llvmParser_expect_token(parser, &LlvmToken::RBracket);
+            LlvmType::Array(len, box_new::<LlvmType>(inner))
+        }
+        _ => llvmParser_error(parser, "expected LLVM type"),
+    }
+}
+
+fn llvmParser_parse_value(parser: &mut LlvmParser) -> LlvmValue {
+    match llvmParser_current_token(parser) {
+        LlvmToken::Percent => LlvmValue::Register(llvmParser_parse_register(parser)),
+        LlvmToken::At => LlvmValue::Global(llvmParser_parse_global_name(parser)),
+        LlvmToken::Minus => LlvmValue::Literal(llvmParser_parse_number_literal(parser)),
+        LlvmToken::Integer(_) => LlvmValue::Literal(llvmParser_parse_number_literal(parser)),
+        _ => llvmParser_error(parser, "expected LLVM value"),
+    }
+}
+
+fn llvmParser_parse_typed_value(parser: &mut LlvmParser) -> LlvmTypedValue {
+    let ty: LlvmType = llvmParser_parse_type(parser);
+    let value: LlvmValue = llvmParser_parse_value(parser);
+    LlvmTypedValue::Pair(ty, value)
+}
+
+fn llvmParser_parse_non_negative_number(parser: &mut LlvmParser) -> usize {
+    match llvmParser_current_token(parser) {
+        LlvmToken::Integer(value) => {
+            let result: usize = *value;
+            llvmParser_next_token(parser);
+            result
+        }
+        _ => llvmParser_error(parser, "expected LLVM number"),
+    }
+}
+
+// TODO: do not support negative literals
+fn llvmParser_parse_number_literal(parser: &mut LlvmParser) -> usize {
+    let negative: bool = llvmParser_try_consume(parser, &LlvmToken::Minus);
+    match llvmParser_current_token(parser) {
+        LlvmToken::Integer(value) => {
+            let magnitude: usize = *value;
+            llvmParser_next_token(parser);
+            if negative {
+                0usize.wrapping_sub(magnitude)
+            } else {
+                magnitude
+            }
+        }
+        _ => llvmParser_error(parser, "expected LLVM integer literal"),
+    }
+}
+
 }
 
 // -----------------------------------------------------------------
@@ -3131,6 +3722,27 @@ fn llvmToken_clone(token: &LlvmToken) -> LlvmToken {
         LlvmToken::Identifier(name) => LlvmToken::Identifier(string_clone(name)),
         LlvmToken::Integer(value) => LlvmToken::Integer(*value),
         LlvmToken::Eof => LlvmToken::Eof,
+    }
+}
+
+/// Clone one LLVM local symbol table entry.
+fn llvmLocalSymTableEntry_clone(entry: &LlvmLocalSymTableEntry) -> LlvmLocalSymTableEntry {
+    match entry {
+        LlvmLocalSymTableEntry::Register(name, value) => {
+            LlvmLocalSymTableEntry::Register(string_clone(name), *value)
+        }
+    }
+}
+
+/// Clone an LLVM local symbol table.
+fn llvmLocalSymTable_clone(symtable: &LlvmLocalSymTable) -> LlvmLocalSymTable {
+    match symtable {
+        LlvmLocalSymTable::Registers(entries) => {
+            LlvmLocalSymTable::Registers(list_clone::<LlvmLocalSymTableEntry>(
+                entries,
+                llvmLocalSymTableEntry_clone,
+            ))
+        }
     }
 }
 
