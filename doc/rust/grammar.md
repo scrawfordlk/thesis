@@ -20,7 +20,7 @@ block    -> "{" { ( binding | expression ) ";" } [ expression ] "}"
 ```
 binding   -> "let" variable "=" expression
 
-variable  -> [ "mut" ] pattern ":" type
+variable  -> pattern ":" type
 
 type       -> "u8"  | "usize" | "bool" | "char"
                 | "&" "str"
@@ -66,7 +66,7 @@ match   -> "match" expression "{" arms "}"
 arms    -> pattern "=>" expression "," { expression "=>" expression "," }
 
 pattern -> literal
-             | identifier
+             | [ "mut" ]  identifier
              | identifier "::" identifier [ "(" pattern { "," pattern } ")" ] )
              | "_"
 
