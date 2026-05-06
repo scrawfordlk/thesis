@@ -33,7 +33,7 @@ type       -> "u8"  | "usize" | "bool" | "char"
 ```
 expression -> [ "return" [ expression ] ] | assignment
 
-assignment -> factor "=" comparison
+assignment -> comparison [ "=" assignment ]
 
 comparison -> arithmetic [ ( "==" | "!=" | "<" | ">" | "<=" | ">=" ) arithmetic ]
 
