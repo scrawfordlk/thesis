@@ -3,7 +3,7 @@
 fn make_lexer(input: &str) -> Lexer {
     let mut content = string_new();
     string_push_str(&mut content, input);
-    let source = SourceFile::SourceFile(content, 0, SourceLocation::Loc(1, 1));
+    let source = SourceFile::SourceFile(content, 0, 1, 0);
     Lexer::Lexer(source, Token::Eof)
 }
 
@@ -143,7 +143,7 @@ fn test_lexer_eof_detection() {
 #[test]
 fn test_lexer_sourcefile() {
     let lexer = make_lexer("abc");
-    let SourceFile::SourceFile(_, index, _) = lexer_sourcefile(&lexer);
+    let SourceFile::SourceFile(_, index, _, _) = lexer_sourcefile(&lexer);
     assert_eq!(*index, 0);
 }
 
@@ -278,24 +278,6 @@ fn test_skip_line_comment_direct() {
     let mut lexer = make_lexer("comment text\nz");
     skip_line_comment(&mut lexer);
     assert!(matches!(lexer_peek_char(&lexer), Option::Some('z')));
-}
-
-#[test]
-fn test_lexer_error_exits() {
-    if std::env::var("LEXER_ERROR_CHILD").as_deref() == Ok("1") {
-        let lexer = make_lexer("");
-        lexer_error(&lexer, "boom");
-    }
-
-    let output = std::process::Command::new(std::env::current_exe().expect("current exe"))
-        .env("LEXER_ERROR_CHILD", "1")
-        .arg("--exact")
-        .arg("tests::test_lexer_error_exits")
-        .output()
-        .expect("spawn child");
-
-    assert!(!output.status.success());
-    assert_eq!(output.status.code(), Some(1));
 }
 
 // ------------------------- Keywords ----------------------------

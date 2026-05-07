@@ -99,60 +99,37 @@ enum Lexer {
 
 /// A type that manages the source file
 enum SourceFile {
-    /// content, next character index, current location
-    SourceFile(String, usize, SourceLocation),
+    /// content, next character index, current location, current line, character index of last newline
+    SourceFile(String, usize, usize, usize),
 }
 
 /// Get the character at the given index.
 fn sourceFile_get_char(file: &SourceFile, index: usize) -> Option<char> {
-    let SourceFile::SourceFile(string, _, _): &SourceFile = file;
+    let SourceFile::SourceFile(string, _, _, _): &SourceFile = file;
     string_get(string, index)
 }
 
 /// Returns the current line.
 fn sourceFile_current_line(file: &SourceFile) -> usize {
-    let SourceFile::SourceFile(_, _, location): &SourceFile = file;
-    sourceLocation_line(location)
+    let SourceFile::SourceFile(_, _, line, _): &SourceFile = file;
+    *line
 }
 
 /// Returns the current column in the current line.
 fn sourceFile_current_column(file: &SourceFile) -> usize {
-    let SourceFile::SourceFile(_, next_char_idx, location): &SourceFile = file;
-    next_char_idx - sourceLocation_last_newline_idx(location) - 1
+    let SourceFile::SourceFile(_, next_char_idx, _, last_newline_idx): &SourceFile = file;
+    *next_char_idx - *last_newline_idx - 1
 }
 
 /// Returns the index of the beginning of the current line.
 fn sourceFile_current_line_start(file: &SourceFile) -> usize {
-    let SourceFile::SourceFile(_, _, location): &SourceFile = file;
-    sourceLocation_last_newline_idx(location) + 1
-}
-
-/// A type that tracks the location in the source code
-enum SourceLocation {
-    /// line, character index of last newline
-    Loc(usize, usize),
-}
-
-/// Creates a new SourceLocation initialised to the index of the first character.
-fn sourceLocation_new() -> SourceLocation {
-    SourceLocation::Loc(1, 0)
-}
-
-/// Returns the current line.
-fn sourceLocation_line(location: &SourceLocation) -> usize {
-    let SourceLocation::Loc(line, _): &SourceLocation = location;
-    *line
-}
-
-/// Returns the index of the last newline character.
-fn sourceLocation_last_newline_idx(location: &SourceLocation) -> usize {
-    let SourceLocation::Loc(_, last_newline_idx): &SourceLocation = location;
-    *last_newline_idx
+    let SourceFile::SourceFile(_, _, _, last_newline_idx): &SourceFile = file;
+    *last_newline_idx + 1
 }
 
 /// Create a lexer and prime it with the first token.
 fn lexer_new(source: String) -> Lexer {
-    let source_file: SourceFile = SourceFile::SourceFile(source, 0, sourceLocation_new());
+    let source_file: SourceFile = SourceFile::SourceFile(source, 0, 1, 0);
     let mut lexer: Lexer = Lexer::Lexer(source_file, Token::Eof);
     lexer_next_token(&mut lexer);
     lexer
@@ -184,13 +161,13 @@ fn lexer_set_current_token(lexer: &mut Lexer, token: Token) {
 
 /// Peek at the next character without consuming it.
 fn lexer_peek_char(lexer: &Lexer) -> Option<char> {
-    let SourceFile::SourceFile(string, index, _): &SourceFile = lexer_sourcefile(lexer);
+    let SourceFile::SourceFile(string, index, _, _): &SourceFile = lexer_sourcefile(lexer);
     string_get(string, *index)
 }
 
 /// Consume and return the next character.
 fn lexer_consume_char(lexer: &mut Lexer) -> Option<char> {
-    let SourceFile::SourceFile(source, index, location): &mut SourceFile =
+    let SourceFile::SourceFile(source, index, line, last_newline_idx): &mut SourceFile =
         lexer_sourcefile_mut(lexer);
 
     let current: Option<char> = string_get(source, *index);
@@ -198,8 +175,6 @@ fn lexer_consume_char(lexer: &mut Lexer) -> Option<char> {
 
     match current {
         Option::Some(character) => {
-            let SourceLocation::Loc(line, last_newline_idx): &mut SourceLocation = location;
-
             if character == '\n' {
                 *line = *line + 1;
                 *last_newline_idx = *index;
@@ -1820,7 +1795,7 @@ enum LlvmLexer {
 
 /// Create a new LLVM lexer and scan the first token.
 fn llvmLexer_new(source: String) -> LlvmLexer {
-    let source_file: SourceFile = SourceFile::SourceFile(source, 0, SourceLocation::Loc(1, 1));
+    let source_file: SourceFile = SourceFile::SourceFile(source, 0, 1, 0);
     let mut lexer: LlvmLexer = LlvmLexer::Lexer(source_file, LlvmToken::Eof);
     llvmLexer_next_token(&mut lexer);
     lexer
@@ -1850,22 +1825,16 @@ fn llvmLexer_set_current_token(lexer: &mut LlvmLexer, token: LlvmToken) {
     *old_token = token;
 }
 
-/// Get the location the lexer is currently at.
-fn llvmLexer_location(lexer: &LlvmLexer) -> &SourceLocation {
-    let SourceFile::SourceFile(_, _, location) = llvmLexer_sourcefile(lexer);
-    location
-}
-
 /// Peek the current source character.
 fn llvmLexer_peek_char(lexer: &LlvmLexer) -> Option<char> {
-    let SourceFile::SourceFile(content, index, _): &SourceFile = llvmLexer_sourcefile(lexer);
-    string_get(content, *index)
+    let SourceFile::SourceFile(string, index, _, _): &SourceFile = llvmLexer_sourcefile(lexer);
+    string_get(string, *index)
 }
 
 /// Peek the next source character after the current one and return true if it is the expected
 /// character
 fn llvmLexer_next_char_eq(lexer: &LlvmLexer, expected: char) -> bool {
-    let SourceFile::SourceFile(content, index, _): &SourceFile = llvmLexer_sourcefile(lexer);
+    let SourceFile::SourceFile(content, index, _, _): &SourceFile = llvmLexer_sourcefile(lexer);
     match string_get(content, *index + 1) {
         Option::Some(character) => character == expected,
         _ => false,
@@ -1885,20 +1854,17 @@ fn llvmLexer_expect_char(lexer: &mut LlvmLexer, expected: char) {
 
 /// Consume and return the current source character.
 fn llvmLexer_consume_char(lexer: &mut LlvmLexer) -> Option<char> {
-    let SourceFile::SourceFile(source, index, location): &mut SourceFile =
+    let SourceFile::SourceFile(source, index, line, last_newline_idx): &mut SourceFile =
         llvmLexer_sourcefile_mut(lexer);
 
     let current: Option<char> = string_get(source, *index);
     *index = *index + 1;
 
     match current {
-        Option::Some(c) => {
-            let SourceLocation::Loc(line, col): &mut SourceLocation = location;
-            if c == '\n' {
+        Option::Some(character) => {
+            if character == '\n' {
                 *line = *line + 1;
-                *col = 1;
-            } else {
-                *col = *col + 1;
+                *last_newline_idx = *index;
             }
         }
         Option::None => {}
