@@ -37,9 +37,9 @@ assignment -> comparison [ "=" assignment ]
 
 comparison -> arithmetic [ ( "==" | "!=" | "<" | ">" | "<=" | ">=" ) arithmetic ]
 
-arithmetic -> term { ( "+" | "-" ) term } .
+arithmetic -> term [ ( "+" | "-" ) arithmetic ] .
 
-term       -> cast { ( "*" | "/" | "%" ) cast } .
+term       -> cast [ ( "*" | "/" | "%" ) term ] .
 
 cast       -> factor { "as" type }
 
