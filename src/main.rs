@@ -1239,41 +1239,15 @@ fn parse_literal(parser: &mut Parser) -> STPair {
             parser_next_token(parser);
 
             match current_literal {
-                Literal::Int(value) => {
-                    let name: String = llvm_emit_add(
-                        parser,
-                        Type::Usize,
-                        string_from_str("0"),
-                        integer_to_string(value),
-                    );
-                    STPair::ST(name, Type::Usize)
-                }
+                Literal::Int(value) => STPair::ST(integer_to_string(value), Type::Usize),
+                Literal::Char(value) => STPair::ST(integer_to_string(value as usize), Type::Char),
+                Literal::Bool(value) => STPair::ST(integer_to_string(value as usize), Type::Bool),
 
                 // TODO: Implement string literal
                 Literal::String(_) => STPair::ST(
                     string_new(),
                     Type::Reference(box_new::<Type>(Type::Custom(string_from_str("str")))),
                 ),
-
-                Literal::Char(value) => {
-                    let name: String = llvm_emit_add(
-                        parser,
-                        Type::Char,
-                        string_from_str("0"),
-                        integer_to_string(value as usize),
-                    );
-                    STPair::ST(name, Type::Char)
-                }
-
-                Literal::Bool(value) => {
-                    let name: String = llvm_emit_add(
-                        parser,
-                        Type::Bool,
-                        string_from_str("0"),
-                        integer_to_string(value as usize),
-                    );
-                    STPair::ST(name, Type::Bool)
-                }
             }
         }
         _ => parser_error(parser, "expected literal"),
