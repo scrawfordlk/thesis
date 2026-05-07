@@ -865,12 +865,12 @@ fn parse_type(parser: &mut Parser) -> Type {
             parser_next_token(parser);
             if parser_try_consume(parser, &Token::Mut) {
                 let inner: Type = parse_type(parser);
-                Type::ReferenceMut(box_new::<Type>(inner))
+                Type::Reference(box_new::<Type>(inner), true)
             } else if parser_try_consume(parser, &Token::Str) {
-                Type::Reference(box_new::<Type>(Type::Custom(string_from_str("str"))))
+                Type::Reference(box_new::<Type>(Type::Custom(string_from_str("str"))), false)
             } else {
                 let inner: Type = parse_type(parser);
-                Type::Reference(box_new::<Type>(inner))
+                Type::Reference(box_new::<Type>(inner), false)
             }
         }
         Token::Star => {
@@ -1029,8 +1029,7 @@ fn parse_factor(parser: &mut Parser) -> STPair {
                 string_new(),
                 match inner {
                     Type::RawPointerMut(pointed) => type_clone(box_deref::<Type>(&pointed)),
-                    Type::Reference(pointed) => type_clone(box_deref::<Type>(&pointed)),
-                    Type::ReferenceMut(pointed) => type_clone(box_deref::<Type>(&pointed)),
+                    Type::Reference(pointed, _) => type_clone(box_deref::<Type>(&pointed)),
                     _ => parser_error(parser, "cannot dereference this expression"),
                 },
             )
@@ -1041,11 +1040,7 @@ fn parse_factor(parser: &mut Parser) -> STPair {
             let inner: Type = stPair_get_type(parse_factor(parser));
             STPair::ST(
                 string_new(),
-                if mutable {
-                    Type::ReferenceMut(box_new::<Type>(inner))
-                } else {
-                    Type::Reference(box_new::<Type>(inner))
-                },
+                Type::Reference(box_new::<Type>(inner), mutable),
             )
         }
         Token::Literal(_) => parse_literal(parser),
@@ -1175,9 +1170,10 @@ fn parse_pattern(parser: &mut Parser) -> Pattern {
             match current_literal {
                 Literal::Int(_) => Pattern::Literal(Type::Usize),
                 Literal::Char(_) => Pattern::Literal(Type::Char),
-                Literal::String(_) => Pattern::Literal(Type::Reference(box_new::<Type>(
-                    Type::Custom(string_from_str("str")),
-                ))),
+                Literal::String(_) => Pattern::Literal(Type::Reference(
+                    box_new::<Type>(Type::Custom(string_from_str("str"))),
+                    false,
+                )),
                 Literal::Bool(_) => Pattern::Literal(Type::Bool),
             }
         }
@@ -1254,7 +1250,7 @@ fn parse_literal(parser: &mut Parser) -> STPair {
                 // TODO: Implement string literal
                 Literal::String(_) => STPair::ST(
                     string_new(),
-                    Type::Reference(box_new::<Type>(Type::Custom(string_from_str("str")))),
+                    Type::Reference(box_new::<Type>(Type::Custom(string_from_str("str"))), false),
                 ),
             }
         }
@@ -1603,12 +1599,11 @@ enum Type {
     Usize,
     Bool,
     Char,
-    Unit,                     // ()
-    Never,                    // !
-    Custom(String),           // enums
-    Reference(Box<Type>),     // &Type
-    ReferenceMut(Box<Type>),  // &mut Type
-    RawPointerMut(Box<Type>), // *mut Type
+    Unit,                       // ()
+    Never,                      // !
+    Custom(String),             // enums
+    Reference(Box<Type>, bool), // &Type and &mut Type
+    RawPointerMut(Box<Type>),   // *mut Type
 }
 
 fn type_is_numeric(ty: &Type) -> bool {
@@ -1629,9 +1624,31 @@ fn type_to_llvm_name(ty: &Type) -> String {
         Type::Unit => string_from_str("void"),
         Type::Never => string_from_str("void"),
         Type::Custom(_) => string_from_str("i64"),
-        Type::Reference(_) => string_from_str("i64"),
-        Type::ReferenceMut(_) => string_from_str("i64"),
-        Type::RawPointerMut(_) => string_from_str("i64"),
+        Type::Reference(_, _) => string_from_str("ptr"),
+        Type::RawPointerMut(_) => string_from_str("ptr"),
+    }
+}
+
+/// Returns true if the `from` type can be cast into the `to` type
+fn type_can_cast_to(from: &Type, to: &Type) -> bool {
+    match from {
+        Type::U8 | Type::Usize => match to {
+            Type::U8 | Type::Usize | Type::Char => true,
+            _ => false,
+        },
+        Type::Bool => match to {
+            Type::Bool | Type::U8 | Type::Usize => true,
+            _ => false,
+        },
+        Type::Char => match to {
+            Type::Char | Type::Usize | Type::U8 => true,
+            _ => false,
+        },
+        Type::Reference(_, _) | Type::RawPointerMut(_) => match to {
+            Type::RawPointerMut(_) => true,
+            _ => false,
+        },
+        _ => false,
     }
 }
 
@@ -3778,12 +3795,11 @@ fn type_eq(a: &Type, b: &Type) -> bool {
             Type::Custom(right) => string_eq(left, right),
             _ => false,
         },
-        Type::Reference(left) => match b {
-            Type::Reference(right) => type_eq(box_deref::<Type>(left), box_deref::<Type>(right)),
-            _ => false,
-        },
-        Type::ReferenceMut(left) => match b {
-            Type::ReferenceMut(right) => type_eq(box_deref::<Type>(left), box_deref::<Type>(right)),
+        Type::Reference(left, left_mut) => match b {
+            Type::Reference(right, right_mut) => and(
+                *left_mut == *right_mut,
+                type_eq(box_deref::<Type>(left), box_deref::<Type>(right)),
+            ),
             _ => false,
         },
         Type::RawPointerMut(left) => match b {
@@ -4125,8 +4141,9 @@ fn type_clone(t: &Type) -> Type {
         Type::Unit => Type::Unit,
         Type::Never => Type::Never,
         Type::Custom(name) => Type::Custom(string_clone(name)),
-        Type::Reference(inner) => Type::Reference(box_clone::<Type>(inner, type_clone)),
-        Type::ReferenceMut(inner) => Type::ReferenceMut(box_clone::<Type>(inner, type_clone)),
+        Type::Reference(inner, mutable) => {
+            Type::Reference(box_clone::<Type>(inner, type_clone), *mutable)
+        }
         Type::RawPointerMut(inner) => Type::RawPointerMut(box_clone::<Type>(inner, type_clone)),
     }
 }
