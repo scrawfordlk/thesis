@@ -1,14 +1,20 @@
 #![allow(clippy::assign_op_pattern, while_true, non_snake_case)]
 
 fn main() {
-    let str: String = parse_to_llvm(
-        &std::fs::read_to_string("tests/rust/empty.rs").unwrap_or(std::string::String::new()),
-    );
+    let args: std::vec::Vec<std::string::String> = std::env::args().collect();
 
-    let mut i: usize = 0;
-    while i < string_len(&str) {
-        print!("{}", unwrap::<char>(string_get(&str, i)));
-        i = i + 1;
+    if args.len() > 1 {
+        let code: String =
+            parse_to_llvm(&std::fs::read_to_string(&args[1]).expect("no program found"));
+
+        let String::Inner(vec): String = code;
+        let mut file = std::fs::File::create("code.ll").expect("can create file");
+        use std::io::Write;
+        let slice = unsafe { core::slice::from_raw_parts(vec_ptr(&vec), vec_len(&vec)) };
+        file.write_all(slice);
+        std::io::stdout()
+            .write_all(slice)
+            .expect("print code to terminal");
     }
 }
 
