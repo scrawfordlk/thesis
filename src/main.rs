@@ -11,7 +11,7 @@ fn main() {
         let mut file = std::fs::File::create("code.ll").expect("can create file");
         use std::io::Write;
         let slice = unsafe { core::slice::from_raw_parts(vec_ptr(&vec), vec_len(&vec)) };
-        file.write_all(slice);
+        file.write_all(slice).expect("can write all code");
         std::io::stdout()
             .write_all(slice)
             .expect("print code to terminal");
@@ -67,7 +67,6 @@ enum Token {
     TypeArrow,       // "->"
     Literal(Literal),
     Identifier(String),
-    SizeOf(usize), // TODO: probably unnecessary
     Eof,
 }
 
@@ -3685,10 +3684,6 @@ fn token_eq(a: &Token, b: &Token) -> bool {
             Token::Literal(right_literal) => literalToken_eq(left_literal, right_literal),
             _ => false,
         },
-        Token::SizeOf(left) => match b {
-            Token::SizeOf(right) => left == right,
-            _ => false,
-        },
         Token::Identifier(left) => match b {
             Token::Identifier(right) => string_eq(left, right),
             _ => false,
@@ -4036,7 +4031,6 @@ fn token_clone(token: &Token) -> Token {
         Token::TypeArrow => Token::TypeArrow,
         Token::Literal(literal) => Token::Literal(literalToken_clone(literal)),
         Token::Identifier(value) => Token::Identifier(string_clone(value)),
-        Token::SizeOf(value) => Token::SizeOf(*value),
         Token::Eof => Token::Eof,
     }
 }
