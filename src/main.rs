@@ -458,13 +458,19 @@ fn skip_line_comment(lexer: &mut Lexer) {
 
 /// Type that encapsulates the parser's state..
 enum Parser {
-    /// lexer, llvm code, symbol table, current function return type
-    Parser(Lexer, String, SymTable, Type),
+    /// lexer, llvm code, symbol table, current function return type, LLVM context
+    Parser(Lexer, String, SymTable, Type, Context),
 }
 
 /// Create a parser from a String.
 fn parser_new(source: String) -> Parser {
-    Parser::Parser(lexer_new(source), string_new(), symTable_new(), Type::Unit)
+    Parser::Parser(
+        lexer_new(source),
+        string_new(),
+        symTable_new(),
+        Type::Unit,
+        context_new(),
+    )
 }
 
 /// Create a parser from a string slice.
@@ -474,50 +480,56 @@ fn parser_from_str(source: &str) -> Parser {
 
 /// Get immutable access to the parser lexer.
 fn parser_lexer(parser: &Parser) -> &Lexer {
-    let Parser::Parser(lexer, _, _, _): &Parser = parser;
+    let Parser::Parser(lexer, _, _, _, _): &Parser = parser;
     lexer
 }
 
 /// Get mutable access to the parser lexer.
 fn parser_lexer_mut(parser: &mut Parser) -> &mut Lexer {
-    let Parser::Parser(lexer, _, _, _): &mut Parser = parser;
+    let Parser::Parser(lexer, _, _, _, _): &mut Parser = parser;
     lexer
 }
 
 /// Get immutable access to the parser LLVM output buffer.
 fn parser_llvm(parser: &Parser) -> &String {
-    let Parser::Parser(_, llvm, _, _): &Parser = parser;
+    let Parser::Parser(_, llvm, _, _, _): &Parser = parser;
     llvm
 }
 
 /// Get mutable access to the parser LLVM output buffer.
 fn parser_llvm_mut(parser: &mut Parser) -> &mut String {
-    let Parser::Parser(_, llvm, _, _): &mut Parser = parser;
+    let Parser::Parser(_, llvm, _, _, _): &mut Parser = parser;
     llvm
 }
 
 /// Get immutable access to the parser symbol table.
 fn parser_symtable(parser: &Parser) -> &SymTable {
-    let Parser::Parser(_, _, symTable, _): &Parser = parser;
+    let Parser::Parser(_, _, symTable, _, _): &Parser = parser;
     symTable
 }
 
 /// Get mutable access to the parser symbol table.
 fn parser_symtable_mut(parser: &mut Parser) -> &mut SymTable {
-    let Parser::Parser(_, _, symTable, _): &mut Parser = parser;
+    let Parser::Parser(_, _, symTable, _, _): &mut Parser = parser;
     symTable
 }
 
 /// Get the expected return type of the current function.
 fn parser_current_fn_return_type(parser: &Parser) -> &Type {
-    let Parser::Parser(_, _, _, return_type): &Parser = parser;
+    let Parser::Parser(_, _, _, return_type, _): &Parser = parser;
     return_type
 }
 
 /// Update the expected return type of the current function.
 fn parser_set_current_fn_return_type(parser: &mut Parser, ty: Type) {
-    let Parser::Parser(_, _, _, return_type): &mut Parser = parser;
+    let Parser::Parser(_, _, _, return_type, _): &mut Parser = parser;
     *return_type = ty;
+}
+
+/// Get a mutable reference to the LLVM context.
+fn parser_context_mut(parser: &mut Parser) -> &mut Context {
+    let Parser::Parser(_, _, _, _, context): &mut Parser = parser;
+    context
 }
 
 /// Get the parser current token.
@@ -589,6 +601,16 @@ fn parser_expect_identifier(parser: &mut Parser) -> String {
         }
         _ => parser_error(parser, "expected identifier"),
     }
+}
+
+/// Pair that contains a String and a Rust Type
+enum STPair {
+    ST(String, Type),
+}
+
+fn stPair_get_type(pair: STPair) -> Type {
+    let STPair::ST(_, ty): STPair = pair;
+    ty
 }
 
 fn parse_language(parser: &mut Parser) {
@@ -680,18 +702,15 @@ fn parse_function(parser: &mut Parser) {
         parser_error(parser, "duplicate function name");
     }
 
-    match parse_block(parser) {
-        Type::Never => (),
-        block_type => parser_expect_same_type(parser, &block_type, &function_return_type),
-    }
+    let STPair::ST(name, block_type): STPair = parse_block(parser);
+    parser_expect_same_type(parser, &block_type, &function_return_type);
 
     match function_return_type {
-        Type::Unit => llvm_emit_line(parser_llvm_mut(parser), "  ret void"),
-        Type::Never => llvm_emit_line(parser_llvm_mut(parser), "  unreachable"),
-        _ => llvm_emit_line(parser_llvm_mut(parser), "  ret i64 0"),
+        Type::Unit => llvm_emit_ret_void(parser),
+        _ => llvm_emit_ret_value(parser, block_type, name),
     }
-    llvm_emit_line(parser_llvm_mut(parser), "}");
 
+    llvm_emit_line(parser_llvm_mut(parser), "}");
     symTable_leave_scope(parser_symtable_mut(parser));
     parser_set_current_fn_return_type(parser, Type::Unit);
 }
@@ -742,7 +761,7 @@ fn parse_variant(parser: &mut Parser) -> Type {
 }
 
 // TODO: should introduce a new symbol table
-fn parse_block(parser: &mut Parser) -> Type {
+fn parse_block(parser: &mut Parser) -> STPair {
     parser_expect_token(parser, &Token::LBrace);
 
     while not(parser_current_token_eq(parser, &Token::RBrace)) {
@@ -752,29 +771,29 @@ fn parse_block(parser: &mut Parser) -> Type {
                 parser_expect_token(parser, &Token::SemiColon);
             }
             _ => {
-                let expression_type: Type = parse_expression(parser);
+                let STPair::ST(name, ty) = parse_expression(parser);
                 if parser_try_consume(parser, &Token::SemiColon) {
-                    llvm_emit_line(parser_llvm_mut(parser), "  ; expression statement");
+                    llvm_emit_line(parser_llvm_mut(parser), "");
                 } else {
                     parser_expect_token(parser, &Token::RBrace);
-                    return expression_type;
+                    return STPair::ST(name, ty);
                 }
             }
         }
     }
 
     parser_expect_token(parser, &Token::RBrace);
-    Type::Unit
+    STPair::ST(string_new(), Type::Unit)
 }
 
+// TODO: code generation
 fn parse_binding(parser: &mut Parser) {
     parser_expect_token(parser, &Token::Let);
-    let variable: Variable = parse_variable(parser);
+    let Variable::Var(pattern, binding_type, mutable): Variable = parse_variable(parser);
     parser_expect_token(parser, &Token::Assign);
-    let value_type: Type = parse_expression(parser);
+    let STPair::ST(name, left_type): STPair = parse_expression(parser);
 
-    let Variable::Var(pattern, binding_type, mutable): Variable = variable;
-    parser_expect_same_type(parser, &binding_type, &value_type);
+    parser_expect_same_type(parser, &binding_type, &left_type);
 
     match pattern {
         Pattern::Identifier(name) => {
@@ -851,56 +870,54 @@ fn parse_type(parser: &mut Parser) -> Type {
     }
 }
 
-fn parse_expression(parser: &mut Parser) -> Type {
+fn parse_expression(parser: &mut Parser) -> STPair {
     match parser_current_token(parser) {
         Token::Return => {
             parser_next_token(parser);
 
-            let returned_type: Type = match parser_current_token(parser) {
-                Token::SemiColon => Type::Unit,
-                Token::RBrace => Type::Unit,
-                _ => parse_expression(parser),
-            };
+            match parser_current_token(parser) {
+                Token::SemiColon | Token::RBrace => STPair::ST(string_new(), Type::Unit),
 
-            let expected: &Type = parser_current_fn_return_type(parser);
-            parser_expect_same_type(parser, &returned_type, expected);
-
-            Type::Never
+                _ => {
+                    let STPair::ST(name, ty): STPair = parse_expression(parser);
+                    parser_expect_same_type(parser, &ty, parser_current_fn_return_type(parser));
+                    STPair::ST(name, ty)
+                }
+            }
         }
+
         _ => parse_assignment(parser),
     }
 }
 
-fn parse_assignment(parser: &mut Parser) -> Type {
-    let left_type: Type = parse_factor(parser);
+fn f() -> usize {
+    return 4;
+}
+
+fn parse_assignment(parser: &mut Parser) -> STPair {
+    let STPair::ST(left_name, left_type): STPair = parse_comparison(parser);
 
     if parser_try_consume(parser, &Token::Assign) {
-        let right_type: Type = parse_comparison(parser);
+        let STPair::ST(right_name, right_type): STPair = parse_assignment(parser);
         parser_expect_same_type(parser, &left_type, &right_type);
 
         llvm_emit_line(parser_llvm_mut(parser), "  ; assignment");
 
-        right_type
+        STPair::ST(right_name, Type::Unit)
     } else {
-        left_type
+        STPair::ST(left_name, left_type)
     }
 }
 
-fn parse_comparison(parser: &mut Parser) -> Type {
-    let left_type: Type = parse_arithmetic(parser);
+fn parse_comparison(parser: &mut Parser) -> STPair {
+    let STPair::ST(left_name, left_type): STPair = parse_arithmetic(parser);
 
     match parser_current_token(parser) {
         Token::Cmp(operator) => {
-            match operator {
-                Comparison::Lt => (),
-                Comparison::Gt => (),
-                Comparison::Leq => (),
-                Comparison::Geq => (),
-                _ => (),
-            }
+            let operator: Comparison = comparison_clone(operator);
             parser_next_token(parser);
 
-            let right_type: Type = parse_arithmetic(parser);
+            let STPair::ST(right_name, right_type): STPair = parse_arithmetic(parser);
 
             parser_expect_same_type(parser, &left_type, &right_type);
             if not(or(
@@ -909,148 +926,160 @@ fn parse_comparison(parser: &mut Parser) -> Type {
             )) {
                 parser_error(parser, "cannot compare non-integer values");
             }
-        }
-        _ => return left_type,
-    }
 
-    Type::Bool
+            let name: String = match operator {
+                Comparison::Eq => llvm_emit_icmp(parser, "eq", right_type, left_name, right_name),
+                Comparison::Neq => llvm_emit_icmp(parser, "ne", right_type, left_name, right_name),
+                Comparison::Gt => llvm_emit_icmp(parser, "ugt", right_type, left_name, right_name),
+                Comparison::Lt => llvm_emit_icmp(parser, "ult", right_type, left_name, right_name),
+                Comparison::Geq => llvm_emit_icmp(parser, "uge", right_type, left_name, right_name),
+                Comparison::Leq => llvm_emit_icmp(parser, "ule", right_type, left_name, right_name),
+            };
+            STPair::ST(name, Type::Bool)
+        }
+
+        _ => STPair::ST(left_name, left_type),
+    }
 }
 
-fn parse_arithmetic(parser: &mut Parser) -> Type {
-    let left_type: Type = parse_term(parser);
+fn parse_arithmetic(parser: &mut Parser) -> STPair {
+    let STPair::ST(left_name, left_type): STPair = parse_term(parser);
 
-    while or(
-        parser_current_token_eq(parser, &Token::Plus),
-        parser_current_token_eq(parser, &Token::Minus),
-    ) {
-        match parser_current_token(parser) {
-            Token::Plus => (),
-            Token::Minus => (),
-            _ => (),
+    match parser_current_token(parser) {
+        Token::Plus | Token::Minus => {
+            let operator: Token = token_clone(parser_current_token(parser));
+            parser_next_token(parser);
+
+            let STPair::ST(right_name, right_type): STPair = parse_arithmetic(parser);
+
+            parser_expect_same_type(parser, &left_type, &right_type);
+            parser_expect_numeric_type(parser, &left_type);
+
+            let name: String = match operator {
+                Token::Plus => llvm_emit_add(parser, right_type, left_name, right_name),
+                Token::Minus => llvm_emit_sub(parser, right_type, left_name, right_name),
+                _ => panic!("unreachable"),
+            };
+            STPair::ST(name, left_type)
         }
-        parser_next_token(parser);
 
-        let right_type: Type = parse_term(parser);
-
-        parser_expect_same_type(parser, &left_type, &right_type);
-        parser_expect_numeric_type(parser, &left_type);
-
-        llvm_emit_line(parser_llvm_mut(parser), "  ; add/sub");
+        _ => STPair::ST(left_name, left_type),
     }
-
-    left_type
 }
 
-fn parse_term(parser: &mut Parser) -> Type {
-    let left_type: Type = parse_cast(parser);
+fn parse_term(parser: &mut Parser) -> STPair {
+    let STPair::ST(left_name, left_type): STPair = parse_cast(parser);
 
-    while or(
-        parser_current_token_eq(parser, &Token::Star),
-        or(
-            parser_current_token_eq(parser, &Token::Slash),
-            parser_current_token_eq(parser, &Token::Remainder),
-        ),
-    ) {
-        match parser_current_token(parser) {
-            Token::Star => (),
-            Token::Slash => (),
-            Token::Remainder => (),
-            _ => (),
+    match parser_current_token(parser) {
+        Token::Star | Token::Slash | Token::Remainder => {
+            let operator: Token = token_clone(parser_current_token(parser));
+            parser_next_token(parser);
+
+            let STPair::ST(right_name, right_type): STPair = parse_term(parser);
+
+            parser_expect_same_type(parser, &left_type, &right_type);
+            parser_expect_numeric_type(parser, &left_type);
+
+            let name: String = match operator {
+                Token::Star => llvm_emit_mul(parser, right_type, left_name, right_name),
+                Token::Slash => llvm_emit_udiv(parser, right_type, left_name, right_name),
+                Token::Remainder => llvm_emit_urem(parser, right_type, left_name, right_name),
+                _ => panic!("unreachable"),
+            };
+            STPair::ST(name, left_type)
         }
-        parser_next_token(parser);
 
-        let right_type: Type = parse_cast(parser);
-
-        parser_expect_same_type(parser, &left_type, &right_type);
-        parser_expect_numeric_type(parser, &left_type);
-
-        llvm_emit_line(parser_llvm_mut(parser), "  ; mul/div/rem");
+        _ => STPair::ST(left_name, left_type),
     }
-
-    left_type
 }
 
-fn parse_cast(parser: &mut Parser) -> Type {
-    let mut ty: Type = parse_factor(parser);
+fn parse_cast(parser: &mut Parser) -> STPair {
+    let STPair::ST(name, mut ty): STPair = parse_factor(parser);
 
     while parser_try_consume(parser, &Token::As) {
         let cast_type: Type = parse_type(parser);
         ty = cast_type;
     }
 
-    ty
+    STPair::ST(name, type_clone(&ty))
 }
 
-fn parse_factor(parser: &mut Parser) -> Type {
+fn parse_factor(parser: &mut Parser) -> STPair {
     match parser_current_token(parser) {
         Token::Minus => {
             parser_next_token(parser);
-            let inner: Type = parse_factor(parser);
+            let inner: Type = stPair_get_type(parse_factor(parser));
             parser_expect_numeric_type(parser, &inner);
-            inner
+            STPair::ST(string_new(), inner)
         }
         Token::Star => {
             parser_next_token(parser);
-            let inner: Type = parse_factor(parser);
-            match inner {
-                Type::RawPointerMut(pointed) => type_clone(box_deref::<Type>(&pointed)),
-                Type::Reference(pointed) => type_clone(box_deref::<Type>(&pointed)),
-                Type::ReferenceMut(pointed) => type_clone(box_deref::<Type>(&pointed)),
-                _ => parser_error(parser, "cannot dereference this expression"),
-            }
+            let inner: Type = stPair_get_type(parse_factor(parser));
+            STPair::ST(
+                string_new(),
+                match inner {
+                    Type::RawPointerMut(pointed) => type_clone(box_deref::<Type>(&pointed)),
+                    Type::Reference(pointed) => type_clone(box_deref::<Type>(&pointed)),
+                    Type::ReferenceMut(pointed) => type_clone(box_deref::<Type>(&pointed)),
+                    _ => parser_error(parser, "cannot dereference this expression"),
+                },
+            )
         }
         Token::Ampersand => {
             parser_next_token(parser);
             let mutable: bool = parser_try_consume(parser, &Token::Mut);
-            let inner: Type = parse_factor(parser);
-            if mutable {
-                Type::ReferenceMut(box_new::<Type>(inner))
-            } else {
-                Type::Reference(box_new::<Type>(inner))
-            }
+            let inner: Type = stPair_get_type(parse_factor(parser));
+            STPair::ST(
+                string_new(),
+                if mutable {
+                    Type::ReferenceMut(box_new::<Type>(inner))
+                } else {
+                    Type::Reference(box_new::<Type>(inner))
+                },
+            )
         }
         Token::Literal(_) => parse_literal(parser),
         Token::Identifier(_) => {
             let name: String = parser_expect_identifier(parser);
             if parser_current_token_eq(parser, &Token::LParen) {
-                parse_call(parser, name)
+                STPair::ST(string_new(), parse_call(parser, name))
             } else {
                 match symTable_lookup_variable_type(parser_symtable(parser), &name) {
-                    Option::Some(ty) => ty,
+                    Option::Some(ty) => STPair::ST(string_new(), ty),
                     Option::None => parser_error(parser, "undefined variable"),
                 }
             }
         }
         Token::LParen => {
             parser_next_token(parser);
-            let ty: Type = parse_expression(parser);
+            let STPair::ST(name, ty): STPair = parse_expression(parser);
             parser_expect_token(parser, &Token::RParen);
-            ty
+            STPair::ST(name, ty)
         }
         Token::Unsafe => {
             parser_next_token(parser);
             parse_block(parser)
         }
         Token::LBrace => parse_block(parser),
-        Token::If => parse_if(parser),
-        Token::While => parse_while(parser),
-        Token::Match => parse_match(parser),
-        _ => parser_error(parser, "unexpected token"),
+        Token::If => STPair::ST(string_new(), parse_if(parser)),
+        Token::While => STPair::ST(string_new(), parse_while(parser)),
+        Token::Match => STPair::ST(string_new(), parse_match(parser)),
+        _ => parser_error(parser, "unexpected token in parse_factor()"),
     }
 }
 
 fn parse_if(parser: &mut Parser) -> Type {
     parser_expect_token(parser, &Token::If);
 
-    let condition_type: Type = parse_expression(parser);
+    let STPair::ST(cond_name, condition_type): STPair = parse_expression(parser);
     parser_expect_bool_type(parser, &condition_type);
 
-    let then_type: Type = parse_block(parser);
+    let STPair::ST(then_name, then_type): STPair = parse_block(parser);
     if parser_try_consume(parser, &Token::Else) {
         let else_type: Type = if parser_current_token_eq(parser, &Token::If) {
             parse_if(parser)
         } else {
-            parse_block(parser)
+            stPair_get_type(parse_block(parser))
         };
         parser_expect_same_type(parser, &then_type, &else_type);
         then_type
@@ -1062,7 +1091,7 @@ fn parse_if(parser: &mut Parser) -> Type {
 fn parse_while(parser: &mut Parser) -> Type {
     parser_expect_token(parser, &Token::While);
 
-    let condition_type: Type = parse_expression(parser);
+    let STPair::ST(cond_name, condition_type): STPair = parse_expression(parser);
     parser_expect_bool_type(parser, &condition_type);
 
     parse_block(parser);
@@ -1073,7 +1102,7 @@ fn parse_while(parser: &mut Parser) -> Type {
 fn parse_match(parser: &mut Parser) -> Type {
     parser_expect_token(parser, &Token::Match);
 
-    let expression_type: Type = parse_expression(parser);
+    let STPair::ST(name, expression_type): STPair = parse_expression(parser);
 
     parser_expect_token(parser, &Token::LBrace);
 
@@ -1090,7 +1119,7 @@ fn parse_arms(parser: &mut Parser, matched_type: &Type) -> Type {
 
     parser_expect_token(parser, &Token::ArmArrow);
 
-    let return_type: Type = parse_expression(parser);
+    let return_type: Type = stPair_get_type(parse_expression(parser));
     parser_expect_token(parser, &Token::Comma);
 
     while not(parser_current_token_eq(parser, &Token::RBrace)) {
@@ -1100,7 +1129,7 @@ fn parse_arms(parser: &mut Parser, matched_type: &Type) -> Type {
 
         parser_expect_token(parser, &Token::ArmArrow);
 
-        let arm_type: Type = parse_expression(parser);
+        let arm_type: Type = stPair_get_type(parse_expression(parser));
         parser_expect_same_type(parser, &return_type, &arm_type);
         parser_expect_token(parser, &Token::Comma);
     }
@@ -1174,14 +1203,14 @@ fn parse_call(parser: &mut Parser, function_name: String) -> Type {
 
     let mut argument_types: List<Type> = list_new::<Type>();
     if not(parser_current_token_eq(parser, &Token::RParen)) {
-        let first_argument_type: Type = parse_expression(parser);
+        let first_argument_type: Type = stPair_get_type(parse_expression(parser));
         list_append::<Type>(&mut argument_types, first_argument_type);
 
         while and(
             parser_try_consume(parser, &Token::Comma),
             not(parser_current_token_eq(parser, &Token::RParen)),
         ) {
-            let argument_type: Type = parse_expression(parser);
+            let argument_type: Type = stPair_get_type(parse_expression(parser));
             list_append::<Type>(&mut argument_types, argument_type);
         }
     }
@@ -1201,23 +1230,82 @@ fn parse_call(parser: &mut Parser, function_name: String) -> Type {
     }
 }
 
-fn parse_literal(parser: &mut Parser) -> Type {
+fn parse_literal(parser: &mut Parser) -> STPair {
     match parser_current_token(parser) {
         Token::Literal(literal) => {
             let current_literal: Literal = literalToken_clone(literal);
             parser_next_token(parser);
 
             match current_literal {
-                Literal::Int(_) => Type::Usize,
-                Literal::String(_) => {
-                    Type::Reference(box_new::<Type>(Type::Custom(string_from_str("str"))))
+                Literal::Int(value) => {
+                    let name: String = llvm_emit_add(
+                        parser,
+                        Type::Usize,
+                        string_from_str("0"),
+                        integer_to_string(value),
+                    );
+                    STPair::ST(name, Type::Usize)
                 }
-                Literal::Char(_) => Type::Char,
-                Literal::Bool(_) => Type::Bool,
+
+                // TODO: Implement string literal
+                Literal::String(_) => STPair::ST(
+                    string_new(),
+                    Type::Reference(box_new::<Type>(Type::Custom(string_from_str("str")))),
+                ),
+
+                Literal::Char(value) => {
+                    let name: String = llvm_emit_add(
+                        parser,
+                        Type::Char,
+                        string_from_str("0"),
+                        integer_to_string(value as usize),
+                    );
+                    STPair::ST(name, Type::Char)
+                }
+
+                Literal::Bool(value) => {
+                    let name: String = llvm_emit_add(
+                        parser,
+                        Type::Bool,
+                        string_from_str("0"),
+                        integer_to_string(value as usize),
+                    );
+                    STPair::ST(name, Type::Bool)
+                }
             }
         }
         _ => parser_error(parser, "expected literal"),
     }
+}
+
+/// Manages the context of the currently generated LLVM-IR.
+/// It handles e.g. the already assigned virtual registers.
+enum Context {
+    /// temporary counter
+    Context(usize),
+}
+
+fn context_new() -> Context {
+    Context::Context(0)
+}
+
+fn context_get_counter(context: &Context) -> usize {
+    let Context::Context(counter): &Context = context;
+    *counter
+}
+
+fn context_increment_counter(context: &mut Context) {
+    let Context::Context(counter): &mut Context = context;
+    *counter = *counter + 1;
+}
+
+/// Get the next available virtual register name.
+fn context_next_temporary(context: &mut Context) -> String {
+    let id: usize = context_get_counter(context);
+    context_increment_counter(context);
+    let mut name: String = string_from_str("%.t"); // '.' avoids name clashes with variables
+    string_push_string(&mut name, &integer_to_string(id));
+    name
 }
 
 /// Data structure that manages a global symbol table and (multiple) local symbol tables.
@@ -1525,6 +1613,7 @@ enum FnSignature {
 }
 
 /// Type forms supported by the front-end.
+#[derive(Debug)]
 enum Type {
     U8,
     Usize,
@@ -1560,6 +1649,107 @@ fn type_to_llvm_name(ty: &Type) -> String {
         Type::ReferenceMut(_) => string_from_str("i64"),
         Type::RawPointerMut(_) => string_from_str("i64"),
     }
+}
+
+// -----------------------------------------------------------------
+// ---------------------- Code Generation --------------------------
+// -----------------------------------------------------------------
+
+/// Emit a binary instruction of the following form:
+/// <name> = <op> <ty> <lhs>,<rhs>
+/// and return <name>.
+///
+/// The destination register's name <name> is the next available virtual register name that is retrieved
+/// from the LLVM context.
+fn llvm_emit_binary(parser: &mut Parser, op: &str, ty: Type, lhs: String, rhs: String) -> String {
+    let name: String = context_next_temporary(parser_context_mut(parser));
+    let code: &mut String = parser_llvm_mut(parser);
+    string_push_str(code, "  ");
+    string_push_string(code, &name);
+    string_push_str(code, " = ");
+    string_push_str(code, op);
+    string_push(code, ' ');
+    string_push_string(code, &type_to_llvm_name(&ty));
+    string_push(code, ' ');
+    string_push_string(code, &lhs);
+    string_push(code, ',');
+    string_push_string(code, &rhs);
+    string_push(code, '\n');
+    name
+}
+
+/// Emit an add instruction:
+/// <name> = add <ty> <lhs>,<rhs>
+/// and return <name>.
+fn llvm_emit_add(parser: &mut Parser, ty: Type, lhs: String, rhs: String) -> String {
+    llvm_emit_binary(parser, "add", ty, lhs, rhs)
+}
+
+/// Emit an add instruction:
+/// <name> = add <ty> <lhs>,<rhs>
+/// and return <name>.
+fn llvm_emit_sub(parser: &mut Parser, ty: Type, lhs: String, rhs: String) -> String {
+    llvm_emit_binary(parser, "sub", ty, lhs, rhs)
+}
+
+/// Emit a mul instruction:
+/// <name> = mul <ty> <lhs>,<rhs>
+/// and return <name>.
+fn llvm_emit_mul(parser: &mut Parser, ty: Type, lhs: String, rhs: String) -> String {
+    llvm_emit_binary(parser, "mul", ty, lhs, rhs)
+}
+
+/// Emit a divu instruction:
+/// <name> = divu <ty> <lhs>,<rhs>
+/// and return <name>.
+fn llvm_emit_udiv(parser: &mut Parser, ty: Type, lhs: String, rhs: String) -> String {
+    llvm_emit_binary(parser, "udiv", ty, lhs, rhs)
+}
+
+/// Emit a remu instruction:
+/// <name> = remu <ty> <lhs>, <rhs>
+/// and return <name>.
+fn llvm_emit_urem(parser: &mut Parser, ty: Type, lhs: String, rhs: String) -> String {
+    llvm_emit_binary(parser, "urem", ty, lhs, rhs)
+}
+
+/// Emit an icmp instruction:
+/// <name> = icmp <op> <ty> <lhs>,<rhs>
+/// and return <name>.
+fn llvm_emit_icmp(parser: &mut Parser, op: &str, ty: Type, lhs: String, rhs: String) -> String {
+    let name: String = context_next_temporary(parser_context_mut(parser));
+    let code: &mut String = parser_llvm_mut(parser);
+    string_push_str(code, "  ");
+    string_push_string(code, &name);
+    string_push_str(code, " = icmp ");
+    string_push_str(code, op);
+    string_push(code, ' ');
+    string_push_string(code, &type_to_llvm_name(&ty));
+    string_push(code, ' ');
+    string_push_string(code, &lhs);
+    string_push(code, ',');
+    string_push_string(code, &rhs);
+    string_push(code, '\n');
+    name
+}
+
+/// Emit a ret instruction:
+/// ret <ty> <value>
+fn llvm_emit_ret_value(parser: &mut Parser, ty: Type, value: String) {
+    let code: &mut String = parser_llvm_mut(parser);
+    string_push_str(code, "  ");
+    string_push_str(code, "ret ");
+    string_push_string(code, &type_to_llvm_name(&ty));
+    string_push(code, ' ');
+    string_push_string(code, &value);
+    string_push(code, '\n');
+}
+
+/// Emit a ret void instruction:
+/// ret void
+fn llvm_emit_ret_void(parser: &mut Parser) {
+    let code: &mut String = parser_llvm_mut(parser);
+    string_push_str(code, "  ret void\n");
 }
 
 // -----------------------------------------------------------------
@@ -3050,6 +3240,7 @@ fn list_append<T>(list: &mut List<T>, value: T) {
 // ----------------------------------------------------------------
 
 /// Pointer to heap that owns its value.
+#[derive(Debug)]
 enum Box<T> {
     Ptr(*mut T),
 }
@@ -3183,6 +3374,20 @@ fn vec_get_mut<'a, T>(vec: &'a mut Vec<T>, index: usize) -> Option<&'a mut T> {
     } else {
         let ptr: *mut T = ptr_add::<T>(vec_ptr::<T>(vec), index);
         unsafe { Option::Some(&mut *ptr) }
+    }
+}
+
+/// Set a value at the given index. Return false if the index is out of bounds.
+fn vec_set<T>(vec: &mut Vec<T>, index: usize, value: T) -> bool {
+    if index >= vec_len::<T>(vec) {
+        false
+    } else {
+        let ptr: *mut T = vec_ptr::<T>(vec);
+        let ptr: *mut T = ptr_add::<T>(ptr, index);
+        unsafe {
+            *ptr = value;
+        }
+        true
     }
 }
 
@@ -4038,6 +4243,12 @@ fn string_get(string: &String, index: usize) -> Option<char> {
     }
 }
 
+/// Set a character in a string. Return false if the index is out of bounds.
+fn string_set(string: &mut String, index: usize, character: char) -> bool {
+    let String::Inner(vec): &mut String = string;
+    vec_set::<u8>(vec, index, character as u8)
+}
+
 /// Append a character to the string.
 fn string_push(string: &mut String, character: char) {
     let String::Inner(bytes): &mut String = string;
@@ -4091,6 +4302,39 @@ fn string_to_integer(string: &mut String, base: usize) -> Option<usize> {
         i = i + 1;
     }
     Option::Some(value)
+}
+
+/// Convert an integer into a string.
+fn integer_to_string(mut integer: usize) -> String {
+    let mut string: String = string_new();
+
+    if integer == 0 {
+        string_push(&mut string, '0');
+        return string;
+    }
+
+    while integer > 0 {
+        let digit: u8 = (integer % 10) as u8;
+        let character: char = ('0' as u8 + digit) as char;
+        string_push(&mut string, character);
+        integer = integer / 10;
+    }
+
+    string_reverse(&mut string);
+    string
+}
+
+/// Reverse a String in place.
+fn string_reverse(string: &mut String) {
+    let len: usize = string_len(string);
+    let mut i: usize = 0;
+    while i < len / 2 {
+        let a: char = unwrap::<char>(string_get(string, i));
+        let b: char = unwrap::<char>(string_get(string, len - 1 - i));
+        string_set(string, i, b);
+        string_set(string, len - 1 - i, a);
+        i = i + 1;
+    }
 }
 
 /// Hash a String.
