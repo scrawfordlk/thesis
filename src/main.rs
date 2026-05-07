@@ -890,10 +890,6 @@ fn parse_expression(parser: &mut Parser) -> STPair {
     }
 }
 
-fn f() -> usize {
-    return 4;
-}
-
 fn parse_assignment(parser: &mut Parser) -> STPair {
     let STPair::ST(left_name, left_type): STPair = parse_comparison(parser);
 
