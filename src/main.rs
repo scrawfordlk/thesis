@@ -99,19 +99,60 @@ enum Lexer {
 
 /// A type that manages the source file
 enum SourceFile {
-    /// content, current character index, current location
+    /// content, next character index, current location
     SourceFile(String, usize, SourceLocation),
+}
+
+/// Get the character at the given index.
+fn sourceFile_get_char(file: &SourceFile, index: usize) -> Option<char> {
+    let SourceFile::SourceFile(string, _, _): &SourceFile = file;
+    string_get(string, index)
+}
+
+/// Returns the current line.
+fn sourceFile_current_line(file: &SourceFile) -> usize {
+    let SourceFile::SourceFile(_, _, location): &SourceFile = file;
+    sourceLocation_line(location)
+}
+
+/// Returns the current column in the current line.
+fn sourceFile_current_column(file: &SourceFile) -> usize {
+    let SourceFile::SourceFile(_, next_char_idx, location): &SourceFile = file;
+    next_char_idx - sourceLocation_last_newline_idx(location) - 1
+}
+
+/// Returns the index of the beginning of the current line.
+fn sourceFile_current_line_start(file: &SourceFile) -> usize {
+    let SourceFile::SourceFile(_, _, location): &SourceFile = file;
+    sourceLocation_last_newline_idx(location) + 1
 }
 
 /// A type that tracks the location in the source code
 enum SourceLocation {
-    /// line, column
-    Coords(usize, usize),
+    /// line, character index of last newline
+    Loc(usize, usize),
+}
+
+/// Creates a new SourceLocation initialised to the index of the first character.
+fn sourceLocation_new() -> SourceLocation {
+    SourceLocation::Loc(1, 0)
+}
+
+/// Returns the current line.
+fn sourceLocation_line(location: &SourceLocation) -> usize {
+    let SourceLocation::Loc(line, _): &SourceLocation = location;
+    *line
+}
+
+/// Returns the index of the last newline character.
+fn sourceLocation_last_newline_idx(location: &SourceLocation) -> usize {
+    let SourceLocation::Loc(_, last_newline_idx): &SourceLocation = location;
+    *last_newline_idx
 }
 
 /// Create a lexer and prime it with the first token.
 fn lexer_new(source: String) -> Lexer {
-    let source_file: SourceFile = SourceFile::SourceFile(source, 0, SourceLocation::Coords(1, 1));
+    let source_file: SourceFile = SourceFile::SourceFile(source, 0, sourceLocation_new());
     let mut lexer: Lexer = Lexer::Lexer(source_file, Token::Eof);
     lexer_next_token(&mut lexer);
     lexer
@@ -141,19 +182,13 @@ fn lexer_set_current_token(lexer: &mut Lexer, token: Token) {
     *old_token = token;
 }
 
-/// Get the current source location tracked by the lexer.
-fn lexer_location(lexer: &Lexer) -> &SourceLocation {
-    let SourceFile::SourceFile(_, _, location): &SourceFile = lexer_sourcefile(lexer);
-    location
-}
-
-/// Peek at the current character without consuming it.
+/// Peek at the next character without consuming it.
 fn lexer_peek_char(lexer: &Lexer) -> Option<char> {
-    let SourceFile::SourceFile(content, index, _): &SourceFile = lexer_sourcefile(lexer);
-    string_get(content, *index)
+    let SourceFile::SourceFile(string, index, _): &SourceFile = lexer_sourcefile(lexer);
+    string_get(string, *index)
 }
 
-/// Consume and return the current character.
+/// Consume and return the next character.
 fn lexer_consume_char(lexer: &mut Lexer) -> Option<char> {
     let SourceFile::SourceFile(source, index, location): &mut SourceFile =
         lexer_sourcefile_mut(lexer);
@@ -162,13 +197,12 @@ fn lexer_consume_char(lexer: &mut Lexer) -> Option<char> {
     *index = *index + 1;
 
     match current {
-        Option::Some(c) => {
-            let SourceLocation::Coords(line, col): &mut SourceLocation = location;
-            if c == '\n' {
+        Option::Some(character) => {
+            let SourceLocation::Loc(line, last_newline_idx): &mut SourceLocation = location;
+
+            if character == '\n' {
                 *line = *line + 1;
-                *col = 1;
-            } else {
-                *col = *col + 1;
+                *last_newline_idx = *index;
             }
         }
         Option::None => {}
@@ -1786,7 +1820,7 @@ enum LlvmLexer {
 
 /// Create a new LLVM lexer and scan the first token.
 fn llvmLexer_new(source: String) -> LlvmLexer {
-    let source_file: SourceFile = SourceFile::SourceFile(source, 0, SourceLocation::Coords(1, 1));
+    let source_file: SourceFile = SourceFile::SourceFile(source, 0, SourceLocation::Loc(1, 1));
     let mut lexer: LlvmLexer = LlvmLexer::Lexer(source_file, LlvmToken::Eof);
     llvmLexer_next_token(&mut lexer);
     lexer
@@ -1859,7 +1893,7 @@ fn llvmLexer_consume_char(lexer: &mut LlvmLexer) -> Option<char> {
 
     match current {
         Option::Some(c) => {
-            let SourceLocation::Coords(line, col): &mut SourceLocation = location;
+            let SourceLocation::Loc(line, col): &mut SourceLocation = location;
             if c == '\n' {
                 *line = *line + 1;
                 *col = 1;
@@ -3051,13 +3085,36 @@ fn llvm_emit_call_comment(llvm: &mut String, function_name: &String) {
     llvm_emit_newline(llvm);
 }
 
-// -------------------------- error --------------------------------
+// -------------------------- Error --------------------------------
 
 /// Report an error message with source location and exit.
 /// TODO: not subset-conform
 fn lexer_error(lexer: &Lexer, message: &str) -> ! {
-    let SourceLocation::Coords(line, col): &SourceLocation = lexer_location(lexer);
-    eprintln!("error at {}:{}: {}", line, col, message);
+    let file: &SourceFile = lexer_sourcefile(lexer);
+    let line: usize = sourceFile_current_line(file);
+    let col: usize = sourceFile_current_column(file);
+
+    eprintln!("ERROR at {}:{}:", line, col);
+
+    let mut start: usize = sourceFile_current_line_start(file);
+    let mut reached_end: bool = false;
+    while not(reached_end) {
+        match sourceFile_get_char(file, start) {
+            Option::Some('\n') => reached_end = true,
+            Option::Some(c) => eprint!("{}", c),
+            Option::None => reached_end = true,
+        }
+        start = start + 1;
+    }
+    eprintln!();
+
+    let mut i: usize = 1;
+    while i < col {
+        eprint!(" ");
+        i = i + 1;
+    }
+    eprintln!("^ {}", message);
+
     std::process::exit(1);
 }
 
@@ -3068,9 +3125,32 @@ fn parser_error(parser: &Parser, message: &str) -> ! {
 
 /// Emit an LLVM parser error and panic.
 fn llvmParser_error(parser: &LlvmParser, message: &str) -> ! {
-    let SourceLocation::Coords(line, col): &SourceLocation =
-        llvmLexer_location(llvmParser_lexer(parser));
-    panic!("llvm parser error at {}:{}: {}", line, col, message);
+    let file: &SourceFile = llvmLexer_sourcefile(llvmParser_lexer(parser));
+    let line: usize = sourceFile_current_line(file);
+    let col: usize = sourceFile_current_column(file);
+
+    eprintln!("ERROR at {}:{}:", line, col);
+
+    let mut start: usize = sourceFile_current_line_start(file);
+    let mut reached_end: bool = false;
+    while not(reached_end) {
+        match sourceFile_get_char(file, start) {
+            Option::Some('\n') => reached_end = true,
+            Option::Some(c) => eprint!("{}", c),
+            Option::None => reached_end = true,
+        }
+        start = start + 1;
+    }
+    eprintln!();
+
+    let mut i: usize = 1;
+    while i < col {
+        eprint!(" ");
+        i = i + 1;
+    }
+    eprintln!("^ {}", message);
+
+    std::process::exit(1);
 }
 
 // -----------------------------------------------------------------
