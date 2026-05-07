@@ -721,7 +721,7 @@ fn parse_function(parser: &mut Parser) {
 
     match function_return_type {
         Type::Unit => llvm_emit_ret_void(parser),
-        _ => llvm_emit_ret_value(parser, block_type, name),
+        _ => llvm_emit_ret_value(parser, &block_type, &name),
     }
 
     llvm_emit_line(parser_llvm_mut(parser), "}");
@@ -927,9 +927,9 @@ fn parse_comparison(parser: &mut Parser) -> STPair {
             let operator: Comparison = comparison_clone(operator);
             parser_next_token(parser);
 
-            let STPair::ST(right_name, right_type): STPair = parse_arithmetic(parser);
+            let STPair::ST(right_name, rtype): STPair = parse_arithmetic(parser);
 
-            parser_expect_same_type(parser, &left_type, &right_type);
+            parser_expect_same_type(parser, &left_type, &rtype);
             if not(or(
                 type_is_numeric(&left_type),
                 type_eq(&left_type, &Type::Char),
@@ -938,12 +938,12 @@ fn parse_comparison(parser: &mut Parser) -> STPair {
             }
 
             let name: String = match operator {
-                Comparison::Eq => llvm_emit_icmp(parser, "eq", right_type, left_name, right_name),
-                Comparison::Neq => llvm_emit_icmp(parser, "ne", right_type, left_name, right_name),
-                Comparison::Gt => llvm_emit_icmp(parser, "ugt", right_type, left_name, right_name),
-                Comparison::Lt => llvm_emit_icmp(parser, "ult", right_type, left_name, right_name),
-                Comparison::Geq => llvm_emit_icmp(parser, "uge", right_type, left_name, right_name),
-                Comparison::Leq => llvm_emit_icmp(parser, "ule", right_type, left_name, right_name),
+                Comparison::Eq => llvm_emit_icmp(parser, "eq", &rtype, &left_name, &right_name),
+                Comparison::Neq => llvm_emit_icmp(parser, "ne", &rtype, &left_name, &right_name),
+                Comparison::Gt => llvm_emit_icmp(parser, "ugt", &rtype, &left_name, &right_name),
+                Comparison::Lt => llvm_emit_icmp(parser, "ult", &rtype, &left_name, &right_name),
+                Comparison::Geq => llvm_emit_icmp(parser, "uge", &rtype, &left_name, &right_name),
+                Comparison::Leq => llvm_emit_icmp(parser, "ule", &rtype, &left_name, &right_name),
             };
             STPair::ST(name, Type::Bool)
         }
@@ -966,8 +966,8 @@ fn parse_arithmetic(parser: &mut Parser) -> STPair {
             parser_expect_numeric_type(parser, &left_type);
 
             let name: String = match operator {
-                Token::Plus => llvm_emit_add(parser, right_type, left_name, right_name),
-                Token::Minus => llvm_emit_sub(parser, right_type, left_name, right_name),
+                Token::Plus => llvm_emit_add(parser, &right_type, &left_name, &right_name),
+                Token::Minus => llvm_emit_sub(parser, &right_type, &left_name, &right_name),
                 _ => panic!("unreachable"),
             };
             STPair::ST(name, left_type)
@@ -991,9 +991,9 @@ fn parse_term(parser: &mut Parser) -> STPair {
             parser_expect_numeric_type(parser, &left_type);
 
             let name: String = match operator {
-                Token::Star => llvm_emit_mul(parser, right_type, left_name, right_name),
-                Token::Slash => llvm_emit_udiv(parser, right_type, left_name, right_name),
-                Token::Remainder => llvm_emit_urem(parser, right_type, left_name, right_name),
+                Token::Star => llvm_emit_mul(parser, &right_type, &left_name, &right_name),
+                Token::Slash => llvm_emit_udiv(parser, &right_type, &left_name, &right_name),
+                Token::Remainder => llvm_emit_urem(parser, &right_type, &left_name, &right_name),
                 _ => panic!("unreachable"),
             };
             STPair::ST(name, left_type)
@@ -1662,7 +1662,13 @@ fn type_can_cast_to(from: &Type, to: &Type) -> bool {
 ///
 /// The destination register's name <name> is the next available virtual register name that is retrieved
 /// from the LLVM context.
-fn llvm_emit_binary(parser: &mut Parser, op: &str, ty: Type, lhs: String, rhs: String) -> String {
+fn llvm_emit_binary(
+    parser: &mut Parser,
+    op: &str,
+    ty: &Type,
+    lhs: &String,
+    rhs: &String,
+) -> String {
     let name: String = context_next_temporary(parser_context_mut(parser));
     let code: &mut String = parser_llvm_mut(parser);
     string_push_str(code, "  ");
@@ -1670,11 +1676,11 @@ fn llvm_emit_binary(parser: &mut Parser, op: &str, ty: Type, lhs: String, rhs: S
     string_push_str(code, " = ");
     string_push_str(code, op);
     string_push(code, ' ');
-    string_push_string(code, &type_to_llvm_name(&ty));
+    string_push_string(code, &type_to_llvm_name(ty));
     string_push(code, ' ');
-    string_push_string(code, &lhs);
+    string_push_string(code, lhs);
     string_push(code, ',');
-    string_push_string(code, &rhs);
+    string_push_string(code, rhs);
     string_push(code, '\n');
     name
 }
@@ -1682,42 +1688,42 @@ fn llvm_emit_binary(parser: &mut Parser, op: &str, ty: Type, lhs: String, rhs: S
 /// Emit an add instruction:
 /// <name> = add <ty> <lhs>,<rhs>
 /// and return <name>.
-fn llvm_emit_add(parser: &mut Parser, ty: Type, lhs: String, rhs: String) -> String {
+fn llvm_emit_add(parser: &mut Parser, ty: &Type, lhs: &String, rhs: &String) -> String {
     llvm_emit_binary(parser, "add", ty, lhs, rhs)
 }
 
 /// Emit an add instruction:
 /// <name> = add <ty> <lhs>,<rhs>
 /// and return <name>.
-fn llvm_emit_sub(parser: &mut Parser, ty: Type, lhs: String, rhs: String) -> String {
+fn llvm_emit_sub(parser: &mut Parser, ty: &Type, lhs: &String, rhs: &String) -> String {
     llvm_emit_binary(parser, "sub", ty, lhs, rhs)
 }
 
 /// Emit a mul instruction:
 /// <name> = mul <ty> <lhs>,<rhs>
 /// and return <name>.
-fn llvm_emit_mul(parser: &mut Parser, ty: Type, lhs: String, rhs: String) -> String {
+fn llvm_emit_mul(parser: &mut Parser, ty: &Type, lhs: &String, rhs: &String) -> String {
     llvm_emit_binary(parser, "mul", ty, lhs, rhs)
 }
 
 /// Emit a divu instruction:
 /// <name> = divu <ty> <lhs>,<rhs>
 /// and return <name>.
-fn llvm_emit_udiv(parser: &mut Parser, ty: Type, lhs: String, rhs: String) -> String {
+fn llvm_emit_udiv(parser: &mut Parser, ty: &Type, lhs: &String, rhs: &String) -> String {
     llvm_emit_binary(parser, "udiv", ty, lhs, rhs)
 }
 
 /// Emit a remu instruction:
 /// <name> = remu <ty> <lhs>, <rhs>
 /// and return <name>.
-fn llvm_emit_urem(parser: &mut Parser, ty: Type, lhs: String, rhs: String) -> String {
+fn llvm_emit_urem(parser: &mut Parser, ty: &Type, lhs: &String, rhs: &String) -> String {
     llvm_emit_binary(parser, "urem", ty, lhs, rhs)
 }
 
 /// Emit an icmp instruction:
 /// <name> = icmp <op> <ty> <lhs>,<rhs>
 /// and return <name>.
-fn llvm_emit_icmp(parser: &mut Parser, op: &str, ty: Type, lhs: String, rhs: String) -> String {
+fn llvm_emit_icmp(parser: &mut Parser, op: &str, ty: &Type, lhs: &String, rhs: &String) -> String {
     let name: String = context_next_temporary(parser_context_mut(parser));
     let code: &mut String = parser_llvm_mut(parser);
     string_push_str(code, "  ");
@@ -1725,24 +1731,24 @@ fn llvm_emit_icmp(parser: &mut Parser, op: &str, ty: Type, lhs: String, rhs: Str
     string_push_str(code, " = icmp ");
     string_push_str(code, op);
     string_push(code, ' ');
-    string_push_string(code, &type_to_llvm_name(&ty));
+    string_push_string(code, &type_to_llvm_name(ty));
     string_push(code, ' ');
-    string_push_string(code, &lhs);
+    string_push_string(code, lhs);
     string_push(code, ',');
-    string_push_string(code, &rhs);
+    string_push_string(code, rhs);
     string_push(code, '\n');
     name
 }
 
 /// Emit a ret instruction:
 /// ret <ty> <value>
-fn llvm_emit_ret_value(parser: &mut Parser, ty: Type, value: String) {
+fn llvm_emit_ret_value(parser: &mut Parser, ty: &Type, value: &String) {
     let code: &mut String = parser_llvm_mut(parser);
     string_push_str(code, "  ");
     string_push_str(code, "ret ");
-    string_push_string(code, &type_to_llvm_name(&ty));
+    string_push_string(code, &type_to_llvm_name(ty));
     string_push(code, ' ');
-    string_push_string(code, &value);
+    string_push_string(code, value);
     string_push(code, '\n');
 }
 
