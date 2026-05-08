@@ -22,15 +22,20 @@ binding   -> "let" variable "=" expression
 
 variable  -> pattern ":" type
 
-type       -> "u8"  | "usize" | "bool" | "char"
-                | "&" "str"
-                | identifier
-                | ( "&" [ "mut" ] | "*" "mut" ) type
+type      -> "u8"
+           | "usize"
+           | "bool"
+           | "char"
+           | identifier
+           | ( "&" [ "mut" ] | "*" "mut" ) type
+```
+
 ```
 
 ## Expression
 
 ```
+
 expression -> [ "return" [ expression ] ] | assignment
 
 assignment -> comparison [ "=" assignment ]
@@ -39,59 +44,64 @@ comparison -> arithmetic [ ( "==" | "!=" | "<" | ">" | "<=" | ">=" ) arithmetic 
 
 arithmetic -> term [ ( "+" | "-" ) arithmetic ] .
 
-term       -> cast [ ( "*" | "/" | "%" ) term ] .
+term -> cast [ ( "*" | "/" | "%" ) term ] .
 
-cast       -> factor { "as" type }
+cast -> factor { "as" type }
 
-unary      -> [ "-" | "*" | ( "&" [ "mut" ] ) ] unary | factor
+unary -> [ "-" | "\*" | ( "&" [ "mut" ] ) ] unary | factor
 
-factor     -> ( literal
-              | identifier
-              | call
-              | "(" expression ")"
-              | [ "unsafe" ] block
-              | if
-              | while
-              | match )
+factor -> ( literal
+| identifier
+| call
+| "(" expression ")"
+| [ "unsafe" ] block
+| if
+| while
+| match )
+
 ```
 
 ## Remaining Control Flow
 
 ```
-if      -> "if" expression block [ "else" [ if | block ] ]
 
-while   -> "while" expression block
+if -> "if" expression block [ "else" [ if | block ] ]
 
-match   -> "match" expression "{" arms "}"
+while -> "while" expression block
 
-arms    -> pattern "=>" expression "," { expression "=>" expression "," }
+match -> "match" expression "{" arms "}"
+
+arms -> pattern "=>" expression "," { expression "=>" expression "," }
 
 pattern -> literal
-             | [ "mut" ]  identifier
-             | identifier "::" identifier [ "(" pattern { "," pattern } ")" ] )
-             | "_"
+| [ "mut" ] identifier
+| identifier "::" identifier [ "(" pattern { "," pattern } ")" ] )
+| "\_"
 
-call    -> identifier "(" [ expression { "," expression } [ "," ] ] ")"
+call -> identifier "(" [ expression { "," expression } [ "," ] ] ")"
+
 ```
 
 ## Literals
 
 ```
-literal   -> integer | string | character | boolean
 
-integer   -> digit { digit }
+literal -> integer | string | character | boolean
 
-string    -> """ { printable_character } """
+integer -> digit { digit }
+
+string -> """ { printable_character } """
 
 character -> "'" printable_character "'"
 
-boolean   -> "true" | "false"
+boolean -> "true" | "false"
 
-digit     -> "0" | ... | "9"
+digit -> "0" | ... | "9"
 
 identifier -> ( letter | "_" ) { letter | digit | "_" }
 
-letter     -> "a" | ... | "z" | "A" | ... | "Z"
+letter -> "a" | ... | "z" | "A" | ... | "Z"
+
 ```
 
 ## TODO
@@ -99,3 +109,4 @@ letter     -> "a" | ... | "z" | "A" | ... | "Z"
 - Currently, this grammar does not have any rules for anything related to `::`, use in
   - enum instances (e.g. `Token::Let`)
   - boostrapped functions (e.g. `std::mem::size_of`)
+```
