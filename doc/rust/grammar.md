@@ -30,12 +30,9 @@ type      -> "u8"
            | ( "&" [ "mut" ] | "*" "mut" ) type
 ```
 
-```
-
 ## Expression
 
 ```
-
 expression -> [ "return" [ expression ] ] | assignment
 
 assignment -> comparison [ "=" assignment ]
@@ -58,13 +55,11 @@ factor -> ( literal
 | if
 | while
 | match )
-
 ```
 
 ## Remaining Control Flow
 
 ```
-
 if -> "if" expression block [ "else" [ if | block ] ]
 
 while -> "while" expression block
@@ -79,13 +74,11 @@ pattern -> literal
 | "\_"
 
 call -> identifier "(" [ expression { "," expression } [ "," ] ] ")"
-
 ```
 
 ## Literals
 
 ```
-
 literal -> integer | string | character | boolean
 
 integer -> digit { digit }
@@ -101,7 +94,6 @@ digit -> "0" | ... | "9"
 identifier -> ( letter | "_" ) { letter | digit | "_" }
 
 letter -> "a" | ... | "z" | "A" | ... | "Z"
-
 ```
 
 ## TODO
@@ -109,4 +101,7 @@ letter -> "a" | ... | "z" | "A" | ... | "Z"
 - Currently, this grammar does not have any rules for anything related to `::`, use in
   - enum instances (e.g. `Token::Let`)
   - boostrapped functions (e.g. `std::mem::size_of`)
+
+```
+
 ```
