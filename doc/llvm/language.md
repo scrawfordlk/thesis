@@ -94,10 +94,13 @@ A function body is made of basic blocks. A block is:
 Branch instruction (`br`):
 
 - unconditional jump:
+
   ```llvm
   br label %done
   ```
+
 - conditional jump:
+
   ```llvm
   br i1 %cond, label %then, label %else
   ```
@@ -118,7 +121,14 @@ Example:
 
 ### Comparison
 
-- `icmp ult` compares two integer values as unsigned and returns `i1`.
+- `icmp` compares two integer values as unsigned and returns `i1`.
+- The result depends on the comparison operation specified after `icmp`
+  - `eq`
+  - `ne`
+  - `ugt`
+  - `ult`
+  - `uge`
+  - `ule`
 
 Example:
 
@@ -126,7 +136,21 @@ Example:
 %is_less = icmp ult i64 %a, %b
 ```
 
-Other comparison instructions can be emulated with `icmp ult` and some other instructions.
+### Casting
+
+Casting can be done by either zero-extending a type with a smaller bitwidth to a type with a larger bitwidth or by truncating a type with a larger bitwidth to a type with a smaller bitwidth.
+
+Examples:
+
+```llvm
+%large_value = add i64 10000000, 0
+%truncated = trunc i64 %large_value to i1
+```
+
+```llvm
+%small_value = add i1 1, 0
+%extended = zext i1 %small_value to i64
+```
 
 ### Function call
 
@@ -171,6 +195,7 @@ Result `%p` is a `ptr` to that byte.
 ## 8. Static Single Assignment (SSA) form
 
 LLVM-IR follows Static Single Assignment (SSA) form:
+
 1. All virtual registers may only be assigned to once (their contents can't be mutated).
 2. All uses of virtual registers may only refer to a single definition.
 
