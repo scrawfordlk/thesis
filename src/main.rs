@@ -98,7 +98,7 @@ enum Lexer {
 
 /// A type that manages the source file
 enum SourceFile {
-    /// content, next character index, current location, current line, character index of last newline
+    /// source, next character index, current line, character index of last newline
     SourceFile(String, usize, usize, usize),
 }
 
@@ -117,7 +117,7 @@ fn sourceFile_current_line(file: &SourceFile) -> usize {
 /// Returns the current column in the current line.
 fn sourceFile_current_column(file: &SourceFile) -> usize {
     let SourceFile::SourceFile(_, next_char_idx, _, last_newline_idx): &SourceFile = file;
-    *next_char_idx - *last_newline_idx - 1
+    *next_char_idx - *last_newline_idx
 }
 
 /// Returns the index of the beginning of the current line.
@@ -128,7 +128,7 @@ fn sourceFile_current_line_start(file: &SourceFile) -> usize {
 
 /// Create a lexer and prime it with the first token.
 fn lexer_new(source: String) -> Lexer {
-    let source_file: SourceFile = SourceFile::SourceFile(source, 0, 1, 0);
+    let source_file: SourceFile = SourceFile::SourceFile(source, 0, 0, 0);
     let mut lexer: Lexer = Lexer::Lexer(source_file, Token::Eof);
     lexer_next_token(&mut lexer);
     lexer
