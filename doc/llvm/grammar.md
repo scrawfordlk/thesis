@@ -7,7 +7,7 @@ string -> global "=" "constant" array "c"" { printable_character } "\""
 
 function -> "define" type global  parameters "{" blocks "}"
 
-parameters -> "(" [ type register { "," type register } ] ")" 
+parameters -> "(" [ type register { "," type register } ] ")"
 
 global -> "@" identifier
 ```
@@ -34,7 +34,7 @@ assignment -> register "="
 
 binary -> ( "add" | "sub" | "mul" | "udiv" | "urem" ) type value "," value
 
-icmp -> "icmp" "ult" type value "," value
+icmp -> "icmp" ( "eq" "ne" "ugt" "ult" "uge" "ule" ) type value "," value
 
 call -> "call" type global "(" [ type value { "," type value } ] ")"
 
