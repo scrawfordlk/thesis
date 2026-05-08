@@ -1030,6 +1030,18 @@ fn parse_cast(parser: &mut Parser) -> STPair {
 
 fn parse_unary(parser: &mut Parser) -> STPair {
     match parser_current_token(parser) {
+        Token::Ampersand => {
+            parser_next_token(parser);
+            let mutable: bool = parser_try_consume(parser, &Token::Mut);
+
+            let STPair::ST(name, ty) = parse_unary(parser);
+
+            let reference: String = llvm_emit_alloca(parser, &ty, 1);
+            llvm_emit_store(parser, &ty, &name, &reference);
+
+            STPair::ST(reference, Type::Reference(box_new::<Type>(ty), mutable))
+        }
+
         Token::Star => {
             parser_next_token(parser);
             let inner: Type = stPair_get_type(parse_unary(parser));
@@ -1040,15 +1052,6 @@ fn parse_unary(parser: &mut Parser) -> STPair {
                     Type::Reference(pointed, _) => type_clone(box_deref::<Type>(&pointed)),
                     _ => parser_error(parser, "cannot dereference this expression"),
                 },
-            )
-        }
-        Token::Ampersand => {
-            parser_next_token(parser);
-            let mutable: bool = parser_try_consume(parser, &Token::Mut);
-            let inner: Type = stPair_get_type(parse_unary(parser));
-            STPair::ST(
-                string_new(),
-                Type::Reference(box_new::<Type>(inner), mutable),
             )
         }
         _ => parse_factor(parser),
@@ -1865,6 +1868,39 @@ fn llvm_emit_trunc(
     value: &String,
 ) -> String {
     llvm_emit_cast(parser, "trunc", from_type, to_type, value)
+}
+
+/// Emit an alloca instruction:
+/// `name` = alloca `ty`, `ty` `num_elements`
+/// and return `name`.
+fn llvm_emit_alloca(parser: &mut Parser, ty: &Type, num_elements: usize) -> String {
+    let name: String = context_next_temporary(parser_context_mut(parser));
+    let llvm_type: String = type_to_llvm_name(ty);
+    let code: &mut String = parser_llvm_mut(parser);
+    string_push_str(code, "  ");
+    string_push_string(code, &name);
+    string_push_str(code, " = alloca ");
+    string_push_string(code, &llvm_type);
+    string_push(code, ',');
+    string_push_string(code, &llvm_type);
+    string_push(code, ' ');
+    string_push_string(code, &integer_to_string(num_elements));
+    string_push(code, '\n');
+    name
+}
+
+/// Emit a store instruction:
+/// store `ty` `value`, ptr `pointer`.
+fn llvm_emit_store(parser: &mut Parser, ty: &Type, value: &String, pointer: &String) {
+    let code: &mut String = parser_llvm_mut(parser);
+    string_push_str(code, "  store ");
+    string_push_string(code, &type_to_llvm_name(ty));
+    string_push(code, ' ');
+    string_push_string(code, value);
+    string_push(code, ',');
+    string_push_str(code, " ptr ");
+    string_push_string(code, pointer);
+    string_push(code, '\n');
 }
 
 // -----------------------------------------------------------------
