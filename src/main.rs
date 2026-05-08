@@ -1717,10 +1717,10 @@ fn type_get_cast_operation(left_type: &Type, right_type: &Type) -> CastOperation
 // -----------------------------------------------------------------
 
 /// Emit a binary instruction of the following form:
-/// <name> = <op> <ty> <lhs>,<rhs>
-/// and return <name>.
+/// `name` = `op` `ty` `lhs`,`rhs`
+/// and return `name`.
 ///
-/// The destination register's name <name> is the next available virtual register name that is retrieved
+/// The destination register's name `name` is the next available virtual register name that is retrieved
 /// from the LLVM context.
 fn llvm_emit_binary(
     parser: &mut Parser,
@@ -1746,43 +1746,43 @@ fn llvm_emit_binary(
 }
 
 /// Emit an add instruction:
-/// <name> = add <ty> <lhs>,<rhs>
-/// and return <name>.
+/// `name` = add `ty` `lhs`,`rhs`
+/// and return `name`.
 fn llvm_emit_add(parser: &mut Parser, ty: &Type, lhs: &String, rhs: &String) -> String {
     llvm_emit_binary(parser, "add", ty, lhs, rhs)
 }
 
 /// Emit an add instruction:
-/// <name> = add <ty> <lhs>,<rhs>
-/// and return <name>.
+/// `name` = add `ty` `lhs`,`rhs`
+/// and return `name`.
 fn llvm_emit_sub(parser: &mut Parser, ty: &Type, lhs: &String, rhs: &String) -> String {
     llvm_emit_binary(parser, "sub", ty, lhs, rhs)
 }
 
 /// Emit a mul instruction:
-/// <name> = mul <ty> <lhs>,<rhs>
-/// and return <name>.
+/// `name` = mul `ty` `lhs`,`rhs`
+/// and return `name`.
 fn llvm_emit_mul(parser: &mut Parser, ty: &Type, lhs: &String, rhs: &String) -> String {
     llvm_emit_binary(parser, "mul", ty, lhs, rhs)
 }
 
 /// Emit a divu instruction:
-/// <name> = divu <ty> <lhs>,<rhs>
-/// and return <name>.
+/// `name` = divu `ty` `lhs`,`rhs`
+/// and return `name`.
 fn llvm_emit_udiv(parser: &mut Parser, ty: &Type, lhs: &String, rhs: &String) -> String {
     llvm_emit_binary(parser, "udiv", ty, lhs, rhs)
 }
 
 /// Emit a remu instruction:
-/// <name> = remu <ty> <lhs>, <rhs>
-/// and return <name>.
+/// `name` = remu `ty` `lhs`, `rhs`
+/// and return `name`.
 fn llvm_emit_urem(parser: &mut Parser, ty: &Type, lhs: &String, rhs: &String) -> String {
     llvm_emit_binary(parser, "urem", ty, lhs, rhs)
 }
 
 /// Emit an icmp instruction:
-/// <name> = icmp <op> <ty> <lhs>,<rhs>
-/// and return <name>.
+/// `name` = icmp `op` `ty` `lhs`,`rhs`
+/// and return `name`.
 fn llvm_emit_icmp(parser: &mut Parser, op: &str, ty: &Type, lhs: &String, rhs: &String) -> String {
     let name: String = context_next_temporary(parser_context_mut(parser));
     let code: &mut String = parser_llvm_mut(parser);
@@ -1801,7 +1801,7 @@ fn llvm_emit_icmp(parser: &mut Parser, op: &str, ty: &Type, lhs: &String, rhs: &
 }
 
 /// Emit a ret instruction:
-/// ret <ty> <value>
+/// ret `ty` `value`
 fn llvm_emit_ret_value(parser: &mut Parser, ty: &Type, value: &String) {
     let code: &mut String = parser_llvm_mut(parser);
     string_push_str(code, "  ");
@@ -1819,11 +1819,11 @@ fn llvm_emit_ret_void(parser: &mut Parser) {
     string_push_str(code, "  ret void\n");
 }
 
-/// Emit a binary instruction of the following form:
-/// <name> = <op> <ty> <lhs>,<rhs>
-/// and return <name>.
+/// Emit a cast instruction of the following form:
+/// `name` = `cast_op` `from_type` `value` to `to_type`
+/// and return `name`.
 ///
-/// The destination register's name <name> is the next available virtual register name that is retrieved
+/// The destination register's name `name` is the next available virtual register name that is retrieved
 /// from the LLVM context.
 fn llvm_emit_cast(
     parser: &mut Parser,
@@ -1849,15 +1849,15 @@ fn llvm_emit_cast(
 }
 
 /// Emit a zext instruction:
-/// <name> = zext <from_type> <value> to <to_type>
-/// and return <name>.
+/// `name` = zext `from_type` `value` to `to_type`
+/// and return `name`.
 fn llvm_emit_zext(parser: &mut Parser, from_type: &Type, to_type: &Type, value: &String) -> String {
     llvm_emit_cast(parser, "zext", from_type, to_type, value)
 }
 
 /// Emit a trunc instruction:
-/// <name> = trunc <from_type> <value> to <to_type>
-/// and return <name>.
+/// `name` = trunc `from_type` `value` to `to_type`
+/// and return `name`.
 fn llvm_emit_trunc(
     parser: &mut Parser,
     from_type: &Type,
