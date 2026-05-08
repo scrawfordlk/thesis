@@ -30,8 +30,7 @@ No structs, impl blocks, traits, modules, macros.
 - user-defined tuple enums
 - references: `&T`, `&mut T`
 - raw mutable pointers: `*mut T`
-
-There is no support for generics.
+- at most one generic type parameter (per function/enum)
 
 ## Literals and comments
 
