@@ -43,15 +43,16 @@ term       -> cast [ ( "*" | "/" | "%" ) term ] .
 
 cast       -> factor { "as" type }
 
-factor     -> { "-" | "*" | ( "&" [ "mut" ] ) }
-                ( literal
-                | identifier
-                | call
-                | "(" expression ")"
-                | [ "unsafe" ] block
-                | if
-                | while
-                | match )
+unary      -> [ "-" | "*" | ( "&" [ "mut" ] ) ] unary | factor
+
+factor     -> ( literal
+              | identifier
+              | call
+              | "(" expression ")"
+              | [ "unsafe" ] block
+              | if
+              | while
+              | match )
 ```
 
 ## Remaining Control Flow

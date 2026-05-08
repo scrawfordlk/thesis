@@ -1004,7 +1004,7 @@ fn parse_term(parser: &mut Parser) -> STPair {
 }
 
 fn parse_cast(parser: &mut Parser) -> STPair {
-    let STPair::ST(mut name, mut ty): STPair = parse_factor(parser);
+    let STPair::ST(mut name, mut ty): STPair = parse_unary(parser);
 
     while parser_try_consume(parser, &Token::As) {
         let cast_type: Type = parse_type(parser);
@@ -1028,17 +1028,17 @@ fn parse_cast(parser: &mut Parser) -> STPair {
     STPair::ST(name, ty)
 }
 
-fn parse_factor(parser: &mut Parser) -> STPair {
+fn parse_unary(parser: &mut Parser) -> STPair {
     match parser_current_token(parser) {
         Token::Minus => {
             parser_next_token(parser);
-            let inner: Type = stPair_get_type(parse_factor(parser));
+            let inner: Type = stPair_get_type(parse_unary(parser));
             parser_expect_numeric_type(parser, &inner);
             STPair::ST(string_new(), inner)
         }
         Token::Star => {
             parser_next_token(parser);
-            let inner: Type = stPair_get_type(parse_factor(parser));
+            let inner: Type = stPair_get_type(parse_unary(parser));
             STPair::ST(
                 string_new(),
                 match inner {
@@ -1051,12 +1051,18 @@ fn parse_factor(parser: &mut Parser) -> STPair {
         Token::Ampersand => {
             parser_next_token(parser);
             let mutable: bool = parser_try_consume(parser, &Token::Mut);
-            let inner: Type = stPair_get_type(parse_factor(parser));
+            let inner: Type = stPair_get_type(parse_unary(parser));
             STPair::ST(
                 string_new(),
                 Type::Reference(box_new::<Type>(inner), mutable),
             )
         }
+        _ => parse_factor(parser),
+    }
+}
+
+fn parse_factor(parser: &mut Parser) -> STPair {
+    match parser_current_token(parser) {
         Token::Literal(_) => parse_literal(parser),
         Token::Identifier(_) => {
             let name: String = parser_expect_identifier(parser);
