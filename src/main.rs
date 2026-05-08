@@ -1030,12 +1030,6 @@ fn parse_cast(parser: &mut Parser) -> STPair {
 
 fn parse_unary(parser: &mut Parser) -> STPair {
     match parser_current_token(parser) {
-        Token::Minus => {
-            parser_next_token(parser);
-            let inner: Type = stPair_get_type(parse_unary(parser));
-            parser_expect_numeric_type(parser, &inner);
-            STPair::ST(string_new(), inner)
-        }
         Token::Star => {
             parser_next_token(parser);
             let inner: Type = stPair_get_type(parse_unary(parser));

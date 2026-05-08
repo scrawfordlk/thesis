@@ -45,7 +45,7 @@ term -> cast [ ( "*" | "/" | "%" ) term ] .
 
 cast -> factor { "as" type }
 
-unary -> [ "-" | "\*" | ( "&" [ "mut" ] ) ] unary | factor
+unary -> [ "*" | ( "&" [ "mut" ] ) ] unary | factor
 
 factor -> ( literal
 | identifier
