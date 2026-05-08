@@ -29,12 +29,15 @@ branch -> "br" "label" register
 assignment -> register "="
                       ( binary
                       | icmp
+                      | cast
                       | call
                       | gep )
 
 binary -> ( "add" | "sub" | "mul" | "udiv" | "urem" ) type value "," value
 
 icmp -> "icmp" ( "eq" "ne" "ugt" "ult" "uge" "ule" ) type value "," value
+
+cast -> ( "zext" | "trunc" ) type value "to" type
 
 call -> "call" type global "(" [ type value { "," type value } ] ")"
 
