@@ -1004,14 +1004,28 @@ fn parse_term(parser: &mut Parser) -> STPair {
 }
 
 fn parse_cast(parser: &mut Parser) -> STPair {
-    let STPair::ST(name, mut ty): STPair = parse_factor(parser);
+    let STPair::ST(mut name, mut ty): STPair = parse_factor(parser);
 
     while parser_try_consume(parser, &Token::As) {
         let cast_type: Type = parse_type(parser);
-        ty = cast_type;
+
+        match type_get_cast_operation(&ty, &cast_type) {
+            CastOperation::ZeroExtend => {
+                let casted_name: String = llvm_emit_zext(parser, &ty, &cast_type, &name);
+                name = casted_name;
+                ty = cast_type;
+            }
+            CastOperation::Truncate => {
+                let casted_name: String = llvm_emit_trunc(parser, &ty, &cast_type, &name);
+                name = casted_name;
+                ty = cast_type;
+            }
+            CastOperation::None => {} // no-op
+            CastOperation::Invalid => parser_error(parser, "invalid cast"),
+        }
     }
 
-    STPair::ST(name, type_clone(&ty))
+    STPair::ST(name, ty)
 }
 
 fn parse_factor(parser: &mut Parser) -> STPair {
@@ -1652,6 +1666,52 @@ fn type_can_cast_to(from: &Type, to: &Type) -> bool {
     }
 }
 
+/// Different operations that can be done when casting a value.
+///
+/// ZeroExtend: A type with smaller bitwidth is zero-extended to a larger bitwidth.
+/// Truncate: A type with larger bitwidth is truncated to a smaller bitwidth.
+/// None: Do not perform a cast (because the cast would be a no-op which is illegal in LLVM-IR).
+/// Invalid: The cast is illegal.
+enum CastOperation {
+    /// A type with smaller bitwidth is zero-extended to a larger bitwidth.
+    ZeroExtend,
+    /// A type with larger bitwidth is truncated to a smaller bitwidth.
+    Truncate,
+    /// Do not perform a cast.
+    None,
+    /// The cast is illegal.
+    Invalid,
+}
+
+/// Return the CastOperation that is applicable from `left_type` to `right_type`.
+/// See documentation of CastOperation for more details.
+fn type_get_cast_operation(left_type: &Type, right_type: &Type) -> CastOperation {
+    if type_eq(left_type, right_type) {
+        return CastOperation::None;
+    }
+
+    match left_type {
+        Type::U8 => match right_type {
+            Type::Usize | Type::Char => CastOperation::ZeroExtend,
+            _ => CastOperation::Invalid,
+        },
+        Type::Usize => match right_type {
+            Type::U8 => CastOperation::Truncate,
+            _ => CastOperation::Invalid,
+        },
+        Type::Bool => match right_type {
+            Type::U8 | Type::Usize => CastOperation::ZeroExtend,
+            _ => CastOperation::Invalid,
+        },
+        Type::Char => match right_type {
+            Type::Usize => CastOperation::ZeroExtend,
+            Type::U8 => CastOperation::Truncate,
+            _ => CastOperation::Invalid,
+        },
+        _ => CastOperation::Invalid,
+    }
+}
+
 // -----------------------------------------------------------------
 // ---------------------- Code Generation --------------------------
 // -----------------------------------------------------------------
@@ -1757,6 +1817,54 @@ fn llvm_emit_ret_value(parser: &mut Parser, ty: &Type, value: &String) {
 fn llvm_emit_ret_void(parser: &mut Parser) {
     let code: &mut String = parser_llvm_mut(parser);
     string_push_str(code, "  ret void\n");
+}
+
+/// Emit a binary instruction of the following form:
+/// <name> = <op> <ty> <lhs>,<rhs>
+/// and return <name>.
+///
+/// The destination register's name <name> is the next available virtual register name that is retrieved
+/// from the LLVM context.
+fn llvm_emit_cast(
+    parser: &mut Parser,
+    cast_op: &str,
+    from_type: &Type,
+    to_type: &Type,
+    value: &String,
+) -> String {
+    let name: String = context_next_temporary(parser_context_mut(parser));
+    let code: &mut String = parser_llvm_mut(parser);
+    string_push_str(code, "  ");
+    string_push_string(code, &name);
+    string_push_str(code, " = ");
+    string_push_str(code, cast_op);
+    string_push(code, ' ');
+    string_push_string(code, &type_to_llvm_name(from_type));
+    string_push(code, ' ');
+    string_push_string(code, value);
+    string_push_str(code, " to ");
+    string_push_string(code, &type_to_llvm_name(to_type));
+    string_push(code, '\n');
+    name
+}
+
+/// Emit a zext instruction:
+/// <name> = zext <from_type> <value> to <to_type>
+/// and return <name>.
+fn llvm_emit_zext(parser: &mut Parser, from_type: &Type, to_type: &Type, value: &String) -> String {
+    llvm_emit_cast(parser, "zext", from_type, to_type, value)
+}
+
+/// Emit a trunc instruction:
+/// <name> = trunc <from_type> <value> to <to_type>
+/// and return <name>.
+fn llvm_emit_trunc(
+    parser: &mut Parser,
+    from_type: &Type,
+    to_type: &Type,
+    value: &String,
+) -> String {
+    llvm_emit_cast(parser, "trunc", from_type, to_type, value)
 }
 
 // -----------------------------------------------------------------
