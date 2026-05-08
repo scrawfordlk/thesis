@@ -774,9 +774,10 @@ fn parse_variant(parser: &mut Parser) -> Type {
     Type::Custom(variant_name)
 }
 
-// TODO: should introduce a new symbol table
 fn parse_block(parser: &mut Parser) -> STPair {
     parser_expect_token(parser, &Token::LBrace);
+
+    symTable_enter_scope(parser_symtable_mut(parser));
 
     while not(parser_current_token_eq(parser, &Token::RBrace)) {
         match parser_current_token(parser) {
@@ -790,6 +791,7 @@ fn parse_block(parser: &mut Parser) -> STPair {
                     llvm_emit_line(parser_llvm_mut(parser), "");
                 } else {
                     parser_expect_token(parser, &Token::RBrace);
+                    symTable_leave_scope(parser_symtable_mut(parser));
                     return STPair::ST(name, ty);
                 }
             }
@@ -797,6 +799,7 @@ fn parse_block(parser: &mut Parser) -> STPair {
     }
 
     parser_expect_token(parser, &Token::RBrace);
+    symTable_leave_scope(parser_symtable_mut(parser));
     STPair::ST(string_new(), Type::Unit)
 }
 
