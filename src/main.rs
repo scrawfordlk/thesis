@@ -1876,7 +1876,7 @@ fn llvm_emit_trunc(
 }
 
 /// Emit an alloca instruction:
-/// `name` = alloca `ty`, `ty` `num_elements`
+/// `name` = alloca `ty`, i64 `num_elements`
 /// and return `name`.
 fn llvm_emit_alloca(parser: &mut Parser, ty: &Type, num_elements: usize) -> String {
     let name: String = context_next_temporary(parser_context_mut(parser));
