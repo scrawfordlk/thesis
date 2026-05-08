@@ -1044,15 +1044,17 @@ fn parse_unary(parser: &mut Parser) -> STPair {
 
         Token::Star => {
             parser_next_token(parser);
-            let inner: Type = stPair_get_type(parse_unary(parser));
-            STPair::ST(
-                string_new(),
-                match inner {
-                    Type::RawPointerMut(pointed) => type_clone(box_deref::<Type>(&pointed)),
-                    Type::Reference(pointed, _) => type_clone(box_deref::<Type>(&pointed)),
-                    _ => parser_error(parser, "cannot dereference this expression"),
-                },
-            )
+            let STPair::ST(name, ty) = parse_unary(parser);
+
+            let inner_type: Type = match ty {
+                Type::Reference(pointed, _) => type_clone(box_deref::<Type>(&pointed)),
+                Type::RawPointerMut(pointed) => type_clone(box_deref::<Type>(&pointed)),
+                _ => parser_error(parser, "cannot dereference this expression"),
+            };
+
+            let dereferenced: String = llvm_emit_load(parser, &inner_type, &name);
+
+            STPair::ST(dereferenced, inner_type)
         }
         _ => parse_factor(parser),
     }
@@ -1899,6 +1901,22 @@ fn llvm_emit_store(parser: &mut Parser, ty: &Type, value: &String, pointer: &Str
     string_push_str(code, " ptr ");
     string_push_string(code, pointer);
     string_push(code, '\n');
+}
+
+/// Emit a load instruction:
+/// `name` = load `ty`, `ptr` pointer`.
+fn llvm_emit_load(parser: &mut Parser, ty: &Type, pointer: &String) -> String {
+    let name: String = context_next_temporary(parser_context_mut(parser));
+    let code: &mut String = parser_llvm_mut(parser);
+    string_push_str(code, "  ");
+    string_push_string(code, &name);
+    string_push_str(code, " = load ");
+    string_push_string(code, &type_to_llvm_name(ty));
+    string_push(code, ',');
+    string_push_str(code, " ptr ");
+    string_push_string(code, pointer);
+    string_push(code, '\n');
+    name
 }
 
 // -----------------------------------------------------------------
