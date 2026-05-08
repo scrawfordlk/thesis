@@ -1881,9 +1881,7 @@ fn llvm_emit_alloca(parser: &mut Parser, ty: &Type, num_elements: usize) -> Stri
     string_push_string(code, &name);
     string_push_str(code, " = alloca ");
     string_push_string(code, &llvm_type);
-    string_push(code, ',');
-    string_push_string(code, &llvm_type);
-    string_push(code, ' ');
+    string_push_str(code, ", i64 ");
     string_push_string(code, &integer_to_string(num_elements));
     string_push(code, '\n');
     name
