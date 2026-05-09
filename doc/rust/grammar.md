@@ -43,7 +43,7 @@ arithmetic -> term [ ( "+" | "-" ) arithmetic ] .
 
 term -> cast [ ( "*" | "/" | "%" ) term ] .
 
-cast -> factor { "as" type }
+cast -> unary { "as" type }
 
 unary -> [ "*" | ( "&" [ "mut" ] ) ] unary | factor
 
