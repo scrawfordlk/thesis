@@ -48,8 +48,7 @@ cast -> unary { "as" type }
 unary -> [ "*" | ( "&" [ "mut" ] ) ] unary | factor
 
 factor -> ( literal
-| identifier
-| call
+| identifier [ "(" [ expression { "," expression} [ "," ] ] ")" ]
 | "(" expression ")"
 | [ "unsafe" ] block
 | if
