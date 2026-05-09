@@ -1039,54 +1039,60 @@ fn parse_comparison(parser: &mut Parser) -> STPair {
 }
 
 fn parse_arithmetic(parser: &mut Parser) -> STPair {
-    let STPair::ST(left_name, left_type): STPair = parse_term(parser);
+    let STPair::ST(mut name, left_type): STPair = parse_term(parser);
 
-    match parser_current_token(parser) {
-        Token::Plus | Token::Minus => {
-            let operator: Token = token_clone(parser_current_token(parser));
-            parser_next_token(parser);
+    let mut is_arithmetic: bool = true;
+    while is_arithmetic {
+        match parser_current_token(parser) {
+            Token::Plus | Token::Minus => {
+                let operator: Token = token_clone(parser_current_token(parser));
+                parser_next_token(parser);
 
-            let STPair::ST(right_name, right_type): STPair = parse_arithmetic(parser);
+                let STPair::ST(right_name, right_type): STPair = parse_term(parser);
 
-            parser_expect_same_type(parser, &left_type, &right_type);
-            parser_expect_numeric_type(parser, &left_type);
+                parser_expect_same_type(parser, &left_type, &right_type);
+                parser_expect_numeric_type(parser, &left_type);
 
-            let name: String = match operator {
-                Token::Plus => llvm_emit_add(parser, &right_type, &left_name, &right_name),
-                Token::Minus => llvm_emit_sub(parser, &right_type, &left_name, &right_name),
-                _ => panic!("unreachable"),
-            };
-            STPair::ST(name, left_type)
+                name = match operator {
+                    Token::Plus => llvm_emit_add(parser, &right_type, &name, &right_name),
+                    Token::Minus => llvm_emit_sub(parser, &right_type, &name, &right_name),
+                    _ => panic!("unreachable"),
+                };
+            }
+            _ => is_arithmetic = false,
         }
-
-        _ => STPair::ST(left_name, left_type),
     }
+
+    STPair::ST(name, left_type)
 }
 
 fn parse_term(parser: &mut Parser) -> STPair {
-    let STPair::ST(left_name, left_type): STPair = parse_cast(parser);
+    let STPair::ST(mut name, left_type): STPair = parse_cast(parser);
 
-    match parser_current_token(parser) {
-        Token::Star | Token::Slash | Token::Remainder => {
-            let operator: Token = token_clone(parser_current_token(parser));
-            parser_next_token(parser);
+    let mut is_term: bool = true;
+    while is_term {
+        match parser_current_token(parser) {
+            Token::Star | Token::Slash | Token::Remainder => {
+                let operator: Token = token_clone(parser_current_token(parser));
+                parser_next_token(parser);
 
-            let STPair::ST(right_name, right_type): STPair = parse_term(parser);
+                let STPair::ST(right_name, right_type): STPair = parse_cast(parser);
 
-            parser_expect_same_type(parser, &left_type, &right_type);
-            parser_expect_numeric_type(parser, &left_type);
+                parser_expect_same_type(parser, &left_type, &right_type);
+                parser_expect_numeric_type(parser, &left_type);
 
-            let name: String = match operator {
-                Token::Star => llvm_emit_mul(parser, &right_type, &left_name, &right_name),
-                Token::Slash => llvm_emit_udiv(parser, &right_type, &left_name, &right_name),
-                Token::Remainder => llvm_emit_urem(parser, &right_type, &left_name, &right_name),
-                _ => panic!("unreachable"),
-            };
-            STPair::ST(name, left_type)
+                name = match operator {
+                    Token::Star => llvm_emit_mul(parser, &right_type, &name, &right_name),
+                    Token::Slash => llvm_emit_udiv(parser, &right_type, &name, &right_name),
+                    Token::Remainder => llvm_emit_urem(parser, &right_type, &name, &right_name),
+                    _ => panic!("unreachable"),
+                };
+            }
+            _ => is_term = false,
         }
-
-        _ => STPair::ST(left_name, left_type),
     }
+
+    STPair::ST(name, left_type)
 }
 
 fn parse_cast(parser: &mut Parser) -> STPair {

@@ -39,9 +39,9 @@ assignment -> comparison [ "=" assignment ]
 
 comparison -> arithmetic [ ( "==" | "!=" | "<" | ">" | "<=" | ">=" ) arithmetic ]
 
-arithmetic -> term [ ( "+" | "-" ) arithmetic ] .
+arithmetic -> term { ( "+" | "-" ) term }
 
-term -> cast [ ( "*" | "/" | "%" ) term ] .
+term -> cast { ( "*" | "/" | "%" ) cast }
 
 cast -> unary { "as" type }
 
