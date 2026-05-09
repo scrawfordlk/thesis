@@ -693,14 +693,19 @@ fn parse_function(parser: &mut Parser) {
     }
     parser_expect_token(parser, &Token::RParen);
 
-    let function_return_type: Type = if parser_try_consume(parser, &Token::TypeArrow) {
+    let fn_return_type: Type = if parser_try_consume(parser, &Token::TypeArrow) {
         parse_type(parser)
     } else {
         Type::Unit
     };
-    parser_set_current_fn_return_type(parser, type_clone(&function_return_type));
+    parser_set_current_fn_return_type(parser, type_clone(&fn_return_type));
 
-    let llvm_return_type_name: String = type_to_llvm_name(&function_return_type);
+    let is_main: bool = string_eq(&function_name, &string_from_str("main"));
+    let llvm_return_type_name: String = if and(is_main, type_eq(&fn_return_type, &Type::Unit)) {
+        string_from_str("i64")
+    } else {
+        type_to_llvm_name(&fn_return_type)
+    };
     llvm_emit_function_header(
         parser_llvm_mut(parser),
         &function_name,
@@ -711,16 +716,22 @@ fn parse_function(parser: &mut Parser) {
         parser_symtable_mut(parser),
         function_name,
         parameter_types,
-        type_clone(&function_return_type),
+        type_clone(&fn_return_type),
     )) {
         parser_error(parser, "duplicate function name");
     }
 
     let STPair::ST(name, block_type): STPair = parse_block(parser);
-    parser_expect_same_type(parser, &block_type, &function_return_type);
+    parser_expect_same_type(parser, &block_type, &fn_return_type);
 
-    match function_return_type {
-        Type::Unit => llvm_emit_ret_void(parser),
+    match fn_return_type {
+        Type::Unit => {
+            if is_main {
+                llvm_emit_ret_value(parser, &Type::Usize, &string_from_str("0"));
+            } else {
+                llvm_emit_ret_void(parser)
+            }
+        }
         _ => llvm_emit_ret_value(parser, &block_type, &name),
     }
 
