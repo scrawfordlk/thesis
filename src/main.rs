@@ -1,21 +1,93 @@
 #![allow(clippy::assign_op_pattern, while_true, non_snake_case)]
 
 fn main() {
-    let args: std::vec::Vec<std::string::String> = std::env::args().collect();
+    use std::io::Write as StdWrite;
+    use std::option::Option as StdOption;
+    use std::path::Path as StdPath;
+    use std::process::exit as std_exit;
+    use std::string::String as StdString;
+    use std::vec::Vec as StdVec;
 
-    if args.len() > 1 {
+    let args: StdVec<StdString> = std::env::args().collect();
+    if args.len() <= 1 {
+        eprintln!("Usage: <program> ( -c <input> [ -o <output> ] [ -e ] | -e <inputllvm> )");
+        std_exit(1);
+    }
+
+    if args[1] == "-c" {
+        if args.len() < 3 {
+            eprintln!("Usage: <program> ( -c <input> [ -o <output> ] [ -e ] | -e <inputllvm> )");
+            std_exit(1);
+        }
+        let input = args[2].clone();
+        let mut file: StdOption<StdString> = StdOption::None;
+        let mut emulate_after = false;
+
+        let mut i = 3;
+        while i < args.len() {
+            if args[i] == "-o" {
+                if i + 1 >= args.len() {
+                    eprintln!(
+                        "Usage: <program> ( -c <input> [ -o <output> ] [ -e ] | -e <inputllvm> )"
+                    );
+                    std_exit(1);
+                }
+                file = StdOption::Some(args[i + 1].clone());
+                i += 2;
+            } else if args[i] == "-e" {
+                emulate_after = true;
+                i += 1;
+            } else {
+                // ignore unknown arguments
+                i += 1;
+            }
+        }
+
         let code: String =
-            parse_to_llvm(&std::fs::read_to_string(&args[1]).expect("no program found"));
+            parse_to_llvm(&std::fs::read_to_string(&input).expect("no program found"));
+        let code_clone: String = string_clone(&code);
+
+        let output_name: StdString = match file {
+            StdOption::Some(s) => s,
+            StdOption::None => {
+                let mut base = StdPath::new(&input)
+                    .file_stem()
+                    .expect("can use base name of input")
+                    .to_string_lossy()
+                    .to_string();
+                base.push_str(".ll");
+                base
+            }
+        };
 
         let String::Inner(vec): String = code;
-        let mut file = std::fs::File::create("code.ll").expect("can create file");
-        use std::io::Write;
+        let mut file = std::fs::File::create(&output_name).expect("can create file");
         let slice = unsafe { core::slice::from_raw_parts(vec_ptr(&vec), vec_len(&vec)) };
         file.write_all(slice).expect("can write all code");
         std::io::stdout()
             .write_all(slice)
             .expect("print code to terminal");
+
+        if emulate_after {
+            let exit_code: usize = llvmulator_execute_llvm(code_clone);
+            std_exit((exit_code % 256) as i32);
+        }
+
+        return;
     }
+
+    if args[1] == "-e" {
+        if args.len() < 3 {
+            eprintln!("Usage: <program> ( -c <input> [ -o <output> ] [ -e ] | -e <inputllvm> )");
+            std_exit(1);
+        }
+        let llvm_ir: StdString = std::fs::read_to_string(&args[2]).expect("no llvm file found");
+        let exit_code: usize = llvmulator_execute_llvm(string_from_str(&llvm_ir));
+        std_exit((exit_code % 256) as i32);
+    }
+
+    eprintln!("Usage: <program> ( -c <input> [ -o <output> ] [ -e ] | -e <inputllvm> )");
+    std_exit(1);
 }
 
 // -----------------------------------------------------------------
