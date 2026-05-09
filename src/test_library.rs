@@ -234,78 +234,53 @@ fn test_string_clone() {
 // ------------------------- Symbol Table ----------------------------
 
 #[test]
-fn test_global_symtable_prepend_and_contains() {
-    let global = GlobalSymTable::Nil;
-    assert!(!globalSymTable_contains(&global, &string_from_str("f")));
-
-    let mut global = GlobalSymTable::Nil;
-    let entry = SymTableEntry::Function(string_from_str("f"), FnSignature::Fn(List::Nil, Type::U8));
-    globalSymTable_prepend(&mut global, entry);
-    match &global {
-        GlobalSymTable::Cons(head, _) => {
-            assert!(string_eq(symTableEntry_name(head), &string_from_str("f")));
-        }
-        GlobalSymTable::Nil => assert!(false, "expected non-empty global table"),
-    }
-}
-
-#[test]
-fn test_global_symtable_insert_function() {
-    let mut global = GlobalSymTable::Nil;
-    assert!(globalSymTable_insert_function(
-        &mut global,
+fn test_symtable_global_insert_and_lookup() {
+    let mut symtable = symTable_new();
+    assert!(symTable_insert_function(
+        &mut symtable,
         string_from_str("f"),
-        List::Nil,
+        list_new::<Type>(),
         Type::Usize
     ));
-}
+    assert!(symTable_contains(&symtable, &string_from_str("f")));
 
-#[test]
-fn test_global_symtable_insert_enum() {
-    let mut global = GlobalSymTable::Nil;
-    assert!(globalSymTable_insert_enum(
-        &mut global,
-        string_from_str("Color"),
-        List::Nil
-    ));
-}
-
-#[test]
-fn test_local_symtable_prepend_and_contains() {
-    let local = LocalSymTable::Nil;
-    assert!(!localSymTable_contains(&local, &string_from_str("x")));
-
-    let mut local = LocalSymTable::Nil;
-    let entry = SymTableEntry::Variable(string_from_str("x"), Type::Bool, true);
-    localSymTable_prepend(&mut local, entry);
-    match &local {
-        LocalSymTable::Cons(head, _) => {
-            assert!(string_eq(symTableEntry_name(head), &string_from_str("x")));
+    match symTable_lookup_function_signature(&symtable, &string_from_str("f")) {
+        Option::Some(FnSignature::Fn(parameter_types, return_type)) => {
+            assert!(matches!(parameter_types, List::Nil));
+            assert!(matches!(return_type, Type::Usize));
         }
-        LocalSymTable::Nil => assert!(false, "expected non-empty local table"),
+        Option::Some(_) => assert!(false, "expected function signature"),
+        Option::None => assert!(false, "expected function signature"),
     }
+
+    assert!(symTable_insert_enum(
+        &mut symtable,
+        string_from_str("State"),
+        list_new::<Type>()
+    ));
+    assert!(symTable_contains(&symtable, &string_from_str("State")));
 }
 
 #[test]
-fn test_local_symtable_insert_variable() {
-    let mut local = LocalSymTable::Nil;
-    localSymTable_insert_variable(&mut local, string_from_str("x"), Type::U8, true);
-    assert!(localSymTable_contains(&local, &string_from_str("x")));
+fn test_symtable_stack_push_pop_top_index() {
+    let mut stack = localSymTableStack_new();
+    match &stack {
+        LocalSymTableStack::Stack(_, top) => assert_eq!(*top, 0),
+    }
 
-    localSymTable_insert_variable(&mut local, string_from_str("x"), Type::U8, true);
-    assert!(localSymTable_contains(&local, &string_from_str("x")));
-}
+    localSymTableStack_push_empty_scope(&mut stack);
+    match &stack {
+        LocalSymTableStack::Stack(_, top) => assert_eq!(*top, 1),
+    }
 
-#[test]
-fn test_local_symtable_stack_push_pop_contains() {
-    let mut stack = LocalSymTableStack::Nil;
-    localSymTableStack_push(&mut stack);
+    localSymTableStack_push_empty_scope(&mut stack);
+    match &stack {
+        LocalSymTableStack::Stack(_, top) => assert_eq!(*top, 2),
+    }
 
-    match &mut stack {
-        LocalSymTableStack::Cons(local, _) => {
-            localSymTable_insert_variable(local, string_from_str("x"), Type::Usize, false);
-        }
-        LocalSymTableStack::Nil => assert!(false, "expected non-empty stack"),
+    assert!(localSymTableStack_pop(&mut stack));
+    match &stack {
+        LocalSymTableStack::Stack(_, top) => assert_eq!(*top, 1),
     }
 
     assert!(localSymTableStack_pop(&mut stack));
@@ -313,70 +288,72 @@ fn test_local_symtable_stack_push_pop_contains() {
 }
 
 #[test]
-fn test_symtable_new_and_contains() {
-    let symtable = symTable_new();
-    assert!(!symTable_contains(&symtable, &string_from_str("missing")));
-}
-
-#[test]
-fn test_symtable_insert_function() {
-    let mut symtable = symTable_new();
-    assert!(symTable_insert_function(
-        &mut symtable,
-        string_from_str("f"),
-        List::Nil,
-        Type::Usize
-    ));
-}
-
-#[test]
-fn test_symtable_insert_enum() {
-    let mut symtable = symTable_new();
-    assert!(symTable_insert_enum(
-        &mut symtable,
-        string_from_str("State"),
-        List::Nil
-    ));
-}
-
-#[test]
 fn test_symtable_scope_and_variables() {
     let mut symtable = symTable_new();
-    symTable_insert_variable(&mut symtable, string_from_str("x"), Type::U8, true);
+    assert!(symTable_insert_variable(
+        &mut symtable,
+        string_from_str("x"),
+        Type::U8,
+        true
+    ));
     assert!(!symTable_contains(&symtable, &string_from_str("x")));
+    assert!(matches!(
+        symTable_lookup_variable_type(&symtable, &string_from_str("x")),
+        Option::None
+    ));
 
     symTable_enter_scope(&mut symtable);
-    symTable_insert_variable(&mut symtable, string_from_str("x"), Type::U8, true);
+    assert!(!symTable_insert_variable(
+        &mut symtable,
+        string_from_str("x"),
+        Type::U8,
+        true
+    ));
     assert!(symTable_contains(&symtable, &string_from_str("x")));
+    assert!(matches!(
+        symTable_lookup_variable_type(&symtable, &string_from_str("x")),
+        Option::Some(Type::U8)
+    ));
 
     symTable_enter_scope(&mut symtable);
-    symTable_insert_variable(&mut symtable, string_from_str("x"), Type::Usize, false);
-    assert!(symTable_contains(&symtable, &string_from_str("x")));
+    assert!(!symTable_insert_variable(
+        &mut symtable,
+        string_from_str("x"),
+        Type::Usize,
+        false
+    ));
+    assert!(matches!(
+        symTable_lookup_variable_type(&symtable, &string_from_str("x")),
+        Option::Some(Type::Usize)
+    ));
     assert!(symTable_leave_scope(&mut symtable));
+    assert!(matches!(
+        symTable_lookup_variable_type(&symtable, &string_from_str("x")),
+        Option::Some(Type::U8)
+    ));
     assert!(symTable_leave_scope(&mut symtable));
+    assert!(matches!(
+        symTable_lookup_variable_type(&symtable, &string_from_str("x")),
+        Option::None
+    ));
     assert!(!symTable_leave_scope(&mut symtable));
 }
 
 #[test]
-fn test_symtable_entry_name() {
-    let fn_entry =
-        SymTableEntry::Function(string_from_str("f"), FnSignature::Fn(List::Nil, Type::Unit));
-    assert!(string_eq(
-        symTableEntry_name(&fn_entry),
-        &string_from_str("f")
+fn test_symtable_global_entry_clone() {
+    let entry = SymTableGlobalEntry::Function(FnSignature::Fn(
+        list_new::<Type>(),
+        Type::Unit,
     ));
+    let cloned = symTableGlobalEntry_clone(&entry);
+    assert!(matches!(cloned, SymTableGlobalEntry::Function(_)));
+}
 
-    let enum_entry = SymTableEntry::Enum(string_from_str("E"), List::Nil);
-    assert!(string_eq(
-        symTableEntry_name(&enum_entry),
-        &string_from_str("E")
-    ));
-
-    let var_entry = SymTableEntry::Variable(string_from_str("v"), Type::Char, true);
-    assert!(string_eq(
-        symTableEntry_name(&var_entry),
-        &string_from_str("v")
-    ));
+#[test]
+fn test_symtable_local_entry_clone() {
+    let entry = SymTableLocalEntry::Variable(Type::Char, true);
+    let cloned = symTableLocalEntry_clone(&entry);
+    assert!(matches!(cloned, SymTableLocalEntry::Variable(Type::Char, true)));
 }
 
 #[test]
@@ -391,109 +368,6 @@ fn test_type_list_clone() {
     let types = typeList_single(Type::Custom(string_from_str("Node")));
     let cloned = list_clone::<Type>(&types, type_clone);
     assert!(parser_typeList_match(&types, &cloned));
-}
-
-#[test]
-fn test_symtable_entry_clone() {
-    let entry = SymTableEntry::Function(
-        string_from_str("f"),
-        FnSignature::Fn(
-            typeList_single(Type::U8),
-            Type::Custom(string_from_str("Ret")),
-        ),
-    );
-    let cloned = symTableEntry_clone(&entry);
-
-    let name = symTableEntry_name(&cloned);
-    assert!(string_eq(name, &string_from_str("f")));
-}
-
-#[test]
-fn test_global_symtable_clone() {
-    let global = GlobalSymTable::Nil;
-    let cloned = globalSymTable_clone(&global);
-    assert!(matches!(cloned, GlobalSymTable::Nil));
-}
-
-#[test]
-fn test_local_symtable_clone() {
-    let mut local = LocalSymTable::Nil;
-    localSymTable_insert_variable(&mut local, string_from_str("x"), Type::U8, true);
-    let cloned = localSymTable_clone(&local);
-    match &cloned {
-        LocalSymTable::Cons(head, _) => {
-            assert!(string_eq(symTableEntry_name(head), &string_from_str("x")));
-        }
-        LocalSymTable::Nil => assert!(false, "expected non-empty local table"),
-    }
-}
-
-#[test]
-fn test_local_symtable_stack_clone() {
-    let mut stack = LocalSymTableStack::Nil;
-    localSymTableStack_push(&mut stack);
-    match &mut stack {
-        LocalSymTableStack::Cons(local, _) => {
-            localSymTable_insert_variable(local, string_from_str("x"), Type::Usize, false);
-        }
-        LocalSymTableStack::Nil => assert!(false, "expected non-empty stack"),
-    }
-
-    let cloned = localSymTableStack_clone(&stack);
-    match &cloned {
-        LocalSymTableStack::Cons(local, _) => match local {
-            LocalSymTable::Cons(head, _) => {
-                assert!(string_eq(symTableEntry_name(head), &string_from_str("x")));
-            }
-            LocalSymTable::Nil => assert!(false, "expected non-empty local scope"),
-        },
-        LocalSymTableStack::Nil => assert!(false, "expected non-empty local stack"),
-    }
-}
-
-#[test]
-fn test_global_symtable_box_new_deref_clone() {
-    let ptr = box_new::<GlobalSymTable>(GlobalSymTable::Nil);
-    assert!(matches!(
-        box_deref::<GlobalSymTable>(&ptr),
-        GlobalSymTable::Nil
-    ));
-
-    let cloned_ptr = box_clone::<GlobalSymTable>(&ptr, globalSymTable_clone);
-    assert!(matches!(
-        box_deref::<GlobalSymTable>(&cloned_ptr),
-        GlobalSymTable::Nil
-    ));
-}
-
-#[test]
-fn test_local_symtable_box_new_deref_clone() {
-    let ptr = box_new::<LocalSymTable>(LocalSymTable::Nil);
-    assert!(matches!(
-        box_deref::<LocalSymTable>(&ptr),
-        LocalSymTable::Nil
-    ));
-
-    let cloned_ptr = box_clone::<LocalSymTable>(&ptr, localSymTable_clone);
-    assert!(matches!(
-        box_deref::<LocalSymTable>(&cloned_ptr),
-        LocalSymTable::Nil
-    ));
-}
-
-#[test]
-fn test_local_symtable_stack_box_new_deref_clone() {
-    let ptr = box_new::<LocalSymTableStack>(LocalSymTableStack::Nil);
-    assert!(matches!(
-        box_deref::<LocalSymTableStack>(&ptr),
-        LocalSymTableStack::Nil
-    ));
-
-    let cloned_ptr = box_clone::<LocalSymTableStack>(&ptr, localSymTableStack_clone);
-    assert!(matches!(
-        box_deref::<LocalSymTableStack>(&cloned_ptr),
-        LocalSymTableStack::Nil
-    ));
 }
 
 #[test]

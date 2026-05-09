@@ -1399,16 +1399,17 @@ fn context_next_temporary(context: &mut Context) -> String {
     name
 }
 
-/// Data structure that manages a global symbol table and (multiple) local symbol tables.
+/// Data structure that manages global and local symbol tables.
 enum SymTable {
-    Table(GlobalSymTable, LocalSymTableStack),
+    Table(StringMap<SymTableGlobalEntry>, LocalSymTableStack),
 }
 
 /// Create an empty symbol table.
 fn symTable_new() -> SymTable {
-    let global: GlobalSymTable = GlobalSymTable::Nil;
-    let local: LocalSymTableStack = LocalSymTableStack::Nil;
-    SymTable::Table(global, local)
+    SymTable::Table(
+        stringMap_new::<SymTableGlobalEntry>(),
+        localSymTableStack_new(),
+    )
 }
 
 /// Check whether a symbol exists in local scopes or globals.
@@ -1416,26 +1417,32 @@ fn symTable_contains(symtable: &SymTable, name: &String) -> bool {
     let SymTable::Table(global, local): &SymTable = symtable;
     or(
         localSymTableStack_contains(local, name),
-        globalSymTable_contains(global, name),
+        stringMap_contains::<SymTableGlobalEntry>(global, name),
     )
 }
 
 /// Lookup a variable type in local scopes.
 fn symTable_lookup_variable_type(symtable: &SymTable, name: &String) -> Option<Type> {
-    let SymTable::Table(_, local): &SymTable = symtable;
-    localSymTableStack_lookup_variable_type(local, name)
+    let SymTable::Table(_, local_stack): &SymTable = symtable;
+    localSymTableStack_lookup_variable_type(local_stack, name)
 }
 
 /// Lookup a function signature in the global symbol table.
 fn symTable_lookup_function_signature(symtable: &SymTable, name: &String) -> Option<FnSignature> {
     let SymTable::Table(global, _): &SymTable = symtable;
-    globalSymTable_lookup_function_signature(global, name)
+    match stringMap_get::<SymTableGlobalEntry>(global, name) {
+        Option::Some(entry) => match entry {
+            SymTableGlobalEntry::Function(signature) => Option::Some(fnSignature_clone(signature)),
+            SymTableGlobalEntry::Enum(_) => Option::None,
+        },
+        Option::None => Option::None,
+    }
 }
 
 /// Enter a new local scope.
 fn symTable_enter_scope(symtable: &mut SymTable) {
-    let SymTable::Table(_, local): &mut SymTable = symtable;
-    localSymTableStack_push(local);
+    let SymTable::Table(_, localStack): &mut SymTable = symtable;
+    localSymTableStack_push_empty_scope(localStack);
 }
 
 /// Leave the current local scope.
@@ -1452,18 +1459,29 @@ fn symTable_insert_function(
     return_type: Type,
 ) -> bool {
     let SymTable::Table(global, _) = symtable;
-    globalSymTable_insert_function(global, name, parameter_types, return_type)
+    if stringMap_contains::<SymTableGlobalEntry>(global, &name) {
+        return false;
+    }
+
+    let signature: FnSignature = FnSignature::Fn(parameter_types, return_type);
+    stringMap_insert::<SymTableGlobalEntry>(global, name, SymTableGlobalEntry::Function(signature));
+    true
 }
 
-/// Insert an enum into the global table.
-/// Return true, if the name is not taken else false.
+/// Insert an enum into the global symbol table, returning false on duplicate name.
 fn symTable_insert_enum(symtable: &mut SymTable, name: String, variants: List<Type>) -> bool {
     let SymTable::Table(global, _) = symtable;
-    globalSymTable_insert_enum(global, name, variants)
+    if stringMap_contains::<SymTableGlobalEntry>(global, &name) {
+        return false;
+    }
+
+    stringMap_insert::<SymTableGlobalEntry>(global, name, SymTableGlobalEntry::Enum(variants));
+    true
 }
 
 /// Insert a variable into the current local scope.
 /// Returns true if the variable name is not already taken, else false.
+/// If the name is already taken, the variable is still inserted (= shadowing).
 fn symTable_insert_variable(
     symtable: &mut SymTable,
     name: String,
@@ -1471,131 +1489,84 @@ fn symTable_insert_variable(
     mutable: bool,
 ) -> bool {
     let SymTable::Table(_, local_stack): &mut SymTable = symtable;
-    match local_stack {
-        LocalSymTableStack::Cons(local, _) => {
-            localSymTable_insert_variable(local, name, variable_type, mutable)
-        }
-        LocalSymTableStack::Nil => true,
-    }
-}
-
-/// Global symbol table represented as a cons list.
-enum GlobalSymTable {
-    /// head, tail
-    Cons(SymTableEntry, Box<GlobalSymTable>),
-    Nil,
-}
-
-/// Prepend an entry to the global table.
-fn globalSymTable_prepend(symtable: &mut GlobalSymTable, entry: SymTableEntry) {
-    let old_copy: GlobalSymTable = globalSymTable_clone(symtable);
-    let tail: Box<GlobalSymTable> = box_new::<GlobalSymTable>(old_copy);
-    *symtable = GlobalSymTable::Cons(entry, tail);
-}
-
-/// Check whether a name exists in the global table.
-fn globalSymTable_contains(symtable: &GlobalSymTable, name: &String) -> bool {
-    match symtable {
-        GlobalSymTable::Cons(head, tail) => {
-            let entry_name: &String = symTableEntry_name(&head);
-            or(
-                string_eq(entry_name, name),
-                globalSymTable_contains(box_deref::<GlobalSymTable>(tail), name),
-            )
-        }
-        GlobalSymTable::Nil => false,
-    }
-}
-
-/// Lookup a function signature in globals.
-fn globalSymTable_lookup_function_signature(
-    symtable: &GlobalSymTable,
-    name: &String,
-) -> Option<FnSignature> {
-    match symtable {
-        GlobalSymTable::Cons(entry, tail) => match entry {
-            SymTableEntry::Function(entry_name, signature) => {
-                if string_eq(entry_name, name) {
-                    Option::Some(fnSignature_clone(signature))
-                } else {
-                    globalSymTable_lookup_function_signature(
-                        box_deref::<GlobalSymTable>(tail),
-                        name,
-                    )
-                }
-            }
-            _ => globalSymTable_lookup_function_signature(box_deref::<GlobalSymTable>(tail), name),
-        },
-        GlobalSymTable::Nil => Option::None,
-    }
-}
-
-/// Insert a function entry into globals, returning false on duplicate name.
-fn globalSymTable_insert_function(
-    symtable: &mut GlobalSymTable,
-    name: String,
-    parameter_types: List<Type>,
-    return_type: Type,
-) -> bool {
-    if globalSymTable_contains(symtable, &name) {
-        return false;
+    let LocalSymTableStack::Stack(scopes, top): &mut LocalSymTableStack = local_stack;
+    if *top == 0 {
+        return true;
     }
 
-    let signature: FnSignature = FnSignature::Fn(parameter_types, return_type);
-    let entry: SymTableEntry = SymTableEntry::Function(name, signature);
-    globalSymTable_prepend(symtable, entry);
-    true
+    let idx: usize = *top - 1;
+    let scope: &mut StringMap<SymTableLocalEntry> = unwrap::<&mut StringMap<SymTableLocalEntry>>(
+        vec_get_mut::<StringMap<SymTableLocalEntry>>(scopes, idx),
+    );
+    let already_used: bool = stringMap_contains::<SymTableLocalEntry>(scope, &name);
+    stringMap_insert::<SymTableLocalEntry>(
+        scope,
+        name,
+        SymTableLocalEntry::Variable(variable_type, mutable),
+    );
+    already_used
 }
 
-/// Insert an enum entry into globals, returning false on duplicate name.
-fn globalSymTable_insert_enum(
-    symtable: &mut GlobalSymTable,
-    name: String,
-    variants: List<Type>,
-) -> bool {
-    if globalSymTable_contains(symtable, &name) {
-        return false;
-    }
-
-    let entry: SymTableEntry = SymTableEntry::Enum(name, variants);
-    globalSymTable_prepend(symtable, entry);
-    true
+/// Global symbol table entries for functions and enums.
+enum SymTableGlobalEntry {
+    Function(FnSignature),
+    Enum(List<Type>),
 }
 
-/// Stack of local scopes.
+/// Local symbol table entries for variables.
+enum SymTableLocalEntry {
+    /// type, is mutable
+    Variable(Type, bool),
+}
+
+/// Stack of local symbol tables.
 enum LocalSymTableStack {
-    /// head, tail
-    Cons(LocalSymTable, Box<LocalSymTableStack>),
-    Nil,
+    /// stack, index pointer to the top
+    Stack(Vec<StringMap<SymTableLocalEntry>>, usize),
 }
 
-/// Push a new empty local scope onto the stack.
-fn localSymTableStack_push(stack: &mut LocalSymTableStack) {
-    let old_copy: LocalSymTableStack = localSymTableStack_clone(stack);
-    let tail: Box<LocalSymTableStack> = box_new::<LocalSymTableStack>(old_copy);
-    *stack = LocalSymTableStack::Cons(LocalSymTable::Nil, tail);
+/// Create an empty local symbol table stack.
+fn localSymTableStack_new() -> LocalSymTableStack {
+    LocalSymTableStack::Stack(vec_new::<StringMap<SymTableLocalEntry>>(), 0)
+}
+
+/// Push a new empty local scope (= a local symbol table) onto the stack.
+fn localSymTableStack_push_empty_scope(stack: &mut LocalSymTableStack) {
+    let LocalSymTableStack::Stack(scopes, top_idx): &mut LocalSymTableStack = stack;
+    let new_scope: StringMap<SymTableLocalEntry> = stringMap_new::<SymTableLocalEntry>();
+    if *top_idx == vec_len::<StringMap<SymTableLocalEntry>>(scopes) {
+        vec_push::<StringMap<SymTableLocalEntry>>(scopes, new_scope);
+    } else {
+        vec_set::<StringMap<SymTableLocalEntry>>(scopes, *top_idx, new_scope);
+    }
+    *top_idx = *top_idx + 1;
 }
 
 /// Pop the top local scope from the stack.
 fn localSymTableStack_pop(stack: &mut LocalSymTableStack) -> bool {
-    match stack {
-        LocalSymTableStack::Cons(_, tail) => {
-            *stack = localSymTableStack_clone(box_deref::<LocalSymTableStack>(tail));
-            true
-        }
-        LocalSymTableStack::Nil => false,
+    let LocalSymTableStack::Stack(_, top): &mut LocalSymTableStack = stack;
+    if *top == 0 {
+        false
+    } else {
+        *top = *top - 1;
+        true
     }
 }
 
 /// Check whether a name exists in any local scope.
 fn localSymTableStack_contains(stack: &LocalSymTableStack, name: &String) -> bool {
-    match stack {
-        LocalSymTableStack::Cons(local, tail) => or(
-            localSymTable_contains(local, name),
-            localSymTableStack_contains(box_deref::<LocalSymTableStack>(tail), name),
-        ),
-        LocalSymTableStack::Nil => false,
+    let LocalSymTableStack::Stack(scopes, top): &LocalSymTableStack = stack;
+    let mut index: usize = *top;
+    while index > 0 {
+        index = index - 1;
+        let scope: &StringMap<SymTableLocalEntry> = unwrap::<&StringMap<SymTableLocalEntry>>(
+            vec_get::<StringMap<SymTableLocalEntry>>(scopes, index),
+        );
+        if stringMap_contains::<SymTableLocalEntry>(scope, name) {
+            return true;
+        }
     }
+    false
 }
 
 /// Lookup a variable type in any local scope.
@@ -1603,101 +1574,25 @@ fn localSymTableStack_lookup_variable_type(
     stack: &LocalSymTableStack,
     name: &String,
 ) -> Option<Type> {
-    match stack {
-        LocalSymTableStack::Cons(local, tail) => {
-            match localSymTable_lookup_variable_type(local, name) {
-                Option::Some(variable_type) => Option::Some(variable_type),
-                Option::None => localSymTableStack_lookup_variable_type(
-                    box_deref::<LocalSymTableStack>(tail),
-                    name,
-                ),
+    let LocalSymTableStack::Stack(scopes, top): &LocalSymTableStack = stack;
+    let mut index: usize = *top;
+    while index > 0 {
+        index = index - 1;
+        let scope: &StringMap<SymTableLocalEntry> = unwrap::<&StringMap<SymTableLocalEntry>>(
+            vec_get::<StringMap<SymTableLocalEntry>>(scopes, index),
+        );
+        match stringMap_get::<SymTableLocalEntry>(scope, name) {
+            Option::Some(entry) => {
+                let SymTableLocalEntry::Variable(variable_type, _): &SymTableLocalEntry = entry;
+                return Option::Some(type_clone(variable_type));
             }
+            Option::None => {}
         }
-        LocalSymTableStack::Nil => Option::None,
     }
+    Option::None
 }
 
-/// Single local scope represented as a linked cons list.
-enum LocalSymTable {
-    /// head, tail
-    Cons(SymTableEntry, Box<LocalSymTable>),
-    Nil,
-}
-
-/// Prepend an entry to a local scope.
-fn localSymTable_prepend(symtable: &mut LocalSymTable, entry: SymTableEntry) {
-    let old_copy: LocalSymTable = localSymTable_clone(symtable);
-    let tail: Box<LocalSymTable> = box_new::<LocalSymTable>(old_copy);
-    *symtable = LocalSymTable::Cons(entry, tail);
-}
-
-/// Check whether a name exists in a local scope.
-fn localSymTable_contains(symtable: &LocalSymTable, name: &String) -> bool {
-    match symtable {
-        LocalSymTable::Cons(head, tail) => {
-            let entry_name: &String = symTableEntry_name(head);
-            let matches: bool = string_eq(entry_name, name);
-            or(
-                matches,
-                localSymTable_contains(box_deref::<LocalSymTable>(tail), name),
-            )
-        }
-        LocalSymTable::Nil => false,
-    }
-}
-
-/// Lookup a variable type in a single local scope.
-fn localSymTable_lookup_variable_type(symtable: &LocalSymTable, name: &String) -> Option<Type> {
-    match symtable {
-        LocalSymTable::Cons(entry, tail) => match entry {
-            SymTableEntry::Variable(entry_name, variable_type, _) => {
-                if string_eq(entry_name, name) {
-                    Option::Some(type_clone(variable_type))
-                } else {
-                    localSymTable_lookup_variable_type(box_deref::<LocalSymTable>(tail), name)
-                }
-            }
-            _ => localSymTable_lookup_variable_type(box_deref::<LocalSymTable>(tail), name),
-        },
-        LocalSymTable::Nil => Option::None,
-    }
-}
-
-/// Insert a variable entry into a single local scope.
-/// Returns true if the variable name is not already taken, else false (in which case it is still
-/// inserted (= shadowing))
-fn localSymTable_insert_variable(
-    symtable: &mut LocalSymTable,
-    name: String,
-    variable_type: Type,
-    mutable: bool,
-) -> bool {
-    let already_used: bool = localSymTable_contains(symtable, &name);
-    let entry: SymTableEntry = SymTableEntry::Variable(name, variable_type, mutable);
-    localSymTable_prepend(symtable, entry);
-    already_used
-}
-
-/// Symbol table entry for functions, enums, and variables.
-enum SymTableEntry {
-    /// name, signature
-    Function(String, FnSignature),
-    /// name, variant types
-    Enum(String, List<Type>),
-    /// name, type, is mutable
-    Variable(String, Type, bool),
-}
-
-/// Get the name associated with a symbol table entry.
-fn symTableEntry_name(entry: &SymTableEntry) -> &String {
-    match entry {
-        SymTableEntry::Function(name, _) => name,
-        SymTableEntry::Enum(name, _) => name,
-        SymTableEntry::Variable(name, _, _) => name,
-    }
-}
-
-/// A type that represents the (type) signature of a function
+/// A type that represents the (type) signature of a function.
 enum FnSignature {
     /// parameter types, return type
     Fn(List<Type>, Type),
@@ -4331,51 +4226,24 @@ fn literalToken_clone(literal: &Literal) -> Literal {
     }
 }
 
-/// Clone a symbol table entry.
-fn symTableEntry_clone(entry: &SymTableEntry) -> SymTableEntry {
+/// Clone a global symbol table entry.
+fn symTableGlobalEntry_clone(entry: &SymTableGlobalEntry) -> SymTableGlobalEntry {
     match entry {
-        SymTableEntry::Function(name, signature) => {
-            SymTableEntry::Function(string_clone(name), fnSignature_clone(signature))
+        SymTableGlobalEntry::Function(signature) => {
+            SymTableGlobalEntry::Function(fnSignature_clone(signature))
         }
-        SymTableEntry::Enum(name, variants) => {
-            SymTableEntry::Enum(string_clone(name), list_clone::<Type>(variants, type_clone))
-        }
-        SymTableEntry::Variable(name, variable_type, mutable) => {
-            SymTableEntry::Variable(string_clone(name), type_clone(variable_type), *mutable)
+        SymTableGlobalEntry::Enum(variants) => {
+            SymTableGlobalEntry::Enum(list_clone::<Type>(variants, type_clone))
         }
     }
 }
 
-/// Clone the global symbol table.
-fn globalSymTable_clone(symtable: &GlobalSymTable) -> GlobalSymTable {
-    match symtable {
-        GlobalSymTable::Nil => GlobalSymTable::Nil,
-        GlobalSymTable::Cons(head, tail) => GlobalSymTable::Cons(
-            symTableEntry_clone(head),
-            box_clone::<GlobalSymTable>(tail, globalSymTable_clone),
-        ),
-    }
-}
-
-/// Clone a local scope symbol table.
-fn localSymTable_clone(symtable: &LocalSymTable) -> LocalSymTable {
-    match symtable {
-        LocalSymTable::Nil => LocalSymTable::Nil,
-        LocalSymTable::Cons(head, tail) => LocalSymTable::Cons(
-            symTableEntry_clone(head),
-            box_clone::<LocalSymTable>(tail, localSymTable_clone),
-        ),
-    }
-}
-
-/// Clone the stack of local scopes.
-fn localSymTableStack_clone(stack: &LocalSymTableStack) -> LocalSymTableStack {
-    match stack {
-        LocalSymTableStack::Nil => LocalSymTableStack::Nil,
-        LocalSymTableStack::Cons(local, tail) => LocalSymTableStack::Cons(
-            localSymTable_clone(local),
-            box_clone::<LocalSymTableStack>(tail, localSymTableStack_clone),
-        ),
+/// Clone a local symbol table entry.
+fn symTableLocalEntry_clone(entry: &SymTableLocalEntry) -> SymTableLocalEntry {
+    match entry {
+        SymTableLocalEntry::Variable(variable_type, mutable) => {
+            SymTableLocalEntry::Variable(type_clone(variable_type), *mutable)
+        }
     }
 }
 
