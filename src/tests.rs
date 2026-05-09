@@ -15,4 +15,5 @@ mod tests {
 
     include!("test_library.rs");
     include!("test_lexer.rs");
+    include!("test_system.rs");
 }
