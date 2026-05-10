@@ -1947,7 +1947,6 @@ enum LlvmToken {
     LBracket,        // "["
     RBracket,        // "]"
     Comma,           // ","
-    Minus,           // "-"
     Assign,          // "="
     Colon,           // ":"
     CString(String), // c"..."
@@ -2203,7 +2202,6 @@ fn llvmLexer_scan_symbol(lexer: &mut LlvmLexer) -> LlvmToken {
         '[' => LlvmToken::LBracket,
         ']' => LlvmToken::RBracket,
         ',' => LlvmToken::Comma,
-        '-' => LlvmToken::Minus,
         '=' => LlvmToken::Assign,
         ':' => LlvmToken::Colon,
         _ => panic!("unsupported token in LLVM input"),
@@ -2878,7 +2876,6 @@ fn llvmParser_parse_value(parser: &mut LlvmParser) -> LlvmValue {
     match llvmParser_current_token(parser) {
         LlvmToken::Percent => LlvmValue::Register(llvmParser_parse_register(parser)),
         LlvmToken::At => LlvmValue::Global(llvmParser_parse_global_name(parser)),
-        LlvmToken::Minus => LlvmValue::Literal(llvmParser_parse_number_literal(parser)),
         LlvmToken::Integer(_) => LlvmValue::Literal(llvmParser_parse_number_literal(parser)),
         _ => llvmParser_error(parser, "expected LLVM value"),
     }
@@ -2901,18 +2898,12 @@ fn llvmParser_parse_non_negative_number(parser: &mut LlvmParser) -> usize {
     }
 }
 
-// TODO: do not support negative literals
 fn llvmParser_parse_number_literal(parser: &mut LlvmParser) -> usize {
-    let negative: bool = llvmParser_try_consume(parser, &LlvmToken::Minus);
     match llvmParser_current_token(parser) {
         LlvmToken::Integer(value) => {
             let magnitude: usize = *value;
             llvmParser_next_token(parser);
-            if negative {
-                0usize.wrapping_sub(magnitude)
-            } else {
-                magnitude
-            }
+            magnitude
         }
         _ => llvmParser_error(parser, "expected LLVM integer literal"),
     }
@@ -4104,10 +4095,6 @@ fn llvmToken_eq(left: &LlvmToken, right: &LlvmToken) -> bool {
             LlvmToken::Comma => true,
             _ => false,
         },
-        LlvmToken::Minus => match right {
-            LlvmToken::Minus => true,
-            _ => false,
-        },
         LlvmToken::Assign => match right {
             LlvmToken::Assign => true,
             _ => false,
@@ -4306,7 +4293,6 @@ fn llvmToken_clone(token: &LlvmToken) -> LlvmToken {
         LlvmToken::LBracket => LlvmToken::LBracket,
         LlvmToken::RBracket => LlvmToken::RBracket,
         LlvmToken::Comma => LlvmToken::Comma,
-        LlvmToken::Minus => LlvmToken::Minus,
         LlvmToken::Assign => LlvmToken::Assign,
         LlvmToken::Colon => LlvmToken::Colon,
         LlvmToken::CString(value) => LlvmToken::CString(string_clone(value)),
