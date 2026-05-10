@@ -1626,7 +1626,7 @@ fn type_to_llvm_name(ty: &Type) -> String {
         Type::U8 => string_from_str("i8"),
         Type::Usize => string_from_str("i64"), // assume 64-bit for now
         Type::Bool => string_from_str("i1"),
-        Type::Char => string_from_str("i32"),
+        Type::Char => string_from_str("i8"),
         Type::Unit => string_from_str("void"),
         Type::Never => string_from_str("void"),
         Type::Custom(_) => string_from_str("i64"),
@@ -1934,7 +1934,6 @@ enum LlvmToken {
     Ult,             // "ult"
     Ptr,             // "ptr"
     I64,             // "i64"
-    I32,             // "i32"
     I8,              // "i8"
     I1,              // "i1"
     Void,            // "void"
@@ -2159,8 +2158,6 @@ fn llvm_identifier_to_token(identifier: String) -> LlvmToken {
         LlvmToken::Ptr
     } else if string_eq(&identifier, &string_from_str("i64")) {
         LlvmToken::I64
-    } else if string_eq(&identifier, &string_from_str("i32")) {
-        LlvmToken::I32
     } else if string_eq(&identifier, &string_from_str("i8")) {
         LlvmToken::I8
     } else if string_eq(&identifier, &string_from_str("i1")) {
@@ -2458,7 +2455,6 @@ enum LlvmParameter {
 enum LlvmType {
     I1,
     I8,
-    I32,
     I64,
     Ptr,
     Array(usize, Box<LlvmType>),
@@ -2835,10 +2831,6 @@ fn llvmParser_parse_type(parser: &mut LlvmParser) -> LlvmType {
         LlvmToken::I8 => {
             llvmParser_next_token(parser);
             LlvmType::I8
-        }
-        LlvmToken::I32 => {
-            llvmParser_next_token(parser);
-            LlvmType::I32
         }
         LlvmToken::I64 => {
             llvmParser_next_token(parser);
@@ -4043,10 +4035,6 @@ fn llvmToken_eq(left: &LlvmToken, right: &LlvmToken) -> bool {
             LlvmToken::I64 => true,
             _ => false,
         },
-        LlvmToken::I32 => match right {
-            LlvmToken::I32 => true,
-            _ => false,
-        },
         LlvmToken::I8 => match right {
             LlvmToken::I8 => true,
             _ => false,
@@ -4280,7 +4268,6 @@ fn llvmToken_clone(token: &LlvmToken) -> LlvmToken {
         LlvmToken::Ult => LlvmToken::Ult,
         LlvmToken::Ptr => LlvmToken::Ptr,
         LlvmToken::I64 => LlvmToken::I64,
-        LlvmToken::I32 => LlvmToken::I32,
         LlvmToken::I8 => LlvmToken::I8,
         LlvmToken::I1 => LlvmToken::I1,
         LlvmToken::Void => LlvmToken::Void,
