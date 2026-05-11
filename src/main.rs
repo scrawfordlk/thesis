@@ -1934,7 +1934,12 @@ enum LlvmToken {
     Call,            // "call"
     Gep,             // "getelementptr"
     Constant,        // "constant"
+    Eq,              // "eq"
+    Ne,              // "ne"
+    Ugt,             // "ugt"
+    Uge,             // "uge"
     Ult,             // "ult"
+    Ule,             // "ule"
     Ptr,             // "ptr"
     I64,             // "i64"
     I8,              // "i8"
@@ -2161,8 +2166,18 @@ fn llvm_identifier_to_token(identifier: String) -> LlvmToken {
         LlvmToken::Gep
     } else if string_eq(&identifier, &string_from_str("constant")) {
         LlvmToken::Constant
+    } else if string_eq(&identifier, &string_from_str("eq")) {
+        LlvmToken::Eq
+    } else if string_eq(&identifier, &string_from_str("ne")) {
+        LlvmToken::Ne
+    } else if string_eq(&identifier, &string_from_str("ugt")) {
+        LlvmToken::Ugt
+    } else if string_eq(&identifier, &string_from_str("uge")) {
+        LlvmToken::Uge
     } else if string_eq(&identifier, &string_from_str("ult")) {
         LlvmToken::Ult
+    } else if string_eq(&identifier, &string_from_str("ule")) {
+        LlvmToken::Ule
     } else if string_eq(&identifier, &string_from_str("ptr")) {
         LlvmToken::Ptr
     } else if string_eq(&identifier, &string_from_str("i64")) {
@@ -2465,6 +2480,7 @@ enum LlvmParameter {
 }
 
 /// Supported types of LLVM.
+#[derive(Debug)]
 enum LlvmType {
     I1,
     I8,
@@ -2552,6 +2568,8 @@ enum AssignInstruction {
 enum AssignOp {
     /// operation, type, left operand, right operand
     Binary(BinaryOp, LlvmType, LlvmValue, LlvmValue),
+    /// operation, operand type, left operand, right operand
+    Icmp(IcmpOp, LlvmType, LlvmValue, LlvmValue),
     /// operation, target type, value
     Cast(CastOp, LlvmType, LlvmValue),
     /// return type, callee, arguments
@@ -2567,7 +2585,16 @@ enum BinaryOp {
     Mul,
     Udiv,
     Urem,
-    IcmpUlt,
+}
+
+/// Unsigned integer comparison operations for icmp.
+enum IcmpOp {
+    Eq,
+    Ne,
+    Ugt,
+    Uge,
+    Ult,
+    Ule,
 }
 
 /// Cast operations that can only appear in assignments.
@@ -2579,6 +2606,7 @@ enum CastOp {
 fn assignOp_get_type(operation: &AssignOp) -> LlvmType {
     match operation {
         AssignOp::Binary(_, ty, _, _) => llvmType_clone(ty),
+        AssignOp::Icmp(_, _, _, _) => LlvmType::I1,
         AssignOp::Call(ty, _, _) => llvmType_clone(ty),
         AssignOp::Cast(_, ty, _) => llvmType_clone(ty),
         AssignOp::Gep(_, _, _) => LlvmType::Ptr,
@@ -2586,6 +2614,7 @@ fn assignOp_get_type(operation: &AssignOp) -> LlvmType {
 }
 
 /// Represents a value in a register, global or as a literal.
+#[derive(Debug)]
 enum LlvmValue {
     /// identifier
     Register(String),
@@ -2815,12 +2844,43 @@ fn llvmParser_parse_binary_assign(
 
 fn llvmParser_parse_icmp_assign(parser: &mut LlvmParser) -> AssignOp {
     llvmParser_expect_token(parser, &LlvmToken::Icmp);
-    llvmParser_expect_token(parser, &LlvmToken::Ult);
+    let predicate: IcmpOp = match llvmParser_current_token(parser) {
+        LlvmToken::Eq => {
+            llvmParser_next_token(parser);
+            IcmpOp::Eq
+        }
+        LlvmToken::Ne => {
+            llvmParser_next_token(parser);
+            IcmpOp::Ne
+        }
+        LlvmToken::Ugt => {
+            llvmParser_next_token(parser);
+            IcmpOp::Ugt
+        }
+        LlvmToken::Uge => {
+            llvmParser_next_token(parser);
+            IcmpOp::Uge
+        }
+        LlvmToken::Ult => {
+            llvmParser_next_token(parser);
+            IcmpOp::Ult
+        }
+        LlvmToken::Ule => {
+            llvmParser_next_token(parser);
+            IcmpOp::Ule
+        }
+        _ => llvmParser_error(parser, "expected LLVM icmp predicate"),
+    };
+
     let ty: LlvmType = llvmParser_parse_type(parser);
     let left: LlvmValue = llvmParser_parse_value(parser);
+    llvmParser_expect_value_type(parser, &left, &ty);
+
     llvmParser_expect_token(parser, &LlvmToken::Comma);
     let right: LlvmValue = llvmParser_parse_value(parser);
-    AssignOp::Binary(BinaryOp::IcmpUlt, ty, left, right)
+    llvmParser_expect_value_type(parser, &right, &ty);
+
+    AssignOp::Icmp(predicate, ty, left, right)
 }
 
 fn llvmParser_parse_call_assign(parser: &mut LlvmParser) -> AssignOp {
@@ -3144,9 +3204,26 @@ fn llvmulator_evaluate_assign_op(
                 BinaryOp::Mul => lhs * rhs,
                 BinaryOp::Udiv => lhs / rhs,
                 BinaryOp::Urem => lhs % rhs,
-                BinaryOp::IcmpUlt => (lhs < rhs) as usize,
             };
             llvm_overflow_value(result, result_type)
+        }
+
+        AssignOp::Icmp(predicate, operand_type, left, right) => {
+            let mut lhs: usize = llvm_eval_value(global_values, registers, left);
+            let mut rhs: usize = llvm_eval_value(llvmulator_globals(emulator), registers, right);
+
+            // handle overflowing literals
+            lhs = llvm_overflow_value(lhs, operand_type);
+            rhs = llvm_overflow_value(rhs, operand_type);
+
+            match predicate {
+                IcmpOp::Eq => (lhs == rhs) as usize,
+                IcmpOp::Ne => (lhs != rhs) as usize,
+                IcmpOp::Ugt => (lhs > rhs) as usize,
+                IcmpOp::Uge => (lhs >= rhs) as usize,
+                IcmpOp::Ult => (lhs < rhs) as usize,
+                IcmpOp::Ule => (lhs <= rhs) as usize,
+            }
         }
 
         AssignOp::Cast(_cast_op, to_type, value) => {
@@ -4180,8 +4257,28 @@ fn llvmToken_eq(left: &LlvmToken, right: &LlvmToken) -> bool {
             LlvmToken::Constant => true,
             _ => false,
         },
+        LlvmToken::Eq => match right {
+            LlvmToken::Eq => true,
+            _ => false,
+        },
+        LlvmToken::Ne => match right {
+            LlvmToken::Ne => true,
+            _ => false,
+        },
+        LlvmToken::Ugt => match right {
+            LlvmToken::Ugt => true,
+            _ => false,
+        },
+        LlvmToken::Uge => match right {
+            LlvmToken::Uge => true,
+            _ => false,
+        },
         LlvmToken::Ult => match right {
             LlvmToken::Ult => true,
+            _ => false,
+        },
+        LlvmToken::Ule => match right {
+            LlvmToken::Ule => true,
             _ => false,
         },
         LlvmToken::Ptr => match right {
@@ -4404,7 +4501,12 @@ fn llvmToken_clone(token: &LlvmToken) -> LlvmToken {
         LlvmToken::Call => LlvmToken::Call,
         LlvmToken::Gep => LlvmToken::Gep,
         LlvmToken::Constant => LlvmToken::Constant,
+        LlvmToken::Eq => LlvmToken::Eq,
+        LlvmToken::Ne => LlvmToken::Ne,
+        LlvmToken::Ugt => LlvmToken::Ugt,
+        LlvmToken::Uge => LlvmToken::Uge,
         LlvmToken::Ult => LlvmToken::Ult,
+        LlvmToken::Ule => LlvmToken::Ule,
         LlvmToken::Ptr => LlvmToken::Ptr,
         LlvmToken::I64 => LlvmToken::I64,
         LlvmToken::I8 => LlvmToken::I8,
