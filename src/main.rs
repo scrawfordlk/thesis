@@ -2322,6 +2322,14 @@ fn llvmParser_current_token(parser: &LlvmParser) -> &LlvmToken {
     llvmLexer_current_token(llvmParser_lexer(parser))
 }
 
+/// Consume and return the current LLVM parser token.
+fn llvmParser_consume_current_token(parser: &mut LlvmParser) -> LlvmToken {
+    let lexer: &LlvmLexer = llvmParser_lexer(parser);
+    let token: LlvmToken = llvmToken_clone(llvmLexer_current_token(lexer));
+    llvmParser_next_token(parser);
+    token
+}
+
 /// Advance and return next LLVM parser token.
 fn llvmParser_next_token(parser: &mut LlvmParser) -> LlvmToken {
     llvmLexer_next_token(llvmParser_lexer_mut(parser))
@@ -2802,12 +2810,12 @@ fn llvmParser_parse_assignment(parser: &mut LlvmParser) -> AssignInstruction {
     let target_register: String = llvmParser_parse_register(parser);
 
     llvmParser_expect_token(parser, &LlvmToken::Assign);
-    let operation: AssignOp = match llvmParser_current_token(parser) {
-        LlvmToken::Add => llvmParser_parse_binary_assign(parser, LlvmToken::Add, BinaryOp::Add),
-        LlvmToken::Sub => llvmParser_parse_binary_assign(parser, LlvmToken::Sub, BinaryOp::Sub),
-        LlvmToken::Mul => llvmParser_parse_binary_assign(parser, LlvmToken::Mul, BinaryOp::Mul),
-        LlvmToken::Udiv => llvmParser_parse_binary_assign(parser, LlvmToken::Udiv, BinaryOp::Udiv),
-        LlvmToken::Urem => llvmParser_parse_binary_assign(parser, LlvmToken::Urem, BinaryOp::Urem),
+    let operation: AssignOp = match llvmParser_consume_current_token(parser) {
+        LlvmToken::Add => llvmParser_parse_binary_assign(parser, BinaryOp::Add),
+        LlvmToken::Sub => llvmParser_parse_binary_assign(parser, BinaryOp::Sub),
+        LlvmToken::Mul => llvmParser_parse_binary_assign(parser, BinaryOp::Mul),
+        LlvmToken::Udiv => llvmParser_parse_binary_assign(parser, BinaryOp::Udiv),
+        LlvmToken::Urem => llvmParser_parse_binary_assign(parser, BinaryOp::Urem),
         LlvmToken::Icmp => llvmParser_parse_icmp_assign(parser),
         LlvmToken::Zext => llvmParser_parse_cast_assign(parser, CastOp::Zext),
         LlvmToken::Trunc => llvmParser_parse_cast_assign(parser, CastOp::Trunc),
@@ -2830,12 +2838,7 @@ fn llvmParser_parse_assignment(parser: &mut LlvmParser) -> AssignInstruction {
     AssignInstruction::Assign(target_register, operation)
 }
 
-fn llvmParser_parse_binary_assign(
-    parser: &mut LlvmParser,
-    operator_token: LlvmToken,
-    operator: BinaryOp,
-) -> AssignOp {
-    llvmParser_expect_token(parser, &operator_token);
+fn llvmParser_parse_binary_assign(parser: &mut LlvmParser, operator: BinaryOp) -> AssignOp {
     let ty: LlvmType = llvmParser_parse_type(parser);
     let left: LlvmValue = llvmParser_parse_value(parser);
     llvmParser_expect_token(parser, &LlvmToken::Comma);
@@ -2844,32 +2847,13 @@ fn llvmParser_parse_binary_assign(
 }
 
 fn llvmParser_parse_icmp_assign(parser: &mut LlvmParser) -> AssignOp {
-    llvmParser_expect_token(parser, &LlvmToken::Icmp);
-    let predicate: IcmpOp = match llvmParser_current_token(parser) {
-        LlvmToken::Eq => {
-            llvmParser_next_token(parser);
-            IcmpOp::Eq
-        }
-        LlvmToken::Ne => {
-            llvmParser_next_token(parser);
-            IcmpOp::Ne
-        }
-        LlvmToken::Ugt => {
-            llvmParser_next_token(parser);
-            IcmpOp::Ugt
-        }
-        LlvmToken::Uge => {
-            llvmParser_next_token(parser);
-            IcmpOp::Uge
-        }
-        LlvmToken::Ult => {
-            llvmParser_next_token(parser);
-            IcmpOp::Ult
-        }
-        LlvmToken::Ule => {
-            llvmParser_next_token(parser);
-            IcmpOp::Ule
-        }
+    let predicate: IcmpOp = match llvmParser_consume_current_token(parser) {
+        LlvmToken::Eq => IcmpOp::Eq,
+        LlvmToken::Ne => IcmpOp::Ne,
+        LlvmToken::Ugt => IcmpOp::Ugt,
+        LlvmToken::Uge => IcmpOp::Uge,
+        LlvmToken::Ult => IcmpOp::Ult,
+        LlvmToken::Ule => IcmpOp::Ule,
         _ => llvmParser_error(parser, "expected LLVM icmp predicate"),
     };
 
@@ -2885,7 +2869,6 @@ fn llvmParser_parse_icmp_assign(parser: &mut LlvmParser) -> AssignOp {
 }
 
 fn llvmParser_parse_call_assign(parser: &mut LlvmParser) -> AssignOp {
-    llvmParser_expect_token(parser, &LlvmToken::Call);
     let return_type: LlvmType = llvmParser_parse_type(parser);
     let callee: String = llvmParser_parse_global_name(parser);
     let mut arguments: Vec<LlvmTypedValue> = vec_new::<LlvmTypedValue>();
@@ -2946,7 +2929,6 @@ fn llvmParser_parse_cast_assign(parser: &mut LlvmParser, operator: CastOp) -> As
 }
 
 fn llvmParser_parse_gep_assign(parser: &mut LlvmParser) -> AssignOp {
-    llvmParser_expect_token(parser, &LlvmToken::Gep);
     let base_type: LlvmType = llvmParser_parse_type(parser);
     llvmParser_expect_token(parser, &LlvmToken::Comma);
     llvmParser_expect_token(parser, &LlvmToken::Ptr);
@@ -2971,29 +2953,13 @@ fn llvmParser_parse_gep_assign(parser: &mut LlvmParser) -> AssignOp {
 }
 
 fn llvmParser_parse_type(parser: &mut LlvmParser) -> LlvmType {
-    match llvmParser_current_token(parser) {
-        LlvmToken::I1 => {
-            llvmParser_next_token(parser);
-            LlvmType::I1
-        }
-        LlvmToken::I8 => {
-            llvmParser_next_token(parser);
-            LlvmType::I8
-        }
-        LlvmToken::I64 => {
-            llvmParser_next_token(parser);
-            LlvmType::I64
-        }
-        LlvmToken::Void => {
-            llvmParser_next_token(parser);
-            LlvmType::Void
-        }
-        LlvmToken::Ptr => {
-            llvmParser_next_token(parser);
-            LlvmType::Ptr
-        }
+    match llvmParser_consume_current_token(parser) {
+        LlvmToken::I1 => LlvmType::I1,
+        LlvmToken::I8 => LlvmType::I8,
+        LlvmToken::I64 => LlvmType::I64,
+        LlvmToken::Void => LlvmType::Void,
+        LlvmToken::Ptr => LlvmType::Ptr,
         LlvmToken::LBracket => {
-            llvmParser_next_token(parser);
             let len: usize = llvmParser_parse_non_negative_number(parser);
             match llvmParser_current_token(parser) {
                 LlvmToken::Identifier(separator) => {
