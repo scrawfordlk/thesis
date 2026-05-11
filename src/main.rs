@@ -1928,6 +1928,9 @@ enum LlvmToken {
     Udiv,            // "udiv"
     Urem,            // "urem"
     Icmp,            // "icmp"
+    Zext,            // "zext"
+    Trunc,           // "trunc"
+    To,              // "to"
     Call,            // "call"
     Gep,             // "getelementptr"
     Constant,        // "constant"
@@ -2146,6 +2149,12 @@ fn llvm_identifier_to_token(identifier: String) -> LlvmToken {
         LlvmToken::Urem
     } else if string_eq(&identifier, &string_from_str("icmp")) {
         LlvmToken::Icmp
+    } else if string_eq(&identifier, &string_from_str("zext")) {
+        LlvmToken::Zext
+    } else if string_eq(&identifier, &string_from_str("trunc")) {
+        LlvmToken::Trunc
+    } else if string_eq(&identifier, &string_from_str("to")) {
+        LlvmToken::To
     } else if string_eq(&identifier, &string_from_str("call")) {
         LlvmToken::Call
     } else if string_eq(&identifier, &string_from_str("getelementptr")) {
@@ -2337,6 +2346,31 @@ fn llvmParser_expect_identifier(parser: &mut LlvmParser) -> String {
     }
 }
 
+fn llvmParser_expect_value_type(parser: &LlvmParser, value: &LlvmValue, expected: &LlvmType) {
+    if not(llvmParser_value_has_type(parser, value, expected)) {
+        llvmParser_error(parser, "LLVM value does not match expected type");
+    }
+}
+
+fn llvmParser_value_has_type(parser: &LlvmParser, value: &LlvmValue, expected: &LlvmType) -> bool {
+    match value {
+        LlvmValue::Register(name) => {
+            match llvmLocalSymTable_lookup_register_type(llvmParser_local(parser), name) {
+                Option::Some(actual) => llvmType_eq(actual, expected),
+                Option::None => false,
+            }
+        }
+        LlvmValue::Literal(_) => match expected {
+            LlvmType::I1 | LlvmType::I8 | LlvmType::I64 => true, // allow overflows
+            _ => false,
+        },
+        LlvmValue::Global(_) => match expected {
+            LlvmType::Ptr => true,
+            _ => false,
+        },
+    }
+}
+
 enum LlvmAST {
     AST(StringMap<LlvmFunction>),
 }
@@ -2378,32 +2412,45 @@ fn llvmAST_lookup_function(ast: &LlvmAST, name: String) -> &LlvmFunction {
 
 /// Local symbol table for LLVM to track virtual register
 enum LlvmLocalSymTable {
-    Registers(StringMap<()>),
+    Registers(StringMap<LlvmType>),
 }
 
 /// Create an empty LLVM local symbol table.
 fn llvmLocalSymTable_new() -> LlvmLocalSymTable {
-    LlvmLocalSymTable::Registers(stringMap_new::<()>())
+    LlvmLocalSymTable::Registers(stringMap_new::<LlvmType>())
 }
 
 /// Clear local register table buckets.
 fn llvmLocalSymTable_clear(symtable: &mut LlvmLocalSymTable) {
     match symtable {
-        LlvmLocalSymTable::Registers(registers) => *registers = stringMap_new::<()>(),
+        LlvmLocalSymTable::Registers(registers) => *registers = stringMap_new::<LlvmType>(),
     }
 }
 
 /// Insert register name. Returns false on duplicate.
-fn llvmLocalSymTable_insert_register(symtable: &mut LlvmLocalSymTable, name: String) -> bool {
+fn llvmLocalSymTable_insert_register(
+    symtable: &mut LlvmLocalSymTable,
+    name: String,
+    ty: LlvmType,
+) -> bool {
     let LlvmLocalSymTable::Registers(registers): &mut LlvmLocalSymTable = symtable;
 
     // Check SSA
-    if stringMap_contains::<()>(registers, &name) {
+    if stringMap_contains::<LlvmType>(registers, &name) {
         false
     } else {
-        stringMap_insert::<()>(registers, name, ());
+        stringMap_insert::<LlvmType>(registers, name, ty);
         true
     }
+}
+
+/// Lookup a register type in the local symbol table.
+fn llvmLocalSymTable_lookup_register_type<'a>(
+    symtable: &'a LlvmLocalSymTable,
+    name: &String,
+) -> Option<&'a LlvmType> {
+    let LlvmLocalSymTable::Registers(registers): &LlvmLocalSymTable = symtable;
+    stringMap_get::<LlvmType>(registers, name)
 }
 
 enum LlvmFunction {
@@ -2425,6 +2472,15 @@ enum LlvmType {
     Ptr,
     Array(usize, Box<LlvmType>),
     Void,
+}
+
+fn llvmType_bitwidth(parser: &LlvmParser, ty: &LlvmType) -> usize {
+    match ty {
+        LlvmType::I1 => 1,
+        LlvmType::I8 => 8,
+        LlvmType::I64 => 64,
+        _ => llvmParser_error(parser, "expected LLVM integer type"),
+    }
 }
 
 /// Represents an instruction block.
@@ -2496,6 +2552,8 @@ enum AssignInstruction {
 enum AssignOp {
     /// operation, type, left operand, right operand
     Binary(BinaryOp, LlvmType, LlvmValue, LlvmValue),
+    /// operation, target type, value
+    Cast(CastOp, LlvmType, LlvmValue),
     /// return type, callee, arguments
     Call(LlvmType, String, Vec<LlvmTypedValue>),
     /// type, pointer, indexes
@@ -2510,6 +2568,21 @@ enum BinaryOp {
     Udiv,
     Urem,
     IcmpUlt,
+}
+
+/// Cast operations that can only appear in assignments.
+enum CastOp {
+    Zext,
+    Trunc,
+}
+
+fn assignOp_get_type(operation: &AssignOp) -> LlvmType {
+    match operation {
+        AssignOp::Binary(_, ty, _, _) => llvmType_clone(ty),
+        AssignOp::Call(ty, _, _) => llvmType_clone(ty),
+        AssignOp::Cast(_, ty, _) => llvmType_clone(ty),
+        AssignOp::Gep(_, _, _) => LlvmType::Ptr,
+    }
 }
 
 /// Represents a value in a register, global or as a literal.
@@ -2584,7 +2657,11 @@ fn llvmParser_parse_parameters(parser: &mut LlvmParser) -> Vec<LlvmParameter> {
     if not(llvmParser_current_token_eq(parser, &LlvmToken::RParen)) {
         let parameter_type: LlvmType = llvmParser_parse_type(parser);
         let param_name: String = llvmParser_parse_register(parser);
-        llvmLocalSymTable_insert_register(llvmParser_local_mut(parser), string_clone(&param_name));
+        llvmLocalSymTable_insert_register(
+            llvmParser_local_mut(parser),
+            string_clone(&param_name),
+            llvmType_clone(&parameter_type),
+        );
 
         let parameter: LlvmParameter = LlvmParameter::Parameter(param_name, parameter_type);
         vec_push::<LlvmParameter>(&mut parameters, parameter);
@@ -2598,6 +2675,7 @@ fn llvmParser_parse_parameters(parser: &mut LlvmParser) -> Vec<LlvmParameter> {
             if not(llvmLocalSymTable_insert_register(
                 llvmParser_local_mut(parser),
                 string_clone(&param_name),
+                llvmType_clone(&parameter_type),
             )) {
                 llvmParser_error(parser, "duplicate parameters in LLVM function");
             }
@@ -2702,6 +2780,7 @@ fn llvmParser_parse_assignment(parser: &mut LlvmParser) -> AssignInstruction {
         LlvmToken::Udiv => llvmParser_parse_binary_assign(parser, LlvmToken::Udiv, BinaryOp::Udiv),
         LlvmToken::Urem => llvmParser_parse_binary_assign(parser, LlvmToken::Urem, BinaryOp::Urem),
         LlvmToken::Icmp => llvmParser_parse_icmp_assign(parser),
+        LlvmToken::Zext | LlvmToken::Trunc => llvmParser_parse_cast_assign(parser),
         LlvmToken::Call => llvmParser_parse_call_assign(parser),
         LlvmToken::Gep => llvmParser_parse_gep_assign(parser),
         _ => llvmParser_error(parser, "expected LLVM assignment operation"),
@@ -2710,6 +2789,7 @@ fn llvmParser_parse_assignment(parser: &mut LlvmParser) -> AssignInstruction {
     if not(llvmLocalSymTable_insert_register(
         llvmParser_local_mut(parser),
         string_clone(&target_register),
+        assignOp_get_type(&operation),
     )) {
         llvmParser_error(
             parser,
@@ -2753,6 +2833,7 @@ fn llvmParser_parse_call_assign(parser: &mut LlvmParser) -> AssignOp {
     if not(llvmParser_current_token_eq(parser, &LlvmToken::RParen)) {
         let arg_type: LlvmType = llvmParser_parse_type(parser);
         let arg_value: LlvmValue = llvmParser_parse_value(parser);
+        llvmParser_expect_value_type(parser, &arg_value, &arg_type);
         let argument: LlvmTypedValue = LlvmTypedValue::Pair(arg_type, arg_value);
         vec_push::<LlvmTypedValue>(&mut arguments, argument);
 
@@ -2760,6 +2841,7 @@ fn llvmParser_parse_call_assign(parser: &mut LlvmParser) -> AssignOp {
             llvmParser_next_token(parser);
             let arg_type: LlvmType = llvmParser_parse_type(parser);
             let arg_value: LlvmValue = llvmParser_parse_value(parser);
+            llvmParser_expect_value_type(parser, &arg_value, &arg_type);
             let argument: LlvmTypedValue = LlvmTypedValue::Pair(arg_type, arg_value);
             vec_push::<LlvmTypedValue>(&mut arguments, argument);
         }
@@ -2767,6 +2849,51 @@ fn llvmParser_parse_call_assign(parser: &mut LlvmParser) -> AssignOp {
     llvmParser_expect_token(parser, &LlvmToken::RParen);
 
     AssignOp::Call(return_type, callee, arguments)
+}
+
+fn llvmParser_parse_cast_assign(parser: &mut LlvmParser) -> AssignOp {
+    let cast_op: CastOp = match llvmParser_current_token(parser) {
+        LlvmToken::Zext => {
+            llvmParser_next_token(parser);
+            CastOp::Zext
+        }
+        LlvmToken::Trunc => {
+            llvmParser_next_token(parser);
+            CastOp::Trunc
+        }
+        _ => llvmParser_error(parser, "expected LLVM cast operation"),
+    };
+
+    let from_type: LlvmType = llvmParser_parse_type(parser);
+
+    let value: LlvmValue = llvmParser_parse_value(parser);
+    llvmParser_expect_value_type(parser, &value, &from_type);
+
+    llvmParser_expect_token(parser, &LlvmToken::To);
+    let to_type: LlvmType = llvmParser_parse_type(parser);
+
+    let from_bits: usize = llvmType_bitwidth(parser, &from_type);
+    let to_bits: usize = llvmType_bitwidth(parser, &to_type);
+    match cast_op {
+        CastOp::Zext => {
+            if not(from_bits < to_bits) {
+                llvmParser_error(
+                    parser,
+                    "invalid LLVM zext: source type must be smaller than target type",
+                );
+            }
+        }
+        CastOp::Trunc => {
+            if not(from_bits > to_bits) {
+                llvmParser_error(
+                    parser,
+                    "invalid LLVM trunc: source type must be larger than target type",
+                );
+            }
+        }
+    }
+
+    AssignOp::Cast(cast_op, to_type, value)
 }
 
 fn llvmParser_parse_gep_assign(parser: &mut LlvmParser) -> AssignOp {
@@ -2780,11 +2907,13 @@ fn llvmParser_parse_gep_assign(parser: &mut LlvmParser) -> AssignOp {
     let mut indexes: Vec<LlvmTypedValue> = vec_new::<LlvmTypedValue>();
     let first_index_type: LlvmType = llvmParser_parse_type(parser);
     let first_index_value: LlvmValue = llvmParser_parse_value(parser);
+    llvmParser_expect_value_type(parser, &first_index_value, &first_index_type);
     let first_index: LlvmTypedValue = LlvmTypedValue::Pair(first_index_type, first_index_value);
     vec_push::<LlvmTypedValue>(&mut indexes, first_index);
     while llvmParser_try_consume(parser, &LlvmToken::Comma) {
         let index_type: LlvmType = llvmParser_parse_type(parser);
         let index_value: LlvmValue = llvmParser_parse_value(parser);
+        llvmParser_expect_value_type(parser, &index_value, &index_type);
         let index: LlvmTypedValue = LlvmTypedValue::Pair(index_type, index_value);
         vec_push::<LlvmTypedValue>(&mut indexes, index);
     }
@@ -3018,6 +3147,11 @@ fn llvmulator_evaluate_assign_op(
                 BinaryOp::IcmpUlt => (lhs < rhs) as usize,
             };
             llvm_overflow_value(result, result_type)
+        }
+
+        AssignOp::Cast(_cast_op, to_type, value) => {
+            let evaluated_value: usize = llvm_eval_value(global_values, registers, value);
+            llvm_overflow_value(evaluated_value, to_type)
         }
 
         AssignOp::Call(call_type, callee, arguments) => {
@@ -3666,6 +3800,41 @@ fn stringMap_contains<T>(map: &StringMap<T>, key: &String) -> bool {
 // --------------------------- Eq ---------------------------------
 // ----------------------------------------------------------------
 
+fn llvmType_eq(left: &LlvmType, right: &LlvmType) -> bool {
+    match left {
+        LlvmType::I1 => match right {
+            LlvmType::I1 => true,
+            _ => false,
+        },
+        LlvmType::I8 => match right {
+            LlvmType::I8 => true,
+            _ => false,
+        },
+        LlvmType::I64 => match right {
+            LlvmType::I64 => true,
+            _ => false,
+        },
+        LlvmType::Ptr => match right {
+            LlvmType::Ptr => true,
+            _ => false,
+        },
+        LlvmType::Array(left_len, left_inner) => match right {
+            LlvmType::Array(right_len, right_inner) => {
+                *left_len == *right_len
+                    && llvmType_eq(
+                        box_deref::<LlvmType>(left_inner),
+                        box_deref::<LlvmType>(right_inner),
+                    )
+            }
+            _ => false,
+        },
+        LlvmType::Void => match right {
+            LlvmType::Void => true,
+            _ => false,
+        },
+    }
+}
+
 /// Check if two tokens are equal.
 fn token_eq(a: &Token, b: &Token) -> bool {
     match a {
@@ -3987,6 +4156,18 @@ fn llvmToken_eq(left: &LlvmToken, right: &LlvmToken) -> bool {
             LlvmToken::Icmp => true,
             _ => false,
         },
+        LlvmToken::Zext => match right {
+            LlvmToken::Zext => true,
+            _ => false,
+        },
+        LlvmToken::Trunc => match right {
+            LlvmToken::Trunc => true,
+            _ => false,
+        },
+        LlvmToken::To => match right {
+            LlvmToken::To => true,
+            _ => false,
+        },
         LlvmToken::Call => match right {
             LlvmToken::Call => true,
             _ => false,
@@ -4217,6 +4398,9 @@ fn llvmToken_clone(token: &LlvmToken) -> LlvmToken {
         LlvmToken::Udiv => LlvmToken::Udiv,
         LlvmToken::Urem => LlvmToken::Urem,
         LlvmToken::Icmp => LlvmToken::Icmp,
+        LlvmToken::Zext => LlvmToken::Zext,
+        LlvmToken::Trunc => LlvmToken::Trunc,
+        LlvmToken::To => LlvmToken::To,
         LlvmToken::Call => LlvmToken::Call,
         LlvmToken::Gep => LlvmToken::Gep,
         LlvmToken::Constant => LlvmToken::Constant,
