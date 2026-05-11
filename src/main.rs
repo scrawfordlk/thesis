@@ -2382,42 +2382,34 @@ fn llvmAST_lookup_function(ast: &LlvmAST, name: String) -> &LlvmFunction {
     }
 }
 
-/// Local symbol table for LLVM
+/// Local symbol table for LLVM to track virtual register
 enum LlvmLocalSymTable {
-    Registers(List<String>),
+    Registers(StringMap<()>),
 }
 
 /// Create an empty LLVM local symbol table.
 fn llvmLocalSymTable_new() -> LlvmLocalSymTable {
-    LlvmLocalSymTable::Registers(list_new::<String>())
+    LlvmLocalSymTable::Registers(stringMap_new::<()>())
 }
 
 /// Clear local register table buckets.
 fn llvmLocalSymTable_clear(symtable: &mut LlvmLocalSymTable) {
     match symtable {
-        LlvmLocalSymTable::Registers(registers) => *registers = list_new::<String>(),
+        LlvmLocalSymTable::Registers(registers) => *registers = stringMap_new::<()>(),
     }
 }
 
-/// Insert register value. Returns false on duplicate.
+/// Insert register name. Returns false on duplicate.
 fn llvmLocalSymTable_insert_register(symtable: &mut LlvmLocalSymTable, name: String) -> bool {
     let LlvmLocalSymTable::Registers(registers): &mut LlvmLocalSymTable = symtable;
-    let mut cursor: &List<String> = registers;
-    while true {
-        match cursor {
-            List::Nil => {
-                list_append::<String>(registers, name);
-                return true;
-            }
-            List::Cons(register_name, tail) => {
-                if string_eq(register_name, &name) {
-                    return false;
-                }
-                cursor = box_deref::<List<String>>(tail);
-            }
-        }
+
+    // Check SSA
+    if stringMap_contains::<()>(registers, &name) {
+        false
+    } else {
+        stringMap_insert::<()>(registers, name, ());
+        true
     }
-    false
 }
 
 /// Stores the value and type of a virtual register.
@@ -4303,15 +4295,6 @@ fn llvmType_clone(ty: &LlvmType) -> LlvmType {
             box_new::<LlvmType>(llvmType_clone(box_deref::<LlvmType>(inner))),
         ),
         LlvmType::Void => LlvmType::Void,
-    }
-}
-
-/// Clone an LLVM local symbol table.
-fn llvmLocalSymTable_clone(symtable: &LlvmLocalSymTable) -> LlvmLocalSymTable {
-    match symtable {
-        LlvmLocalSymTable::Registers(entries) => {
-            LlvmLocalSymTable::Registers(list_clone::<String>(entries, string_clone))
-        }
     }
 }
 
