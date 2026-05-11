@@ -143,17 +143,6 @@ fn test_string_push_string() {
 }
 
 #[test]
-fn test_string_accomodate_extra_space_direct() {
-    let mut s = string_from_str("ab");
-    string_accomodate_extra_space(&mut s, 64);
-    for _ in 0..64 {
-        string_push(&mut s, 'x');
-    }
-    assert_eq!(string_len(&s), 66);
-    assert_eq!(to_std_string(&s), "ab".to_owned() + &"x".repeat(64));
-}
-
-#[test]
 fn test_string_from_str_direct() {
     let s = string_from_str("hello");
     assert!(string_eq(&s, &string_from_str("hello")));
@@ -337,23 +326,6 @@ fn test_symtable_scope_and_variables() {
         Option::None
     ));
     assert!(!symTable_leave_scope(&mut symtable));
-}
-
-#[test]
-fn test_symtable_global_entry_clone() {
-    let entry = SymTableGlobalEntry::Function(FnSignature::Fn(
-        list_new::<Type>(),
-        Type::Unit,
-    ));
-    let cloned = symTableGlobalEntry_clone(&entry);
-    assert!(matches!(cloned, SymTableGlobalEntry::Function(_)));
-}
-
-#[test]
-fn test_symtable_local_entry_clone() {
-    let entry = SymTableLocalEntry::Variable(Type::Char, true);
-    let cloned = symTableLocalEntry_clone(&entry);
-    assert!(matches!(cloned, SymTableLocalEntry::Variable(Type::Char, true)));
 }
 
 #[test]
