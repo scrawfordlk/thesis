@@ -2384,60 +2384,46 @@ fn llvmAST_lookup_function(ast: &LlvmAST, name: String) -> &LlvmFunction {
 
 /// Local symbol table for LLVM
 enum LlvmLocalSymTable {
-    Registers(List<LlvmLocalSymTableEntry>),
+    Registers(List<String>),
 }
 
 /// Create an empty LLVM local symbol table.
 fn llvmLocalSymTable_new() -> LlvmLocalSymTable {
-    LlvmLocalSymTable::Registers(list_new::<LlvmLocalSymTableEntry>())
+    LlvmLocalSymTable::Registers(list_new::<String>())
 }
 
 /// Clear local register table buckets.
 fn llvmLocalSymTable_clear(symtable: &mut LlvmLocalSymTable) {
     match symtable {
-        LlvmLocalSymTable::Registers(registers) => {
-            *registers = list_new::<LlvmLocalSymTableEntry>()
-        }
+        LlvmLocalSymTable::Registers(registers) => *registers = list_new::<String>(),
     }
 }
 
 /// Insert register value. Returns false on duplicate.
-/// TODO: should pass type instead of value
-fn llvmLocalSymTable_insert_register(
-    symtable: &mut LlvmLocalSymTable,
-    name: String,
-    value: usize,
-) -> bool {
-    match symtable {
-        LlvmLocalSymTable::Registers(registers) => {
-            let mut cursor: &List<LlvmLocalSymTableEntry> = registers;
-            while true {
-                match cursor {
-                    List::Nil => {
-                        list_append::<LlvmLocalSymTableEntry>(
-                            registers,
-                            LlvmLocalSymTableEntry::Register(name, value),
-                        );
-                        return true;
-                    }
-                    List::Cons(entry, tail) => {
-                        let LlvmLocalSymTableEntry::Register(register_name, _) = entry;
-                        if string_eq(register_name, &name) {
-                            return false;
-                        }
-                        cursor = box_deref::<List<LlvmLocalSymTableEntry>>(tail);
-                    }
-                }
+fn llvmLocalSymTable_insert_register(symtable: &mut LlvmLocalSymTable, name: String) -> bool {
+    let LlvmLocalSymTable::Registers(registers): &mut LlvmLocalSymTable = symtable;
+    let mut cursor: &List<String> = registers;
+    while true {
+        match cursor {
+            List::Nil => {
+                list_append::<String>(registers, name);
+                return true;
             }
-            false
+            List::Cons(register_name, tail) => {
+                if string_eq(register_name, &name) {
+                    return false;
+                }
+                cursor = box_deref::<List<String>>(tail);
+            }
         }
     }
+    false
 }
 
-/// Virtual register entry of a LlvmLocalSymTable
-enum LlvmLocalSymTableEntry {
-    /// identifier, value
-    Register(String, usize),
+/// Stores the value and type of a virtual register.
+enum LlvmRegister {
+    /// value, type
+    Reg(usize, LlvmType),
 }
 
 enum LlvmFunction {
@@ -2618,11 +2604,7 @@ fn llvmParser_parse_parameters(parser: &mut LlvmParser) -> Vec<LlvmParameter> {
     if not(llvmParser_current_token_eq(parser, &LlvmToken::RParen)) {
         let parameter_type: LlvmType = llvmParser_parse_type(parser);
         let param_name: String = llvmParser_parse_register(parser);
-        llvmLocalSymTable_insert_register(
-            llvmParser_local_mut(parser),
-            string_clone(&param_name),
-            0,
-        );
+        llvmLocalSymTable_insert_register(llvmParser_local_mut(parser), string_clone(&param_name));
 
         let parameter: LlvmParameter = LlvmParameter::Parameter(param_name, parameter_type);
         vec_push::<LlvmParameter>(&mut parameters, parameter);
@@ -2636,7 +2618,6 @@ fn llvmParser_parse_parameters(parser: &mut LlvmParser) -> Vec<LlvmParameter> {
             if not(llvmLocalSymTable_insert_register(
                 llvmParser_local_mut(parser),
                 string_clone(&param_name),
-                0,
             )) {
                 llvmParser_error(parser, "duplicate parameters in LLVM function");
             }
@@ -2732,16 +2713,6 @@ fn llvmParser_parse_branch(parser: &mut LlvmParser) -> TerminatorInstruction {
 
 fn llvmParser_parse_assignment(parser: &mut LlvmParser) -> AssignInstruction {
     let target_register: String = llvmParser_parse_register(parser);
-    if not(llvmLocalSymTable_insert_register(
-        llvmParser_local_mut(parser),
-        string_clone(&target_register),
-        0,
-    )) {
-        llvmParser_error(
-            parser,
-            "SSA violation: duplicate virtual register assignment",
-        );
-    }
 
     llvmParser_expect_token(parser, &LlvmToken::Assign);
     let operation: AssignOp = match llvmParser_current_token(parser) {
@@ -2755,7 +2726,27 @@ fn llvmParser_parse_assignment(parser: &mut LlvmParser) -> AssignInstruction {
         LlvmToken::Gep => llvmParser_parse_gep_assign(parser),
         _ => llvmParser_error(parser, "expected LLVM assignment operation"),
     };
+
+    if not(llvmLocalSymTable_insert_register(
+        llvmParser_local_mut(parser),
+        string_clone(&target_register),
+    )) {
+        llvmParser_error(
+            parser,
+            "SSA violation: duplicate virtual register assignment",
+        );
+    }
+
     AssignInstruction::Assign(target_register, operation)
+}
+
+/// Extract the result type from an assignment operation.
+fn llvmParser_assign_op_get_type(operation: &AssignOp) -> LlvmType {
+    match operation {
+        AssignOp::Binary(_, ty, _, _) => llvmType_clone(ty),
+        AssignOp::Call(ty, _, _) => llvmType_clone(ty),
+        AssignOp::Gep(_, _, _) => LlvmType::Ptr,
+    }
 }
 
 fn llvmParser_parse_binary_assign(
@@ -2961,7 +2952,7 @@ fn llvmulator_execute_function(
         panic!("LLVM call argument count mismatch");
     }
 
-    let mut local_register_values: StringMap<usize> = stringMap_new::<usize>();
+    let mut virtual_registers: StringMap<LlvmRegister> = stringMap_new::<LlvmRegister>();
 
     let mut i: usize = 0;
     while i < vec_len::<LlvmParameter>(parameters) {
@@ -2970,15 +2961,16 @@ fn llvmulator_execute_function(
         let argument: &LlvmTypedValue =
             unwrap::<&LlvmTypedValue>(vec_get::<LlvmTypedValue>(arguments, i));
 
-        let LlvmParameter::Parameter(name, _): &LlvmParameter = parameter;
+        let LlvmParameter::Parameter(name, param_type): &LlvmParameter = parameter;
         let LlvmTypedValue::Pair(_, argument_value): &LlvmTypedValue = argument;
 
         let value: usize = llvm_eval_value(
             llvmulator_globals(emulator),
-            &local_register_values,
+            &virtual_registers,
             argument_value,
         );
-        stringMap_insert::<usize>(&mut local_register_values, string_clone(name), value);
+        let register: LlvmRegister = LlvmRegister::Reg(value, llvmType_clone(param_type));
+        stringMap_insert::<LlvmRegister>(&mut virtual_registers, string_clone(name), register);
 
         i = i + 1;
     }
@@ -2991,12 +2983,8 @@ fn llvmulator_execute_function(
         let instructions: &Vec<Instruction> =
             instructionBlock_fetch_instructions(blocks, string_clone(&current_label));
 
-        let flow: LlvmExecFlow = llvmulator_execute_instructions(
-            emulator,
-            ast,
-            &mut local_register_values,
-            instructions,
-        );
+        let flow: LlvmExecFlow =
+            llvmulator_execute_instructions(emulator, ast, &mut virtual_registers, instructions);
 
         match flow {
             LlvmExecFlow::Continue => panic!("LLVM block did not terminate"),
@@ -3011,7 +2999,7 @@ fn llvmulator_execute_function(
 fn llvmulator_execute_instructions(
     emulator: &mut Llvmulator,
     ast: &LlvmAST,
-    register_values: &mut StringMap<usize>,
+    registers: &mut StringMap<LlvmRegister>,
     instructions: &Vec<Instruction>,
 ) -> LlvmExecFlow {
     let mut i: usize = 0;
@@ -3021,12 +3009,12 @@ fn llvmulator_execute_instructions(
 
         match instruction {
             Instruction::Assignment(assign_instruction) => {
-                llvmulator_execute_assignment(emulator, ast, register_values, assign_instruction);
+                llvmulator_execute_assignment(emulator, ast, registers, assign_instruction);
             }
             Instruction::Terminator(terminator) => {
                 return llvmulator_execute_terminator(
                     llvmulator_globals(emulator),
-                    register_values,
+                    registers,
                     terminator,
                 );
             }
@@ -3041,69 +3029,80 @@ fn llvmulator_execute_instructions(
 fn llvmulator_execute_assignment(
     emulator: &mut Llvmulator,
     ast: &LlvmAST,
-    register_values: &mut StringMap<usize>,
+    registers: &mut StringMap<LlvmRegister>,
     instruction: &AssignInstruction,
 ) {
     let AssignInstruction::Assign(target, operation): &AssignInstruction = instruction;
-    let value: usize = llvmulator_evaluate_assign_op(emulator, ast, register_values, operation);
-    stringMap_insert(register_values, string_clone(target), value);
+    let register: LlvmRegister = llvmulator_evaluate_assign_op(emulator, ast, registers, operation);
+    stringMap_insert(registers, string_clone(target), register);
 }
 
 /// Evaluate the value of the assignment operation.
 fn llvmulator_evaluate_assign_op(
     emulator: &mut Llvmulator,
     ast: &LlvmAST,
-    register_values: &mut StringMap<usize>,
+    registers: &StringMap<LlvmRegister>,
     operation: &AssignOp,
-) -> usize {
+) -> LlvmRegister {
     let global_values: &StringMap<usize> = llvmulator_globals(emulator);
     match operation {
-        AssignOp::Binary(operator, _, left, right) => {
-            let lhs: usize = llvm_eval_value(global_values, register_values, left);
-            let rhs: usize = llvm_eval_value(llvmulator_globals(emulator), register_values, right);
-            match operator {
+        AssignOp::Binary(operator, result_type, left, right) => {
+            let lhs: usize = llvm_eval_value(global_values, registers, left);
+            let rhs: usize = llvm_eval_value(llvmulator_globals(emulator), registers, right);
+            let result: usize = match operator {
                 BinaryOp::Add => lhs + rhs,
                 BinaryOp::Sub => lhs - rhs,
                 BinaryOp::Mul => lhs * rhs,
                 BinaryOp::Udiv => lhs / rhs,
                 BinaryOp::Urem => lhs % rhs,
                 BinaryOp::IcmpUlt => (lhs < rhs) as usize,
-            }
+            };
+            let overflowed_value: usize = llvm_apply_overflow(result, result_type);
+            LlvmRegister::Reg(overflowed_value, llvmType_clone(result_type))
         }
-        AssignOp::Call(_, callee, arguments) => {
-            llvmulator_execute_function_named(emulator, ast, callee, arguments)
+        AssignOp::Call(call_type, callee, arguments) => {
+            let value: usize = llvmulator_execute_function_named(emulator, ast, callee, arguments);
+            LlvmRegister::Reg(value, llvmType_clone(call_type))
         }
         AssignOp::Gep(_, pointer, indexes) => {
-            let mut address: usize = llvm_eval_value(global_values, register_values, pointer);
+            let mut address: usize = llvm_eval_value(global_values, registers, pointer);
             let mut i: usize = 0;
             while i < vec_len::<LlvmTypedValue>(indexes) {
                 let typed_value: &LlvmTypedValue =
                     unwrap::<&LlvmTypedValue>(vec_get::<LlvmTypedValue>(indexes, i));
                 let LlvmTypedValue::Pair(_, index_value): &LlvmTypedValue = typed_value;
-                address = address + llvm_eval_value(global_values, register_values, index_value);
+                address = address + llvm_eval_value(global_values, registers, index_value);
                 i = i + 1;
             }
-            address
+            LlvmRegister::Reg(address, LlvmType::Ptr)
         }
+    }
+}
+
+/// Apply overflow mask to a value based on its type.
+fn llvm_apply_overflow(value: usize, ty: &LlvmType) -> usize {
+    match ty {
+        LlvmType::I1 => value % 2,
+        LlvmType::I8 => value % 256,
+        _ => value,
     }
 }
 
 /// Execute the given terminator instruction.
 fn llvmulator_execute_terminator(
     global_values: &StringMap<usize>,
-    register_values: &StringMap<usize>,
+    registers: &StringMap<LlvmRegister>,
     terminator: &TerminatorInstruction,
 ) -> LlvmExecFlow {
     match terminator {
         TerminatorInstruction::RetVoid => LlvmExecFlow::Return(0),
         TerminatorInstruction::Ret(_, value) => {
-            LlvmExecFlow::Return(llvm_eval_value(global_values, register_values, value))
+            LlvmExecFlow::Return(llvm_eval_value(global_values, registers, value))
         }
         TerminatorInstruction::Br(branch) => match branch {
             Branch::Unconditional(target_label) => LlvmExecFlow::Jump(string_clone(target_label)),
             Branch::Conditional(condition, then_label, else_label) => {
-                let condition_value: usize =
-                    llvm_eval_value(global_values, register_values, condition);
+                let condition_value: usize = llvm_eval_value(global_values, registers, condition);
                 if condition_value == 1 {
                     LlvmExecFlow::Jump(string_clone(then_label))
                 } else {
@@ -3117,13 +3116,16 @@ fn llvmulator_execute_terminator(
 /// Evaluate the value of a virtual register, global name or literal.
 fn llvm_eval_value(
     global_values: &StringMap<usize>,
-    register_values: &StringMap<usize>,
+    registers: &StringMap<LlvmRegister>,
     value: &LlvmValue,
 ) -> usize {
     match value {
         LlvmValue::Literal(number) => *number,
-        LlvmValue::Register(name) => match stringMap_get(register_values, name) {
-            Option::Some(register_value) => *register_value,
+        LlvmValue::Register(name) => match stringMap_get::<LlvmRegister>(registers, name) {
+            Option::Some(register) => {
+                let LlvmRegister::Reg(val, _): &LlvmRegister = register;
+                *val
+            }
             Option::None => panic!("unknown LLVM register"),
         },
         LlvmValue::Global(name) => match stringMap_get::<usize>(global_values, name) {
@@ -4289,12 +4291,18 @@ fn llvmToken_clone(token: &LlvmToken) -> LlvmToken {
     }
 }
 
-/// Clone one LLVM local symbol table entry.
-fn llvmLocalSymTableEntry_clone(entry: &LlvmLocalSymTableEntry) -> LlvmLocalSymTableEntry {
-    match entry {
-        LlvmLocalSymTableEntry::Register(name, value) => {
-            LlvmLocalSymTableEntry::Register(string_clone(name), *value)
-        }
+/// Clone an LLVM type.
+fn llvmType_clone(ty: &LlvmType) -> LlvmType {
+    match ty {
+        LlvmType::I1 => LlvmType::I1,
+        LlvmType::I8 => LlvmType::I8,
+        LlvmType::I64 => LlvmType::I64,
+        LlvmType::Ptr => LlvmType::Ptr,
+        LlvmType::Array(len, inner) => LlvmType::Array(
+            *len,
+            box_new::<LlvmType>(llvmType_clone(box_deref::<LlvmType>(inner))),
+        ),
+        LlvmType::Void => LlvmType::Void,
     }
 }
 
@@ -4302,10 +4310,7 @@ fn llvmLocalSymTableEntry_clone(entry: &LlvmLocalSymTableEntry) -> LlvmLocalSymT
 fn llvmLocalSymTable_clone(symtable: &LlvmLocalSymTable) -> LlvmLocalSymTable {
     match symtable {
         LlvmLocalSymTable::Registers(entries) => {
-            LlvmLocalSymTable::Registers(list_clone::<LlvmLocalSymTableEntry>(
-                entries,
-                llvmLocalSymTableEntry_clone,
-            ))
+            LlvmLocalSymTable::Registers(list_clone::<String>(entries, string_clone))
         }
     }
 }
