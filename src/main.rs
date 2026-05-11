@@ -2751,12 +2751,16 @@ fn llvmParser_parse_call_assign(parser: &mut LlvmParser) -> AssignOp {
 
     llvmParser_expect_token(parser, &LlvmToken::LParen);
     if not(llvmParser_current_token_eq(parser, &LlvmToken::RParen)) {
-        let argument: LlvmTypedValue = llvmParser_parse_typed_value(parser);
+        let arg_type: LlvmType = llvmParser_parse_type(parser);
+        let arg_value: LlvmValue = llvmParser_parse_value(parser);
+        let argument: LlvmTypedValue = LlvmTypedValue::Pair(arg_type, arg_value);
         vec_push::<LlvmTypedValue>(&mut arguments, argument);
 
         while llvmParser_current_token_eq(parser, &LlvmToken::Comma) {
             llvmParser_next_token(parser);
-            let argument: LlvmTypedValue = llvmParser_parse_typed_value(parser);
+            let arg_type: LlvmType = llvmParser_parse_type(parser);
+            let arg_value: LlvmValue = llvmParser_parse_value(parser);
+            let argument: LlvmTypedValue = LlvmTypedValue::Pair(arg_type, arg_value);
             vec_push::<LlvmTypedValue>(&mut arguments, argument);
         }
     }
@@ -2774,10 +2778,14 @@ fn llvmParser_parse_gep_assign(parser: &mut LlvmParser) -> AssignOp {
     llvmParser_expect_token(parser, &LlvmToken::Comma);
 
     let mut indexes: Vec<LlvmTypedValue> = vec_new::<LlvmTypedValue>();
-    let first_index: LlvmTypedValue = llvmParser_parse_typed_value(parser);
+    let first_index_type: LlvmType = llvmParser_parse_type(parser);
+    let first_index_value: LlvmValue = llvmParser_parse_value(parser);
+    let first_index: LlvmTypedValue = LlvmTypedValue::Pair(first_index_type, first_index_value);
     vec_push::<LlvmTypedValue>(&mut indexes, first_index);
     while llvmParser_try_consume(parser, &LlvmToken::Comma) {
-        let index: LlvmTypedValue = llvmParser_parse_typed_value(parser);
+        let index_type: LlvmType = llvmParser_parse_type(parser);
+        let index_value: LlvmValue = llvmParser_parse_value(parser);
+        let index: LlvmTypedValue = LlvmTypedValue::Pair(index_type, index_value);
         vec_push::<LlvmTypedValue>(&mut indexes, index);
     }
 
@@ -2833,12 +2841,6 @@ fn llvmParser_parse_value(parser: &mut LlvmParser) -> LlvmValue {
         LlvmToken::Integer(_) => LlvmValue::Literal(llvmParser_parse_number_literal(parser)),
         _ => llvmParser_error(parser, "expected LLVM value"),
     }
-}
-
-fn llvmParser_parse_typed_value(parser: &mut LlvmParser) -> LlvmTypedValue {
-    let ty: LlvmType = llvmParser_parse_type(parser);
-    let value: LlvmValue = llvmParser_parse_value(parser);
-    LlvmTypedValue::Pair(ty, value)
 }
 
 fn llvmParser_parse_non_negative_number(parser: &mut LlvmParser) -> usize {
