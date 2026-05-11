@@ -2897,7 +2897,7 @@ fn llvmulator_execute_llvm(source: String) -> usize {
     let mut emulator: Llvmulator = llvmulator_new();
     let ast: LlvmAST = llvmParser_parse_to_ast(source);
     let main_name: String = string_from_str("main");
-    let empty_args: Vec<LlvmTypedValue> = vec_new::<LlvmTypedValue>();
+    let empty_args: Vec<usize> = vec_new::<usize>();
     llvmulator_execute_function_named(&mut emulator, &ast, &main_name, &empty_args)
 }
 
@@ -2906,7 +2906,7 @@ fn llvmulator_execute_function_named(
     emulator: &mut Llvmulator,
     ast: &LlvmAST,
     function_name: &String,
-    arguments: &Vec<LlvmTypedValue>,
+    arguments: &Vec<usize>,
 ) -> usize {
     let function: &LlvmFunction = llvmAST_lookup_function(ast, string_clone(function_name));
     llvmulator_execute_function(emulator, ast, function, arguments)
@@ -2917,32 +2917,19 @@ fn llvmulator_execute_function(
     emulator: &mut Llvmulator,
     ast: &LlvmAST,
     function: &LlvmFunction,
-    arguments: &Vec<LlvmTypedValue>,
+    arguments: &Vec<usize>,
 ) -> usize {
-    let LlvmFunction::Function(_, parameters, blocks): &LlvmFunction = function;
-    if vec_len::<LlvmParameter>(parameters) != vec_len::<LlvmTypedValue>(arguments) {
-        panic!("LLVM call argument count mismatch");
-    }
-
     let mut virtual_registers: StringMap<usize> = stringMap_new::<usize>();
+
+    let LlvmFunction::Function(_, parameters, blocks): &LlvmFunction = function;
 
     let mut i: usize = 0;
     while i < vec_len::<LlvmParameter>(parameters) {
         let parameter: &LlvmParameter =
             unwrap::<&LlvmParameter>(vec_get::<LlvmParameter>(parameters, i));
-        let argument: &LlvmTypedValue =
-            unwrap::<&LlvmTypedValue>(vec_get::<LlvmTypedValue>(arguments, i));
-
-        let LlvmParameter::Parameter(name, param_type): &LlvmParameter = parameter;
-        let LlvmTypedValue::Pair(_, argument_value): &LlvmTypedValue = argument;
-
-        let value: usize = llvm_eval_value(
-            llvmulator_globals(emulator),
-            &virtual_registers,
-            argument_value,
-        );
-        let value: usize = llvm_overflow_value(value, param_type);
-        stringMap_insert::<usize>(&mut virtual_registers, string_clone(name), value);
+        let value: &usize = unwrap::<&usize>(vec_get::<usize>(arguments, i));
+        let LlvmParameter::Parameter(name, _): &LlvmParameter = parameter;
+        stringMap_insert::<usize>(&mut virtual_registers, string_clone(name), *value);
 
         i = i + 1;
     }
@@ -2964,7 +2951,7 @@ fn llvmulator_execute_function(
             LlvmExecFlow::Return(value) => return value,
         }
     }
-    0
+    0 // satisfy compiler
 }
 
 /// Execute a given list of instructions.
@@ -3031,10 +3018,27 @@ fn llvmulator_evaluate_assign_op(
             };
             llvm_overflow_value(result, result_type)
         }
+
         AssignOp::Call(call_type, callee, arguments) => {
-            let value: usize = llvmulator_execute_function_named(emulator, ast, callee, arguments);
+            let mut arg_values: Vec<usize> = vec_new::<usize>();
+            let mut i: usize = 0;
+            while i < vec_len::<LlvmTypedValue>(arguments) {
+                let argument: &LlvmTypedValue =
+                    unwrap::<&LlvmTypedValue>(vec_get::<LlvmTypedValue>(arguments, i));
+                let LlvmTypedValue::Pair(ty, argument_value): &LlvmTypedValue = argument;
+
+                let value: usize = llvm_eval_value(global_values, registers, argument_value);
+                let wrapped_value: usize = llvm_overflow_value(value, ty);
+                vec_push::<usize>(&mut arg_values, wrapped_value);
+
+                i = i + 1;
+            }
+
+            let value: usize =
+                llvmulator_execute_function_named(emulator, ast, callee, &arg_values);
             llvm_overflow_value(value, call_type)
         }
+
         AssignOp::Gep(_, pointer, indexes) => {
             let mut address: usize = llvm_eval_value(global_values, registers, pointer);
             let mut i: usize = 0;
@@ -3050,7 +3054,7 @@ fn llvmulator_evaluate_assign_op(
     }
 }
 
-/// "Bitmask" a value so that it wraps-around properly in respect to the given type.
+/// Normalize a value so it wraps around according to the given type.
 fn llvm_overflow_value(value: usize, ty: &LlvmType) -> usize {
     match ty {
         LlvmType::I1 => value % 2,
