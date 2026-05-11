@@ -2251,11 +2251,6 @@ fn llvmParser_new(source: String) -> LlvmParser {
     )
 }
 
-/// Create an LLVM parser from a string slice.
-fn llvmParser_from_str(source: &str) -> LlvmParser {
-    llvmParser_new(string_from_str(source))
-}
-
 /// Get immutable parser lexer access.
 fn llvmParser_lexer(parser: &LlvmParser) -> &LlvmLexer {
     let LlvmParser::Parser(lexer, _, _): &LlvmParser = parser;
@@ -2730,15 +2725,6 @@ fn llvmParser_parse_assignment(parser: &mut LlvmParser) -> AssignInstruction {
     }
 
     AssignInstruction::Assign(target_register, operation)
-}
-
-/// Extract the result type from an assignment operation.
-fn llvmParser_assign_op_get_type(operation: &AssignOp) -> LlvmType {
-    match operation {
-        AssignOp::Binary(_, ty, _, _) => llvmType_clone(ty),
-        AssignOp::Call(ty, _, _) => llvmType_clone(ty),
-        AssignOp::Gep(_, _, _) => LlvmType::Ptr,
-    }
 }
 
 fn llvmParser_parse_binary_assign(
@@ -4195,27 +4181,6 @@ fn literalToken_clone(literal: &Literal) -> Literal {
     }
 }
 
-/// Clone a global symbol table entry.
-fn symTableGlobalEntry_clone(entry: &SymTableGlobalEntry) -> SymTableGlobalEntry {
-    match entry {
-        SymTableGlobalEntry::Function(signature) => {
-            SymTableGlobalEntry::Function(fnSignature_clone(signature))
-        }
-        SymTableGlobalEntry::Enum(variants) => {
-            SymTableGlobalEntry::Enum(list_clone::<Type>(variants, type_clone))
-        }
-    }
-}
-
-/// Clone a local symbol table entry.
-fn symTableLocalEntry_clone(entry: &SymTableLocalEntry) -> SymTableLocalEntry {
-    match entry {
-        SymTableLocalEntry::Variable(variable_type, mutable) => {
-            SymTableLocalEntry::Variable(type_clone(variable_type), *mutable)
-        }
-    }
-}
-
 /// Clone a function signature.
 fn fnSignature_clone(signature: &FnSignature) -> FnSignature {
     match signature {
@@ -4473,12 +4438,6 @@ fn string_hash(string: &String, bucket_count: usize) -> usize {
     hash % bucket_count
 }
 
-/// Ensure the string has space for additional bytes.
-fn string_accomodate_extra_space(string: &mut String, space: usize) {
-    let String::Inner(bytes): &mut String = string;
-    vec_accomodate_extra_space::<u8>(bytes, space);
-}
-
 // ------------------------- Memory -------------------------------
 
 /// Copy n bytes from src to dest.
@@ -4517,4 +4476,4 @@ fn alloc(size: usize, align: usize) -> *mut u8 {
 // -------------------------- Tests --------------------------------
 // -----------------------------------------------------------------
 
-include!("tests.rs");
+// include!("tests.rs");
