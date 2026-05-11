@@ -2809,7 +2809,8 @@ fn llvmParser_parse_assignment(parser: &mut LlvmParser) -> AssignInstruction {
         LlvmToken::Udiv => llvmParser_parse_binary_assign(parser, LlvmToken::Udiv, BinaryOp::Udiv),
         LlvmToken::Urem => llvmParser_parse_binary_assign(parser, LlvmToken::Urem, BinaryOp::Urem),
         LlvmToken::Icmp => llvmParser_parse_icmp_assign(parser),
-        LlvmToken::Zext | LlvmToken::Trunc => llvmParser_parse_cast_assign(parser),
+        LlvmToken::Zext => llvmParser_parse_cast_assign(parser, CastOp::Zext),
+        LlvmToken::Trunc => llvmParser_parse_cast_assign(parser, CastOp::Trunc),
         LlvmToken::Call => llvmParser_parse_call_assign(parser),
         LlvmToken::Gep => llvmParser_parse_gep_assign(parser),
         _ => llvmParser_error(parser, "expected LLVM assignment operation"),
@@ -2911,19 +2912,7 @@ fn llvmParser_parse_call_assign(parser: &mut LlvmParser) -> AssignOp {
     AssignOp::Call(return_type, callee, arguments)
 }
 
-fn llvmParser_parse_cast_assign(parser: &mut LlvmParser) -> AssignOp {
-    let cast_op: CastOp = match llvmParser_current_token(parser) {
-        LlvmToken::Zext => {
-            llvmParser_next_token(parser);
-            CastOp::Zext
-        }
-        LlvmToken::Trunc => {
-            llvmParser_next_token(parser);
-            CastOp::Trunc
-        }
-        _ => llvmParser_error(parser, "expected LLVM cast operation"),
-    };
-
+fn llvmParser_parse_cast_assign(parser: &mut LlvmParser, operator: CastOp) -> AssignOp {
     let from_type: LlvmType = llvmParser_parse_type(parser);
 
     let value: LlvmValue = llvmParser_parse_value(parser);
@@ -2934,7 +2923,7 @@ fn llvmParser_parse_cast_assign(parser: &mut LlvmParser) -> AssignOp {
 
     let from_bits: usize = llvmType_bitwidth(parser, &from_type);
     let to_bits: usize = llvmType_bitwidth(parser, &to_type);
-    match cast_op {
+    match &operator {
         CastOp::Zext => {
             if not(from_bits < to_bits) {
                 llvmParser_error(
@@ -2953,7 +2942,7 @@ fn llvmParser_parse_cast_assign(parser: &mut LlvmParser) -> AssignOp {
         }
     }
 
-    AssignOp::Cast(cast_op, to_type, value)
+    AssignOp::Cast(operator, to_type, value)
 }
 
 fn llvmParser_parse_gep_assign(parser: &mut LlvmParser) -> AssignOp {
