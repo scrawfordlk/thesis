@@ -2360,12 +2360,11 @@ fn llvmAST_functions_mut(ast: &mut LlvmAST) -> &mut StringMap<LlvmFunction> {
 
 /// Insert a function entry into the AST. Returns false on duplicate name.
 fn llvmAST_insert_function(ast: &mut LlvmAST, name: String, function: LlvmFunction) -> bool {
-    match stringMap_get::<LlvmFunction>(llvmAST_functions(ast), &name) {
-        Option::Some(_) => false,
-        Option::None => {
-            stringMap_insert::<LlvmFunction>(llvmAST_functions_mut(ast), name, function);
-            true
-        }
+    if stringMap_contains::<LlvmFunction>(llvmAST_functions(ast), &name) {
+        false
+    } else {
+        stringMap_insert::<LlvmFunction>(llvmAST_functions_mut(ast), name, function);
+        true
     }
 }
 
