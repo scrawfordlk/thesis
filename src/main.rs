@@ -3021,27 +3021,82 @@ enum LlvmExecFlow {
 
 /// Type that encapsulates the state of the LLVM emulator.
 enum Llvmulator {
-    /// map of global values
-    Llvmulator(StringMap<usize>),
+    Emulator(
+        /// map of global addresses
+        StringMap<usize>,
+        /// byte-addressed, double-word-aligned and big-endian memory (stack, heap, data)
+        Vec<u8>,
+        /// stack pointer
+        usize,
+        /// current frame size,
+        usize,
+        /// global pointer
+        usize,
+    ),
 }
 
-/// Create a new emulator state around one AST.
-fn llvmulator_new() -> Llvmulator {
-    Llvmulator::Llvmulator(stringMap_new::<usize>())
+/// Create a new emulator state including `memory_size` bytes of main memory.
+/// The program break is at the address `global_pointer`.
+fn llvmulator_new(memory_size: usize, global_pointer: usize) -> Llvmulator {
+    let stack_pointer: usize = memory_size - 1;
+    Llvmulator::Emulator(
+        stringMap_new::<usize>(),
+        vec_with_len::<u8>(memory_size),
+        stack_pointer,
+        0,
+        global_pointer,
+    )
 }
 
 /// Get a shared reference to the global values.
 fn llvmulator_globals(emulator: &Llvmulator) -> &StringMap<usize> {
-    let Llvmulator::Llvmulator(globals): &Llvmulator = emulator;
+    let Llvmulator::Emulator(globals, _, _, _, _): &Llvmulator = emulator;
     globals
+}
+
+/// Get a shared reference to the stack pointer.
+fn llvmulator_get_sp(emulator: &Llvmulator) -> usize {
+    let Llvmulator::Emulator(_, _, stack_pointer, _, _): &Llvmulator = emulator;
+    *stack_pointer
+}
+
+/// Allocates a double word on the stack and returns its address.
+fn llvmulator_allocate_double(emulator: &mut Llvmulator) -> usize {
+    let Llvmulator::Emulator(_, _, stack_pointer, frame_size, _): &mut Llvmulator = emulator;
+    *stack_pointer = *stack_pointer + size_of::<usize>();
+    *frame_size = *frame_size + size_of::<usize>();
+    *stack_pointer
+}
+
+/// Deallocates the stack frame by resetting the frame size to 0 and moving the stack pointer up by the frame size.
+fn llvmulator_deallocate_stack_frame(emulator: &mut Llvmulator) {
+    let Llvmulator::Emulator(_, _, stack_pointer, frame_size, _): &mut Llvmulator = emulator;
+    *stack_pointer = *stack_pointer + *frame_size;
+    *frame_size = 0;
+}
+
+/// Store a double word at the given address.
+/// Returns true if the address is valid, otherwise false.
+fn llvmulator_store_double(emulator: &mut Llvmulator, address: usize, value: usize) -> bool {
+    let Llvmulator::Emulator(_, memory, _, _, _): &mut Llvmulator = emulator;
+    false
+}
+
+/// Load a double word from the given address.
+fn llvmulator_load_double(emulator: &mut Llvmulator, address: usize) -> Option<usize> {
+    let Llvmulator::Emulator(_, memory, _, _, _): &mut Llvmulator = emulator;
+    Option::None
 }
 
 /// Parse and emulate LLVM source and return the return value of @main.
 fn llvmulator_execute_llvm(source: String) -> usize {
-    let mut emulator: Llvmulator = llvmulator_new();
     let ast: LlvmAST = llvmParser_parse_to_ast(source);
+
     let main_name: String = string_from_str("main");
     let empty_args: Vec<usize> = vec_new::<usize>();
+
+    // TODO: parameterise memory size, set correct global pointer after parsing
+    let mut emulator: Llvmulator = llvmulator_new(3000000, 0);
     llvmulator_execute_function_named(&mut emulator, &ast, &main_name, &empty_args)
 }
 
@@ -3170,14 +3225,15 @@ fn llvmulator_evaluate_assign_op(
             lhs = llvm_overflow_value(lhs, operand_type);
             rhs = llvm_overflow_value(rhs, operand_type);
 
-            match predicate {
-                IcmpOp::Eq => (lhs == rhs) as usize,
-                IcmpOp::Ne => (lhs != rhs) as usize,
-                IcmpOp::Ugt => (lhs > rhs) as usize,
-                IcmpOp::Uge => (lhs >= rhs) as usize,
-                IcmpOp::Ult => (lhs < rhs) as usize,
-                IcmpOp::Ule => (lhs <= rhs) as usize,
-            }
+            let result: bool = match predicate {
+                IcmpOp::Eq => lhs == rhs,
+                IcmpOp::Ne => lhs != rhs,
+                IcmpOp::Ugt => lhs > rhs,
+                IcmpOp::Uge => lhs >= rhs,
+                IcmpOp::Ult => lhs < rhs,
+                IcmpOp::Ule => lhs <= rhs,
+            };
+            result as usize
         }
 
         AssignOp::Cast(_cast_op, to_type, value) => {
@@ -3616,6 +3672,12 @@ fn vec_with_capacity<T>(initial_capacity: usize) -> Vec<T> {
     };
     let ptr: *mut T = alloc(byte_len, align_of::<T>()) as *mut T;
     Vec::Vec(ptr, 0, capacity)
+}
+
+/// Create a vector with a fixed initial length.
+fn vec_with_len<T>(len: usize) -> Vec<T> {
+    let Vec::Vec(ptr, _, capacity) = vec_with_capacity(len);
+    Vec::Vec(ptr, len, capacity)
 }
 
 /// Get the backing pointer.
