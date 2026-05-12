@@ -4,20 +4,19 @@ fn main() {
     use std::io::Write as StdWrite;
     use std::option::Option as StdOption;
     use std::path::Path as StdPath;
-    use std::process::exit as std_exit;
     use std::string::String as StdString;
     use std::vec::Vec as StdVec;
 
     let args: StdVec<StdString> = std::env::args().collect();
     if args.len() <= 1 {
         eprintln!("Usage: <program> ( -c <input> [ -o <output> ] [ -e ] | -e <inputllvm> )");
-        std_exit(1);
+        std::process::exit(1);
     }
 
     if args[1] == "-c" {
         if args.len() < 3 {
             eprintln!("Usage: <program> ( -c <input> [ -o <output> ] [ -e ] | -e <inputllvm> )");
-            std_exit(1);
+            std::process::exit(1);
         }
         let input = args[2].clone();
         let mut file: StdOption<StdString> = StdOption::None;
@@ -30,7 +29,7 @@ fn main() {
                     eprintln!(
                         "Usage: <program> ( -c <input> [ -o <output> ] [ -e ] | -e <inputllvm> )"
                     );
-                    std_exit(1);
+                    std::process::exit(1);
                 }
                 file = StdOption::Some(args[i + 1].clone());
                 i += 2;
@@ -70,7 +69,7 @@ fn main() {
 
         if emulate_after {
             let exit_code: usize = llvmulator_execute_llvm(code_clone);
-            std_exit((exit_code % 256) as i32);
+            std::process::exit((exit_code % 256) as i32);
         }
 
         return;
@@ -79,15 +78,15 @@ fn main() {
     if args[1] == "-e" {
         if args.len() < 3 {
             eprintln!("Usage: <program> ( -c <input> [ -o <output> ] [ -e ] | -e <inputllvm> )");
-            std_exit(1);
+            std::process::exit(1);
         }
         let llvm_ir: StdString = std::fs::read_to_string(&args[2]).expect("no llvm file found");
         let exit_code: usize = llvmulator_execute_llvm(string_from_str(&llvm_ir));
-        std_exit((exit_code % 256) as i32);
+        std::process::exit((exit_code % 256) as i32);
     }
 
     eprintln!("Usage: <program> ( -c <input> [ -o <output> ] [ -e ] | -e <inputllvm> )");
-    std_exit(1);
+    std::process::exit(1);
 }
 
 // -----------------------------------------------------------------
@@ -3563,7 +3562,7 @@ enum Box<T> {
 
 /// Allocate and box a value on the heap.
 fn box_new<T>(value: T) -> Box<T> {
-    let ptr_u8: *mut u8 = alloc(std::mem::size_of::<T>(), std::mem::align_of::<T>());
+    let ptr_u8: *mut u8 = alloc(size_of::<T>(), align_of::<T>());
     let ptr: *mut T = ptr_u8 as *mut T;
     unsafe { *ptr = value };
     Box::Ptr(ptr)
@@ -3609,13 +3608,13 @@ fn vec_with_capacity<T>(initial_capacity: usize) -> Vec<T> {
     } else {
         initial_capacity
     };
-    let elem_size: usize = std::mem::size_of::<T>();
+    let elem_size: usize = size_of::<T>();
     let byte_len: usize = if elem_size == 0 {
         capacity
     } else {
         capacity * elem_size
     };
-    let ptr: *mut T = alloc(byte_len, std::mem::align_of::<T>()) as *mut T;
+    let ptr: *mut T = alloc(byte_len, align_of::<T>()) as *mut T;
     Vec::Vec(ptr, 0, capacity)
 }
 
@@ -3645,14 +3644,14 @@ fn vec_accomodate_extra_space<T>(vec: &mut Vec<T>, space: usize) {
         let Vec::Vec(ptr, len_ref, capacity_ref): &mut Vec<T> = vec;
         *capacity_ref = *capacity_ref * 2;
 
-        let elem_size: usize = std::mem::size_of::<T>();
+        let elem_size: usize = size_of::<T>();
         let new_byte_len: usize = if elem_size == 0 {
             *capacity_ref
         } else {
             *capacity_ref * elem_size
         };
 
-        let new_ptr: *mut T = alloc(new_byte_len, std::mem::align_of::<T>()) as *mut T;
+        let new_ptr: *mut T = alloc(new_byte_len, align_of::<T>()) as *mut T;
         unsafe { memcopy::<T>(new_ptr, *ptr, *len_ref) };
         *ptr = new_ptr;
         vec_accomodate_extra_space::<T>(vec, space); // if doubling was not enough, double again
@@ -4682,7 +4681,7 @@ fn string_hash(string: &String, bucket_count: usize) -> usize {
 /// It must hold: forall 0 <= i < n, dest[i] can be written
 /// and src[i] can be read safely.
 unsafe fn memcopy<T>(dest: *mut T, src: *mut T, n: usize) {
-    let byte_count: usize = n * std::mem::size_of::<T>();
+    let byte_count: usize = n * size_of::<T>();
     let dest_u8: *mut u8 = dest as *mut u8;
     let src_u8: *mut u8 = src as *mut u8;
     let mut i: usize = 0;
@@ -4696,7 +4695,7 @@ unsafe fn memcopy<T>(dest: *mut T, src: *mut T, n: usize) {
 
 /// Increment a pointer by n elements.
 fn ptr_add<T>(ptr: *mut T, n: usize) -> *mut T {
-    (ptr as usize + n * std::mem::size_of::<T>()) as *mut T
+    (ptr as usize + n * size_of::<T>()) as *mut T
 }
 
 /// Heap-allocate memory for the given size and alignment.
