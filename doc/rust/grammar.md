@@ -65,7 +65,7 @@ while -> "while" expression block
 
 match -> "match" expression "{" arms "}"
 
-arms -> pattern "=>" expression "," { expression "=>" expression "," }
+arms -> pattern "=>" expression "," { pattern "=>" expression "," }
 
 pattern -> literal
 | [ "mut" ] identifier
