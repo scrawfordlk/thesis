@@ -1,6 +1,6 @@
 use std::{
     convert::TryFrom,
-    fs::{read_dir, read_to_string, write},
+    fs::{read_dir, read_to_string, remove_file, write},
     panic::{AssertUnwindSafe, catch_unwind, set_hook, take_hook},
     path::{Path, PathBuf},
     process::{Command, Stdio, id},
@@ -42,6 +42,7 @@ fn test_system() {
             emu_exit, lli_exit,
             "emulator exit code does not match lli emulated exit code"
         );
+        remove_file(&llvm_path).expect("can remove generated LLVM-IR file");
     }
 }
 
