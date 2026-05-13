@@ -1634,29 +1634,6 @@ fn type_to_llvm_name(ty: &Type) -> String {
     }
 }
 
-/// Returns true if the `from` type can be cast into the `to` type
-fn type_can_cast_to(from: &Type, to: &Type) -> bool {
-    match from {
-        Type::U8 | Type::Usize => match to {
-            Type::U8 | Type::Usize | Type::Char => true,
-            _ => false,
-        },
-        Type::Bool => match to {
-            Type::Bool | Type::U8 | Type::Usize => true,
-            _ => false,
-        },
-        Type::Char => match to {
-            Type::Char | Type::Usize | Type::U8 => true,
-            _ => false,
-        },
-        Type::Reference(_, _) | Type::RawPointerMut(_) => match to {
-            Type::RawPointerMut(_) => true,
-            _ => false,
-        },
-        _ => false,
-    }
-}
-
 /// Different operations that can be done when casting a value.
 ///
 /// ZeroExtend: A type with smaller bitwidth is zero-extended to a larger bitwidth.
@@ -2293,12 +2270,6 @@ fn llvmParser_lexer(parser: &LlvmParser) -> &LlvmLexer {
 fn llvmParser_lexer_mut(parser: &mut LlvmParser) -> &mut LlvmLexer {
     let LlvmParser::Parser(lexer, _, _): &mut LlvmParser = parser;
     lexer
-}
-
-/// Get immutable parser AST access.
-fn llvmParser_ast(parser: &LlvmParser) -> &LlvmAST {
-    let LlvmParser::Parser(_, ast, _): &LlvmParser = parser;
-    ast
 }
 
 /// Get mutable parser AST access.
