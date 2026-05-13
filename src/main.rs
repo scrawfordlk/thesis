@@ -362,21 +362,27 @@ fn identifier_to_token(ident: String) -> Token {
 
 // TODO: check for too large integer
 fn lexer_scan_integer(lexer: &mut Lexer) -> usize {
-    let mut value: usize = 0;
-    while true {
+    let mut value: String = string_new();
+
+    let mut done: bool = false;
+    while not(done) {
         match lexer_peek_char(lexer) {
             Option::Some(c) => {
                 if is_digit(c) {
-                    value = value * 10 + (c as usize) - ('0' as usize);
+                    string_push(&mut value, c);
                     lexer_consume_char(lexer);
                 } else {
-                    return value;
+                    done = true;
                 }
             }
-            Option::None => return value,
+            Option::None => done = true,
         }
     }
-    value // satisfy compiler
+
+    match string_to_integer(value, 10) {
+        Option::Some(int) => int,
+        _ => lexer_error(lexer, "invalid integer literal"),
+    }
 }
 
 fn lexer_scan_char_literal(lexer: &mut Lexer) -> char {
@@ -2082,7 +2088,7 @@ fn llvmLexer_scan_escape(lexer: &mut LlvmLexer) -> char {
                         string_push(&mut char_byte, hex_digit);
                         string_push(&mut char_byte, second_hex_digit);
 
-                        unwrap::<usize>(string_to_integer(&mut char_byte, 16)) as u8 as char
+                        unwrap::<usize>(string_to_integer(char_byte, 16)) as u8 as char
                     }
                     _ => panic!("expected second digit for escaped character byte"),
                 }
@@ -4792,12 +4798,12 @@ fn string_push_string(string: &mut String, other: &String) {
 
 /// Converts a string into an integer given the base.
 /// Returns None if the integer contained in the string is invalid for 64-bit integers.
-fn string_to_integer(string: &mut String, base: usize) -> Option<usize> {
+fn string_to_integer(string: String, base: usize) -> Option<usize> {
     let mut value: usize = 0;
 
     let mut i: usize = 0;
-    while i < string_len(string) {
-        let digit: char = unwrap::<char>(string_get(string, i));
+    while i < string_len(&string) {
+        let digit: char = unwrap::<char>(string_get(&string, i));
 
         let digit_value: usize = if is_digit(digit) {
             digit as usize - '0' as usize
@@ -4905,4 +4911,4 @@ fn alloc(size: usize, align: usize) -> *mut u8 {
 // -------------------------- Tests --------------------------------
 // -----------------------------------------------------------------
 
-// include!("tests.rs");
+include!("tests.rs");
