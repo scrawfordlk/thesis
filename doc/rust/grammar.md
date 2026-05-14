@@ -48,7 +48,8 @@ cast -> unary { "as" type }
 unary -> [ "*" | ( "&" [ "mut" ] ) ] unary | factor
 
 factor -> ( literal
-| identifier [ "(" [ expression { "," expression} [ "," ] ] ")" ]
+| identifier
+| call
 | "(" expression ")"
 | [ "unsafe" ] block
 | if
@@ -63,13 +64,13 @@ if -> "if" expression block [ "else" [ if | block ] ]
 
 while -> "while" expression block
 
-match -> "match" expression "{" arms "}"
+match -> "match" expression "{" { arm } "}"
 
-arms -> pattern "=>" expression "," { pattern "=>" expression "," }
+arm -> pattern "=>" expression ","
 
 pattern -> literal
 | [ "mut" ] identifier
-| identifier "::" identifier [ "(" pattern { "," pattern } ")" ] )
+| identifier "::" identifier [ "(" pattern { "," pattern } [ "," ] ")" ] )
 | "\_"
 
 call -> identifier "(" [ expression { "," expression } [ "," ] ] ")"
