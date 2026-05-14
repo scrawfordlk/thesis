@@ -144,7 +144,7 @@ enum Token {
 #[derive(Debug)]
 enum Comparison {
     Eq,
-    Neq,
+    Ne,
     Gt,
     Lt,
     Geq,
@@ -508,7 +508,7 @@ fn lexer_scan_bang(lexer: &mut Lexer) -> Token {
     match lexer_peek_char(lexer) {
         Option::Some('=') => {
             lexer_consume_char(lexer);
-            Token::Cmp(Comparison::Neq)
+            Token::Cmp(Comparison::Ne)
         }
         _ => Token::Bang,
     }
@@ -694,17 +694,27 @@ enum RAstExpr {
 
 /// Binary operators.
 enum RAstBinaryOp {
+    Arithmetic(RAstArithmeticOp),
+    Comparison(RAstComparisonOp),
+}
+
+/// Binary arithmetic operators.
+enum RAstArithmeticOp {
     Add,
     Sub,
     Mul,
     Div,
     Rem,
+}
+
+/// Comparison operators.
+enum RAstComparisonOp {
     Eq,
     Ne,
-    Lt,
     Gt,
-    Le,
+    Lt,
     Ge,
+    Le,
 }
 
 /// Unary operators.
@@ -985,17 +995,17 @@ fn parse_comparison(lexer: &mut Lexer) -> RAstExpr {
 
             let right: RAstExpr = parse_arithmetic(lexer);
 
-            let operator: RAstBinaryOp = match comparison {
-                Comparison::Eq => RAstBinaryOp::Eq,
-                Comparison::Neq => RAstBinaryOp::Ne,
-                Comparison::Gt => RAstBinaryOp::Gt,
-                Comparison::Lt => RAstBinaryOp::Lt,
-                Comparison::Geq => RAstBinaryOp::Ge,
-                Comparison::Leq => RAstBinaryOp::Le,
+            let operator: RAstComparisonOp = match comparison {
+                Comparison::Eq => RAstComparisonOp::Eq,
+                Comparison::Ne => RAstComparisonOp::Ne,
+                Comparison::Gt => RAstComparisonOp::Gt,
+                Comparison::Lt => RAstComparisonOp::Lt,
+                Comparison::Geq => RAstComparisonOp::Ge,
+                Comparison::Leq => RAstComparisonOp::Le,
             };
 
             RAstExpr::Binary(
-                operator,
+                RAstBinaryOp::Comparison(operator),
                 box_new::<RAstExpr>(left),
                 box_new::<RAstExpr>(right),
             )
@@ -1011,9 +1021,9 @@ fn parse_arithmetic(lexer: &mut Lexer) -> RAstExpr {
         lexer_current_token_eq(lexer, &Token::Plus),
         lexer_current_token_eq(lexer, &Token::Minus),
     ) {
-        let operator: RAstBinaryOp = match lexer_current_token(lexer) {
-            Token::Plus => RAstBinaryOp::Add,
-            Token::Minus => RAstBinaryOp::Sub,
+        let operator: RAstArithmeticOp = match lexer_current_token(lexer) {
+            Token::Plus => RAstArithmeticOp::Add,
+            Token::Minus => RAstArithmeticOp::Sub,
             _ => panic!("unreachable"),
         };
         lexer_next_token(lexer);
@@ -1021,7 +1031,7 @@ fn parse_arithmetic(lexer: &mut Lexer) -> RAstExpr {
         let right: RAstExpr = parse_term(lexer);
 
         left = RAstExpr::Binary(
-            operator,
+            RAstBinaryOp::Arithmetic(operator),
             box_new::<RAstExpr>(left),
             box_new::<RAstExpr>(right),
         );
@@ -1039,10 +1049,10 @@ fn parse_term(lexer: &mut Lexer) -> RAstExpr {
             lexer_current_token_eq(lexer, &Token::Remainder),
         ),
     ) {
-        let operator: RAstBinaryOp = match lexer_current_token(lexer) {
-            Token::Star => RAstBinaryOp::Mul,
-            Token::Slash => RAstBinaryOp::Div,
-            Token::Remainder => RAstBinaryOp::Rem,
+        let operator: RAstArithmeticOp = match lexer_current_token(lexer) {
+            Token::Star => RAstArithmeticOp::Mul,
+            Token::Slash => RAstArithmeticOp::Div,
+            Token::Remainder => RAstArithmeticOp::Rem,
             _ => panic!("unreachable"),
         };
         lexer_next_token(lexer);
@@ -1050,7 +1060,7 @@ fn parse_term(lexer: &mut Lexer) -> RAstExpr {
         let right: RAstExpr = parse_cast(lexer);
 
         left = RAstExpr::Binary(
-            operator,
+            RAstBinaryOp::Arithmetic(operator),
             box_new::<RAstExpr>(left),
             box_new::<RAstExpr>(right),
         );
@@ -1837,53 +1847,14 @@ fn codegen_expression(codegen: &mut Codegen, expression: &RAstExpr) -> STPair {
             codegen_expect_same_type(&left_type, &right_type);
 
             match operator {
-                RAstBinaryOp::Add => {
+                RAstBinaryOp::Arithmetic(op) => {
                     codegen_expect_numeric_type(&left_type);
-                    let name: String = llvm_emit_add(codegen, &left_type, &left_name, &right_name);
+                    let name: String =
+                        llvm_emit_binary(codegen, op, &left_type, &left_name, &right_name);
                     STPair::ST(name, left_type)
                 }
-                RAstBinaryOp::Sub => {
-                    codegen_expect_numeric_type(&left_type);
-                    let name: String = llvm_emit_sub(codegen, &left_type, &left_name, &right_name);
-                    STPair::ST(name, left_type)
-                }
-                RAstBinaryOp::Mul => {
-                    codegen_expect_numeric_type(&left_type);
-                    let name: String = llvm_emit_mul(codegen, &left_type, &left_name, &right_name);
-                    STPair::ST(name, left_type)
-                }
-                RAstBinaryOp::Div => {
-                    codegen_expect_numeric_type(&left_type);
-                    let name: String = llvm_emit_udiv(codegen, &left_type, &left_name, &right_name);
-                    STPair::ST(name, left_type)
-                }
-                RAstBinaryOp::Rem => {
-                    codegen_expect_numeric_type(&left_type);
-                    let name: String = llvm_emit_urem(codegen, &left_type, &left_name, &right_name);
-                    STPair::ST(name, left_type)
-                }
-                RAstBinaryOp::Eq => STPair::ST(
-                    llvm_emit_icmp(codegen, "eq", &left_type, &left_name, &right_name),
-                    RAstType::Bool,
-                ),
-                RAstBinaryOp::Ne => STPair::ST(
-                    llvm_emit_icmp(codegen, "ne", &left_type, &left_name, &right_name),
-                    RAstType::Bool,
-                ),
-                RAstBinaryOp::Gt => STPair::ST(
-                    llvm_emit_icmp(codegen, "ugt", &left_type, &left_name, &right_name),
-                    RAstType::Bool,
-                ),
-                RAstBinaryOp::Lt => STPair::ST(
-                    llvm_emit_icmp(codegen, "ult", &left_type, &left_name, &right_name),
-                    RAstType::Bool,
-                ),
-                RAstBinaryOp::Ge => STPair::ST(
-                    llvm_emit_icmp(codegen, "uge", &left_type, &left_name, &right_name),
-                    RAstType::Bool,
-                ),
-                RAstBinaryOp::Le => STPair::ST(
-                    llvm_emit_icmp(codegen, "ule", &left_type, &left_name, &right_name),
+                RAstBinaryOp::Comparison(op) => STPair::ST(
+                    llvm_emit_icmp(codegen, op, &left_type, &left_name, &right_name),
                     RAstType::Bool,
                 ),
             }
@@ -2083,23 +2054,29 @@ fn codegen_pattern_type_for_expression(
 
 /// Emit a binary instruction of the following form:
 /// `name` = `op` `ty` `lhs`,`rhs`
+/// where `op` can be one of the following: `add`, `sub`, `mul`, `udiv`, `urem`
 /// and return `name`.
-///
-/// The destination register's name `name` is the next available virtual register name that is retrieved
-/// from the LLVM context.
 fn llvm_emit_binary(
     codegen: &mut Codegen,
-    op: &str,
+    op: &RAstArithmeticOp,
     ty: &RAstType,
     lhs: &String,
     rhs: &String,
 ) -> String {
+    let op_name: &str = match op {
+        RAstArithmeticOp::Add => "add",
+        RAstArithmeticOp::Sub => "sub",
+        RAstArithmeticOp::Mul => "mul",
+        RAstArithmeticOp::Div => "udiv",
+        RAstArithmeticOp::Rem => "urem",
+    };
     let name: String = context_next_temporary(codegen_context_mut(codegen));
     let code: &mut String = codegen_llvm_mut(codegen);
+
     string_push_str(code, "  ");
     string_push_string(code, &name);
     string_push_str(code, " = ");
-    string_push_str(code, op);
+    string_push_str(code, op_name);
     string_push(code, ' ');
     string_push_string(code, &rAstType_to_llvm_name(ty));
     string_push(code, ' ');
@@ -2110,57 +2087,32 @@ fn llvm_emit_binary(
     name
 }
 
-/// Emit an add instruction:
-/// `name` = add `ty` `lhs`,`rhs`
-/// and return `name`.
-fn llvm_emit_add(codegen: &mut Codegen, ty: &RAstType, lhs: &String, rhs: &String) -> String {
-    llvm_emit_binary(codegen, "add", ty, lhs, rhs)
-}
-
-/// Emit an add instruction:
-/// `name` = add `ty` `lhs`,`rhs`
-/// and return `name`.
-fn llvm_emit_sub(codegen: &mut Codegen, ty: &RAstType, lhs: &String, rhs: &String) -> String {
-    llvm_emit_binary(codegen, "sub", ty, lhs, rhs)
-}
-
-/// Emit a mul instruction:
-/// `name` = mul `ty` `lhs`,`rhs`
-/// and return `name`.
-fn llvm_emit_mul(codegen: &mut Codegen, ty: &RAstType, lhs: &String, rhs: &String) -> String {
-    llvm_emit_binary(codegen, "mul", ty, lhs, rhs)
-}
-
-/// Emit a divu instruction:
-/// `name` = divu `ty` `lhs`,`rhs`
-/// and return `name`.
-fn llvm_emit_udiv(codegen: &mut Codegen, ty: &RAstType, lhs: &String, rhs: &String) -> String {
-    llvm_emit_binary(codegen, "udiv", ty, lhs, rhs)
-}
-
-/// Emit a remu instruction:
-/// `name` = remu `ty` `lhs`, `rhs`
-/// and return `name`.
-fn llvm_emit_urem(codegen: &mut Codegen, ty: &RAstType, lhs: &String, rhs: &String) -> String {
-    llvm_emit_binary(codegen, "urem", ty, lhs, rhs)
-}
-
 /// Emit an icmp instruction:
 /// `name` = icmp `op` `ty` `lhs`,`rhs`
+/// where `op` can be one of the following: `eq`, `ne`, `gt`, `lt`, `ge`, `le`
 /// and return `name`.
 fn llvm_emit_icmp(
     codegen: &mut Codegen,
-    op: &str,
+    op: &RAstComparisonOp,
     ty: &RAstType,
     lhs: &String,
     rhs: &String,
 ) -> String {
+    let op_name: &str = match op {
+        RAstComparisonOp::Eq => "eq",
+        RAstComparisonOp::Ne => "ne",
+        RAstComparisonOp::Gt => "ugt",
+        RAstComparisonOp::Lt => "ult",
+        RAstComparisonOp::Ge => "uge",
+        RAstComparisonOp::Le => "ule",
+    };
     let name: String = context_next_temporary(codegen_context_mut(codegen));
     let code: &mut String = codegen_llvm_mut(codegen);
+
     string_push_str(code, "  ");
     string_push_string(code, &name);
     string_push_str(code, " = icmp ");
-    string_push_str(code, op);
+    string_push_str(code, op_name);
     string_push(code, ' ');
     string_push_string(code, &rAstType_to_llvm_name(ty));
     string_push(code, ' ');
@@ -2191,14 +2143,12 @@ fn llvm_emit_ret_void(codegen: &mut Codegen) {
 }
 
 /// Emit a cast instruction of the following form:
-/// `name` = `cast_op` `from_type` `value` to `to_type`
+/// `name` = `op` `from_type` `value` to `to_type`
+/// where `op` can be one of the following: `zext`, `trunc`
 /// and return `name`.
-///
-/// The destination register's name `name` is the next available virtual register name that is retrieved
-/// from the LLVM context.
 fn llvm_emit_cast(
     codegen: &mut Codegen,
-    cast_op: &str,
+    op: &str,
     from_type: &RAstType,
     to_type: &RAstType,
     value: &String,
@@ -2208,7 +2158,7 @@ fn llvm_emit_cast(
     string_push_str(code, "  ");
     string_push_string(code, &name);
     string_push_str(code, " = ");
-    string_push_str(code, cast_op);
+    string_push_str(code, op);
     string_push(code, ' ');
     string_push_string(code, &rAstType_to_llvm_name(from_type));
     string_push(code, ' ');
@@ -3252,7 +3202,7 @@ fn llvmParser_parse_icmp_assign(parser: &mut LlvmParser) -> AssignOp {
         LlvmToken::Uge => IcmpOp::Uge,
         LlvmToken::Ult => IcmpOp::Ult,
         LlvmToken::Ule => IcmpOp::Ule,
-        _ => llvmParser_error(parser, "expected LLVM icmp predicate"),
+        _ => llvmParser_error(parser, "expected LLVM icmp operator"),
     };
 
     let ty: LlvmType = llvmParser_parse_type(parser);
@@ -4626,8 +4576,8 @@ fn comparison_eq(left: &Comparison, right: &Comparison) -> bool {
             Comparison::Eq => true,
             _ => false,
         },
-        Comparison::Neq => match right {
-            Comparison::Neq => true,
+        Comparison::Ne => match right {
+            Comparison::Ne => true,
             _ => false,
         },
         Comparison::Gt => match right {
@@ -4998,7 +4948,7 @@ fn token_clone(token: &Token) -> Token {
 fn comparison_clone(comparison: &Comparison) -> Comparison {
     match comparison {
         Comparison::Eq => Comparison::Eq,
-        Comparison::Neq => Comparison::Neq,
+        Comparison::Ne => Comparison::Ne,
         Comparison::Gt => Comparison::Gt,
         Comparison::Lt => Comparison::Lt,
         Comparison::Geq => Comparison::Geq,

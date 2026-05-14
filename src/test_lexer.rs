@@ -244,7 +244,7 @@ fn test_scan_bang_direct() {
     let mut lexer = make_lexer("=");
     assert!(matches!(
         lexer_scan_bang(&mut lexer),
-        Token::Cmp(Comparison::Neq)
+        Token::Cmp(Comparison::Ne)
     ));
 }
 
@@ -665,7 +665,7 @@ fn test_comparison_neq() {
     let mut lexer = make_lexer("!=");
     assert_tokens(
         collect_tokens(&mut lexer),
-        vec![cmp_token(Comparison::Neq), Token::Eof],
+        vec![cmp_token(Comparison::Ne), Token::Eof],
     );
 }
 
@@ -805,7 +805,7 @@ fn test_comparison_expression() {
             ident("a"),
             cmp_token(Comparison::Eq),
             ident("b"),
-            cmp_token(Comparison::Neq),
+            cmp_token(Comparison::Ne),
             ident("c"),
             cmp_token(Comparison::Lt),
             ident("d"),
