@@ -645,6 +645,7 @@ enum RAstPattern {
 }
 
 /// Type forms from the Rust subset grammar.
+#[derive(Debug)]
 enum RAstType {
     U8,
     Usize,
@@ -1596,7 +1597,8 @@ fn rAstType_get_cast_operation(left_type: &RAstType, right_type: &RAstType) -> C
 
     match left_type {
         RAstType::U8 => match right_type {
-            RAstType::Usize | RAstType::Char => CastOperation::ZeroExtend,
+            RAstType::Usize => CastOperation::ZeroExtend,
+            RAstType::Char => CastOperation::None,
             _ => CastOperation::Invalid,
         },
         RAstType::Usize => match right_type {
@@ -1609,7 +1611,7 @@ fn rAstType_get_cast_operation(left_type: &RAstType, right_type: &RAstType) -> C
         },
         RAstType::Char => match right_type {
             RAstType::Usize => CastOperation::ZeroExtend,
-            RAstType::U8 => CastOperation::Truncate,
+            RAstType::U8 => CastOperation::None,
             _ => CastOperation::Invalid,
         },
         _ => CastOperation::Invalid,
@@ -1860,17 +1862,18 @@ fn codegen_expression(codegen: &mut Codegen, expression: &RAstExpr) -> STPair {
         RAstExpr::Cast(value, to_type) => {
             let STPair::ST(from_name, from_type): STPair =
                 codegen_expression(codegen, box_deref::<RAstExpr>(value));
+            let to_type: RAstType = rAstType_clone(to_type);
 
-            match rAstType_get_cast_operation(&from_type, to_type) {
+            match rAstType_get_cast_operation(&from_type, &to_type) {
                 CastOperation::ZeroExtend => STPair::ST(
-                    llvm_emit_zext(codegen, &from_type, to_type, &from_name),
-                    rAstType_clone(to_type),
+                    llvm_emit_zext(codegen, &from_type, &to_type, &from_name),
+                    to_type,
                 ),
                 CastOperation::Truncate => STPair::ST(
-                    llvm_emit_trunc(codegen, &from_type, to_type, &from_name),
-                    rAstType_clone(to_type),
+                    llvm_emit_trunc(codegen, &from_type, &to_type, &from_name),
+                    to_type,
                 ),
-                CastOperation::None => STPair::ST(from_name, from_type),
+                CastOperation::None => STPair::ST(from_name, to_type),
                 CastOperation::Invalid => codegen_error("invalid cast"),
             }
         }

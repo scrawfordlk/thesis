@@ -133,6 +133,8 @@ fn compile_emulate(source: &Path) -> (i32, PathBuf) {
         .arg("-c")
         .arg(source)
         .arg("-e")
+        // .stdout(std::process::Stdio::null())
+        // .stderr(std::process::Stdio::null())
         .status()
         .expect("able to run bootstrapped compiler/emulator");
 
