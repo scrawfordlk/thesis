@@ -62,9 +62,6 @@ fn main() {
         let mut file = std::fs::File::create(&output_name).expect("can create file");
         let slice = unsafe { core::slice::from_raw_parts(vec_ptr(&vec), vec_len(&vec)) };
         file.write_all(slice).expect("can write all code");
-        std::io::stdout()
-            .write_all(slice)
-            .expect("print code to terminal");
 
         if emulate_after {
             let exit_code: usize = llvmulator_execute_llvm(code_clone);
