@@ -148,38 +148,39 @@ fn test_string_from_str_direct() {
     assert!(string_eq(&s, &string_from_str("hello")));
 }
 
-fn parser_type_match(a: &Type, b: &Type) -> bool {
+fn rAstType_match(a: &RAstType, b: &RAstType) -> bool {
     match (a, b) {
-        (Type::U8, Type::U8) => true,
-        (Type::Usize, Type::Usize) => true,
-        (Type::Bool, Type::Bool) => true,
-        (Type::Char, Type::Char) => true,
-        (Type::Unit, Type::Unit) => true,
-        (Type::Custom(a_name), Type::Custom(b_name)) => string_eq(a_name, b_name),
+        (RAstType::U8, RAstType::U8) => true,
+        (RAstType::Usize, RAstType::Usize) => true,
+        (RAstType::Bool, RAstType::Bool) => true,
+        (RAstType::Char, RAstType::Char) => true,
+        (RAstType::Unit, RAstType::Unit) => true,
+        (RAstType::Never, RAstType::Never) => true,
+        (RAstType::Custom(a_name), RAstType::Custom(b_name)) => string_eq(a_name, b_name),
         _ => false,
     }
 }
 
-fn parser_typeList_match(a: &List<Type>, b: &List<Type>) -> bool {
+fn rAstTypeList_match(a: &List<RAstType>, b: &List<RAstType>) -> bool {
     match (a, b) {
         (List::Nil, List::Nil) => true,
         (List::Cons(a_head, a_tail), List::Cons(b_head, b_tail)) => and(
-            parser_type_match(a_head, b_head),
-            parser_typeList_match(
-                box_deref::<List<Type>>(a_tail),
-                box_deref::<List<Type>>(b_tail),
+            rAstType_match(a_head, b_head),
+            rAstTypeList_match(
+                box_deref::<List<RAstType>>(a_tail),
+                box_deref::<List<RAstType>>(b_tail),
             ),
         ),
         _ => false,
     }
 }
 
-fn typeList_single(t: Type) -> List<Type> {
-    List::Cons(t, box_new::<List<Type>>(List::Nil))
+fn rAstTypeList_single(t: RAstType) -> List<RAstType> {
+    List::Cons(t, box_new::<List<RAstType>>(List::Nil))
 }
 
-fn clone_type_list(list: &List<Type>) -> List<Type> {
-    list_clone::<Type>(list, type_clone)
+fn clone_rAstType_list(list: &List<RAstType>) -> List<RAstType> {
+    list_clone::<RAstType>(list, rAstType_clone)
 }
 
 // ------------------------- Bool ----------------------------
@@ -228,15 +229,15 @@ fn test_symtable_global_insert_and_lookup() {
     assert!(symTable_insert_function(
         &mut symtable,
         string_from_str("f"),
-        list_new::<Type>(),
-        Type::Usize
+        list_new::<RAstType>(),
+        RAstType::Usize
     ));
     assert!(symTable_contains(&symtable, &string_from_str("f")));
 
     match symTable_lookup_function_signature(&symtable, &string_from_str("f")) {
         Option::Some(FnSignature::Fn(parameter_types, return_type)) => {
             assert!(matches!(parameter_types, List::Nil));
-            assert!(matches!(return_type, Type::Usize));
+            assert!(matches!(return_type, RAstType::Usize));
         }
         Option::Some(_) => assert!(false, "expected function signature"),
         Option::None => assert!(false, "expected function signature"),
@@ -245,7 +246,7 @@ fn test_symtable_global_insert_and_lookup() {
     assert!(symTable_insert_enum(
         &mut symtable,
         string_from_str("State"),
-        list_new::<Type>()
+        list_new::<RAstType>()
     ));
     assert!(symTable_contains(&symtable, &string_from_str("State")));
 }
@@ -282,7 +283,7 @@ fn test_symtable_scope_and_variables() {
     assert!(symTable_insert_variable(
         &mut symtable,
         string_from_str("x"),
-        Type::U8,
+        RAstType::U8,
         true
     ));
     assert!(!symTable_contains(&symtable, &string_from_str("x")));
@@ -295,30 +296,30 @@ fn test_symtable_scope_and_variables() {
     assert!(!symTable_insert_variable(
         &mut symtable,
         string_from_str("x"),
-        Type::U8,
+        RAstType::U8,
         true
     ));
     assert!(symTable_contains(&symtable, &string_from_str("x")));
     assert!(matches!(
         symTable_lookup_variable_type(&symtable, &string_from_str("x")),
-        Option::Some(Type::U8)
+        Option::Some(RAstType::U8)
     ));
 
     symTable_enter_scope(&mut symtable);
     assert!(!symTable_insert_variable(
         &mut symtable,
         string_from_str("x"),
-        Type::Usize,
+        RAstType::Usize,
         false
     ));
     assert!(matches!(
         symTable_lookup_variable_type(&symtable, &string_from_str("x")),
-        Option::Some(Type::Usize)
+        Option::Some(RAstType::Usize)
     ));
     assert!(symTable_leave_scope(&mut symtable));
     assert!(matches!(
         symTable_lookup_variable_type(&symtable, &string_from_str("x")),
-        Option::Some(Type::U8)
+        Option::Some(RAstType::U8)
     ));
     assert!(symTable_leave_scope(&mut symtable));
     assert!(matches!(
@@ -330,23 +331,23 @@ fn test_symtable_scope_and_variables() {
 
 #[test]
 fn test_type_clone() {
-    let custom = Type::Custom(string_from_str("MyType"));
-    let cloned = type_clone(&custom);
-    assert!(parser_type_match(&custom, &cloned));
+    let custom = RAstType::Custom(string_from_str("MyType"));
+    let cloned = rAstType_clone(&custom);
+    assert!(rAstType_match(&custom, &cloned));
 }
 
 #[test]
 fn test_type_list_clone() {
-    let types = typeList_single(Type::Custom(string_from_str("Node")));
-    let cloned = list_clone::<Type>(&types, type_clone);
-    assert!(parser_typeList_match(&types, &cloned));
+    let types = rAstTypeList_single(RAstType::Custom(string_from_str("Node")));
+    let cloned = list_clone::<RAstType>(&types, rAstType_clone);
+    assert!(rAstTypeList_match(&types, &cloned));
 }
 
 #[test]
 fn test_type_list_box_new_deref_clone() {
-    let ptr = box_new::<List<Type>>(List::Nil);
-    assert!(matches!(box_deref::<List<Type>>(&ptr), List::Nil));
+    let ptr = box_new::<List<RAstType>>(List::Nil);
+    assert!(matches!(box_deref::<List<RAstType>>(&ptr), List::Nil));
 
-    let cloned_ptr = box_clone::<List<Type>>(&ptr, clone_type_list);
-    assert!(matches!(box_deref::<List<Type>>(&cloned_ptr), List::Nil));
+    let cloned_ptr = box_clone::<List<RAstType>>(&ptr, clone_rAstType_list);
+    assert!(matches!(box_deref::<List<RAstType>>(&cloned_ptr), List::Nil));
 }

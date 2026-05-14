@@ -654,7 +654,8 @@ enum RAstType {
     Bool,
     Char,
     Unit,
-    Named(String),
+    Never,
+    Custom(String),
     /// inner, mutable
     Reference(Box<RAstType>, bool),
     /// `*mut T`
@@ -734,7 +735,7 @@ enum RAstMatchArm {
 }
 
 /// Convert a parsed AST path to a single string.
-fn rastPath_to_string(path: &RAstPath) -> String {
+fn rAstPath_to_string(path: &RAstPath) -> String {
     let RAstPath::Path(segments): &RAstPath = path;
     let mut result: String = string_new();
     let mut i: usize = 0;
@@ -750,34 +751,16 @@ fn rastPath_to_string(path: &RAstPath) -> String {
     result
 }
 
-/// Convert a Rust AST type into compiler type representation.
-fn rastType_to_type(ty: &RAstType) -> Type {
-    match ty {
-        RAstType::U8 => Type::U8,
-        RAstType::Usize => Type::Usize,
-        RAstType::Bool => Type::Bool,
-        RAstType::Char => Type::Char,
-        RAstType::Unit => Type::Unit,
-        RAstType::Named(path) => Type::Custom(string_clone(path)),
-        RAstType::Reference(inner, mutable) => Type::Reference(
-            box_new::<Type>(rastType_to_type(box_deref::<RAstType>(inner))),
-            *mutable,
-        ),
-        RAstType::RawPointerMut(inner) => Type::RawPointerMut(box_new::<Type>(rastType_to_type(
-            box_deref::<RAstType>(inner),
-        ))),
-    }
-}
-
 /// Get the type represented by a literal.
-fn rastLiteral_type(literal: &RAstLiteral) -> Type {
+fn rastLiteral_type(literal: &RAstLiteral) -> RAstType {
     match literal {
-        RAstLiteral::Int(_) => Type::Usize,
-        RAstLiteral::Char(_) => Type::Char,
-        RAstLiteral::Bool(_) => Type::Bool,
-        RAstLiteral::String(_) => {
-            Type::Reference(box_new::<Type>(Type::Custom(string_from_str("str"))), false)
-        }
+        RAstLiteral::Int(_) => RAstType::Usize,
+        RAstLiteral::Char(_) => RAstType::Char,
+        RAstLiteral::Bool(_) => RAstType::Bool,
+        RAstLiteral::String(_) => RAstType::Reference(
+            box_new::<RAstType>(RAstType::Custom(string_from_str("str"))),
+            false,
+        ),
     }
 }
 
@@ -943,7 +926,7 @@ fn parse_type(lexer: &mut Lexer) -> RAstType {
             if lexer_try_consume(lexer, &Token::Str) {
                 // TODO: remove this and handle like a user-defined type
                 return RAstType::Reference(
-                    box_new::<RAstType>(RAstType::Named(string_from_str("str"))),
+                    box_new::<RAstType>(RAstType::Custom(string_from_str("str"))),
                     false,
                 );
             }
@@ -960,7 +943,7 @@ fn parse_type(lexer: &mut Lexer) -> RAstType {
         }
         Token::Identifier(_) => {
             let enum_name: String = expect_identifier(lexer);
-            RAstType::Named(enum_name)
+            RAstType::Custom(enum_name)
         }
         _ => parse_error(lexer, "expected type"),
     }
@@ -1274,11 +1257,11 @@ fn parse_literal(lexer: &mut Lexer) -> RAstLiteral {
 /// Type that encapsulates the state during LLVM-IR code generation from an AST.
 enum Codegen {
     /// llvm code, symbol table, current function return type, llvm context
-    Codegen(String, SymTable, Type, Context),
+    Codegen(String, SymTable, RAstType, Context),
 }
 
 fn codegen_new() -> Codegen {
-    Codegen::Codegen(string_new(), symTable_new(), Type::Unit, context_new())
+    Codegen::Codegen(string_new(), symTable_new(), RAstType::Unit, context_new())
 }
 
 fn codegen_llvm_mut(codegen: &mut Codegen) -> &mut String {
@@ -1296,12 +1279,12 @@ fn codegen_symtable_mut(codegen: &mut Codegen) -> &mut SymTable {
     symtable
 }
 
-fn codegen_current_fn_return_type(codegen: &Codegen) -> &Type {
+fn codegen_current_fn_return_type(codegen: &Codegen) -> &RAstType {
     let Codegen::Codegen(_, _, return_type, _): &Codegen = codegen;
     return_type
 }
 
-fn codegen_set_current_fn_return_type(codegen: &mut Codegen, ty: Type) {
+fn codegen_set_current_fn_return_type(codegen: &mut Codegen, ty: RAstType) {
     let Codegen::Codegen(_, _, return_type, _): &mut Codegen = codegen;
     *return_type = ty;
 }
@@ -1311,20 +1294,20 @@ fn codegen_context_mut(codegen: &mut Codegen) -> &mut Context {
     context
 }
 
-fn codegen_expect_same_type(left: &Type, right: &Type) {
-    if not(type_eq(left, right)) {
+fn codegen_expect_same_type(left: &RAstType, right: &RAstType) {
+    if not(rAstType_eq(left, right)) {
         codegen_error("type mismatch");
     }
 }
 
-fn codegen_expect_numeric_type(ty: &Type) {
-    if not(type_is_numeric(ty)) {
+fn codegen_expect_numeric_type(ty: &RAstType) {
+    if not(rAstType_is_numeric(ty)) {
         codegen_error("expected numeric type");
     }
 }
 
-fn codegen_expect_bool_type(ty: &Type) {
-    if not(type_eq(ty, &Type::Bool)) {
+fn codegen_expect_bool_type(ty: &RAstType) {
+    if not(rAstType_eq(ty, &RAstType::Bool)) {
         codegen_error("expected bool type");
     }
 }
@@ -1381,7 +1364,7 @@ fn symTable_contains(symtable: &SymTable, name: &String) -> bool {
 }
 
 /// Lookup a variable type in local scopes.
-fn symTable_lookup_variable_type(symtable: &SymTable, name: &String) -> Option<Type> {
+fn symTable_lookup_variable_type(symtable: &SymTable, name: &String) -> Option<RAstType> {
     let SymTable::Table(_, local_stack): &SymTable = symtable;
     localSymTableStack_lookup_variable_type(local_stack, name)
 }
@@ -1414,8 +1397,8 @@ fn symTable_leave_scope(symtable: &mut SymTable) -> bool {
 fn symTable_insert_function(
     symtable: &mut SymTable,
     name: String,
-    parameter_types: List<Type>,
-    return_type: Type,
+    parameter_types: List<RAstType>,
+    return_type: RAstType,
 ) -> bool {
     let SymTable::Table(global, _) = symtable;
     if stringMap_contains::<SymTableGlobalEntry>(global, &name) {
@@ -1428,7 +1411,7 @@ fn symTable_insert_function(
 }
 
 /// Insert an enum into the global symbol table, returning false on duplicate name.
-fn symTable_insert_enum(symtable: &mut SymTable, name: String, variants: List<Type>) -> bool {
+fn symTable_insert_enum(symtable: &mut SymTable, name: String, variants: List<RAstType>) -> bool {
     let SymTable::Table(global, _) = symtable;
     if stringMap_contains::<SymTableGlobalEntry>(global, &name) {
         return false;
@@ -1444,7 +1427,7 @@ fn symTable_insert_enum(symtable: &mut SymTable, name: String, variants: List<Ty
 fn symTable_insert_variable(
     symtable: &mut SymTable,
     name: String,
-    variable_type: Type,
+    variable_type: RAstType,
     mutable: bool,
 ) -> bool {
     let SymTable::Table(_, local_stack): &mut SymTable = symtable;
@@ -1469,13 +1452,13 @@ fn symTable_insert_variable(
 /// Global symbol table entries for functions and enums.
 enum SymTableGlobalEntry {
     Function(FnSignature),
-    Enum(List<Type>),
+    Enum(List<RAstType>),
 }
 
 /// Local symbol table entries for variables.
 enum SymTableLocalEntry {
     /// type, is mutable
-    Variable(Type, bool),
+    Variable(RAstType, bool),
 }
 
 /// Stack of local symbol tables.
@@ -1532,7 +1515,7 @@ fn localSymTableStack_contains(stack: &LocalSymTableStack, name: &String) -> boo
 fn localSymTableStack_lookup_variable_type(
     stack: &LocalSymTableStack,
     name: &String,
-) -> Option<Type> {
+) -> Option<RAstType> {
     let LocalSymTableStack::Stack(scopes, top): &LocalSymTableStack = stack;
     let mut index: usize = *top;
     while index > 0 {
@@ -1543,7 +1526,7 @@ fn localSymTableStack_lookup_variable_type(
         match stringMap_get::<SymTableLocalEntry>(scope, name) {
             Option::Some(entry) => {
                 let SymTableLocalEntry::Variable(variable_type, _): &SymTableLocalEntry = entry;
-                return Option::Some(type_clone(variable_type));
+                return Option::Some(rAstType_clone(variable_type));
             }
             Option::None => {}
         }
@@ -1554,43 +1537,29 @@ fn localSymTableStack_lookup_variable_type(
 /// A type that represents the (type) signature of a function.
 enum FnSignature {
     /// parameter types, return type
-    Fn(List<Type>, Type),
+    Fn(List<RAstType>, RAstType),
 }
 
-/// Type forms supported by the front-end.
-#[derive(Debug)]
-enum Type {
-    U8,
-    Usize,
-    Bool,
-    Char,
-    Unit,                       // ()
-    Never,                      // !
-    Custom(String),             // enums
-    Reference(Box<Type>, bool), // &Type and &mut Type
-    RawPointerMut(Box<Type>),   // *mut Type
-}
-
-fn type_is_numeric(ty: &Type) -> bool {
+fn rAstType_is_numeric(ty: &RAstType) -> bool {
     match ty {
-        Type::U8 => true,
-        Type::Usize => true,
+        RAstType::U8 => true,
+        RAstType::Usize => true,
         _ => false,
     }
 }
 
-/// Convert type into a simple LLVM-IR type name.
-fn type_to_llvm_name(ty: &Type) -> String {
+/// Convert Rust AST type into a simple LLVM-IR type name.
+fn rAstType_to_llvm_name(ty: &RAstType) -> String {
     match ty {
-        Type::U8 => string_from_str("i8"),
-        Type::Usize => string_from_str("i64"), // assume 64-bit for now
-        Type::Bool => string_from_str("i1"),
-        Type::Char => string_from_str("i8"),
-        Type::Unit => string_from_str("void"),
-        Type::Never => string_from_str("void"),
-        Type::Custom(_) => string_from_str("i64"),
-        Type::Reference(_, _) => string_from_str("ptr"),
-        Type::RawPointerMut(_) => string_from_str("ptr"),
+        RAstType::U8 => string_from_str("i8"),
+        RAstType::Usize => string_from_str("i64"), // assume 64-bit for now
+        RAstType::Bool => string_from_str("i1"),
+        RAstType::Char => string_from_str("i8"),
+        RAstType::Unit => string_from_str("void"),
+        RAstType::Never => string_from_str("void"),
+        RAstType::Custom(_) => string_from_str("i64"),
+        RAstType::Reference(_, _) => string_from_str("ptr"),
+        RAstType::RawPointerMut(_) => string_from_str("ptr"),
     }
 }
 
@@ -1611,29 +1580,29 @@ enum CastOperation {
     Invalid,
 }
 
-/// Return the CastOperation that is applicable from `left_type` to `right_type`.
+/// Return the CastOperation that is applicable from `left_type` to `right_type` for Rust AST types.
 /// See documentation of CastOperation for more details.
-fn type_get_cast_operation(left_type: &Type, right_type: &Type) -> CastOperation {
-    if type_eq(left_type, right_type) {
+fn rAstType_get_cast_operation(left_type: &RAstType, right_type: &RAstType) -> CastOperation {
+    if rAstType_eq(left_type, right_type) {
         return CastOperation::None;
     }
 
     match left_type {
-        Type::U8 => match right_type {
-            Type::Usize | Type::Char => CastOperation::ZeroExtend,
+        RAstType::U8 => match right_type {
+            RAstType::Usize | RAstType::Char => CastOperation::ZeroExtend,
             _ => CastOperation::Invalid,
         },
-        Type::Usize => match right_type {
-            Type::U8 => CastOperation::Truncate,
+        RAstType::Usize => match right_type {
+            RAstType::U8 => CastOperation::Truncate,
             _ => CastOperation::Invalid,
         },
-        Type::Bool => match right_type {
-            Type::U8 | Type::Usize => CastOperation::ZeroExtend,
+        RAstType::Bool => match right_type {
+            RAstType::U8 | RAstType::Usize => CastOperation::ZeroExtend,
             _ => CastOperation::Invalid,
         },
-        Type::Char => match right_type {
-            Type::Usize => CastOperation::ZeroExtend,
-            Type::U8 => CastOperation::Truncate,
+        RAstType::Char => match right_type {
+            RAstType::Usize => CastOperation::ZeroExtend,
+            RAstType::U8 => CastOperation::Truncate,
             _ => CastOperation::Invalid,
         },
         _ => CastOperation::Invalid,
@@ -1646,10 +1615,10 @@ fn type_get_cast_operation(left_type: &Type, right_type: &Type) -> CastOperation
 
 /// Pair that contains a String and a Rust Type
 enum STPair {
-    ST(String, Type),
+    ST(String, RAstType),
 }
 
-fn stPair_get_type(pair: STPair) -> Type {
+fn stPair_get_type(pair: STPair) -> RAstType {
     let STPair::ST(_, ty): STPair = pair;
     ty
 }
@@ -1673,14 +1642,14 @@ fn codegen_enum(codegen: &mut Codegen, enum_item: &RAstEnum) {
     let RAstEnum::Enum(enum_name, variants): &RAstEnum = enum_item;
     llvm_emit_enum_comment(codegen_llvm_mut(codegen), enum_name);
 
-    let mut lowered_variants: List<Type> = list_new::<Type>();
+    let mut lowered_variants: List<RAstType> = list_new::<RAstType>();
     let mut i: usize = 0;
     while i < vec_len::<RAstVariant>(variants) {
         let variant: &RAstVariant = unwrap::<&RAstVariant>(vec_get::<RAstVariant>(variants, i));
         let RAstVariant::Variant(variant_name, _): &RAstVariant = variant;
-        list_append::<Type>(
+        list_append::<RAstType>(
             &mut lowered_variants,
-            Type::Custom(string_clone(variant_name)),
+            RAstType::Custom(string_clone(variant_name)),
         );
         i = i + 1;
     }
@@ -1699,29 +1668,29 @@ fn codegen_function(codegen: &mut Codegen, function: &RAstFunction) {
     let RAstFunction::Function(_, function_name, parameters, maybe_return_type, body): &RAstFunction =
         function;
 
-    let function_return_type: Type = match maybe_return_type {
-        Option::Some(return_type) => rastType_to_type(return_type),
-        Option::None => Type::Unit,
+    let function_return_type: RAstType = match maybe_return_type {
+        Option::Some(return_type) => rAstType_clone(return_type),
+        Option::None => RAstType::Unit,
     };
-    codegen_set_current_fn_return_type(codegen, type_clone(&function_return_type));
+    codegen_set_current_fn_return_type(codegen, rAstType_clone(&function_return_type));
 
-    let mut parameter_types: List<Type> = list_new::<Type>();
+    let mut parameter_types: List<RAstType> = list_new::<RAstType>();
     let mut i: usize = 0;
     while i < vec_len::<RAstVariable>(parameters) {
         let parameter: &RAstVariable =
             unwrap::<&RAstVariable>(vec_get::<RAstVariable>(parameters, i));
         let RAstVariable::Variable(_, parameter_type): &RAstVariable = parameter;
-        list_append::<Type>(&mut parameter_types, rastType_to_type(parameter_type));
+        list_append::<RAstType>(&mut parameter_types, rAstType_clone(parameter_type));
         i = i + 1;
     }
 
     let is_main: bool = string_eq(function_name, &string_from_str("main"));
-    let llvm_return_type_name: String = if and(is_main, type_eq(&function_return_type, &Type::Unit))
-    {
-        string_from_str("i64")
-    } else {
-        type_to_llvm_name(&function_return_type)
-    };
+    let llvm_return_type_name: String =
+        if and(is_main, rAstType_eq(&function_return_type, &RAstType::Unit)) {
+            string_from_str("i64")
+        } else {
+            rAstType_to_llvm_name(&function_return_type)
+        };
     llvm_emit_function_header(
         codegen_llvm_mut(codegen),
         function_name,
@@ -1732,7 +1701,7 @@ fn codegen_function(codegen: &mut Codegen, function: &RAstFunction) {
         codegen_symtable_mut(codegen),
         string_clone(function_name),
         parameter_types,
-        type_clone(&function_return_type),
+        rAstType_clone(&function_return_type),
     )) {
         codegen_error("duplicate function name");
     }
@@ -1743,8 +1712,7 @@ fn codegen_function(codegen: &mut Codegen, function: &RAstFunction) {
         let parameter: &RAstVariable =
             unwrap::<&RAstVariable>(vec_get::<RAstVariable>(parameters, parameter_index));
         let RAstVariable::Variable(pattern, parameter_type): &RAstVariable = parameter;
-        let lowered_type: Type = rastType_to_type(parameter_type);
-        let type_name: String = type_to_llvm_name(&lowered_type);
+        let type_name: String = rAstType_to_llvm_name(parameter_type);
 
         match pattern {
             RAstPattern::Identifier(is_mutable, name) => {
@@ -1752,7 +1720,7 @@ fn codegen_function(codegen: &mut Codegen, function: &RAstFunction) {
                 if symTable_insert_variable(
                     codegen_symtable_mut(codegen),
                     string_clone(name),
-                    lowered_type,
+                    rAstType_clone(parameter_type),
                     *is_mutable,
                 ) {
                     codegen_error("duplicate parameter name");
@@ -1767,20 +1735,22 @@ fn codegen_function(codegen: &mut Codegen, function: &RAstFunction) {
     let STPair::ST(value_name, block_type): STPair = codegen_block(codegen, body);
     codegen_expect_same_type(&block_type, &function_return_type);
 
-    match function_return_type {
-        Type::Unit => {
+    match &function_return_type {
+        RAstType::Unit => {
             if is_main {
-                llvm_emit_ret_value(codegen, &Type::Usize, &string_from_str("0"));
+                llvm_emit_ret_value(codegen, &RAstType::Usize, &string_from_str("0"));
             } else {
                 llvm_emit_ret_void(codegen);
             }
         }
-        _ => llvm_emit_ret_value(codegen, &block_type, &value_name),
+        _ => {
+            llvm_emit_ret_value(codegen, &block_type, &value_name);
+        }
     }
 
     llvm_emit_line(codegen_llvm_mut(codegen), "}");
     symTable_leave_scope(codegen_symtable_mut(codegen));
-    codegen_set_current_fn_return_type(codegen, Type::Unit);
+    codegen_set_current_fn_return_type(codegen, RAstType::Unit);
 }
 
 /// Emit LLVM-IR for one block expression.
@@ -1807,7 +1777,7 @@ fn codegen_block(codegen: &mut Codegen, block: &RAstBlock) -> STPair {
 
     let result: STPair = match tail {
         Option::Some(expression) => codegen_expression(codegen, box_deref::<RAstExpr>(expression)),
-        Option::None => STPair::ST(string_new(), Type::Unit),
+        Option::None => STPair::ST(string_new(), RAstType::Unit),
     };
 
     symTable_leave_scope(codegen_symtable_mut(codegen));
@@ -1817,19 +1787,18 @@ fn codegen_block(codegen: &mut Codegen, block: &RAstBlock) -> STPair {
 /// Emit LLVM-IR for one let binding.
 fn codegen_binding(codegen: &mut Codegen, variable: &RAstVariable, value: &RAstExpr) {
     let RAstVariable::Variable(pattern, binding_type): &RAstVariable = variable;
-    let expected_type: Type = rastType_to_type(binding_type);
     let STPair::ST(value_name, actual_type): STPair = codegen_expression(codegen, value);
-    codegen_expect_same_type(&expected_type, &actual_type);
+    codegen_expect_same_type(binding_type, &actual_type);
 
     match pattern {
         RAstPattern::Identifier(is_mutable, name) => {
             symTable_insert_variable(
                 codegen_symtable_mut(codegen),
                 string_clone(name),
-                type_clone(&expected_type),
+                rAstType_clone(binding_type),
                 *is_mutable,
             );
-            let type_name: String = type_to_llvm_name(&expected_type);
+            let type_name: String = rAstType_to_llvm_name(binding_type);
             llvm_emit_let_comment(codegen_llvm_mut(codegen), name, &type_name, *is_mutable);
             let _ = value_name;
         }
@@ -1847,7 +1816,7 @@ fn codegen_expression(codegen: &mut Codegen, expression: &RAstExpr) -> STPair {
                 codegen_expect_same_type(&ty, codegen_current_fn_return_type(codegen));
                 STPair::ST(name, ty)
             }
-            Option::None => STPair::ST(string_new(), Type::Unit),
+            Option::None => STPair::ST(string_new(), RAstType::Unit),
         },
 
         RAstExpr::Assign(left, right) => {
@@ -1857,7 +1826,7 @@ fn codegen_expression(codegen: &mut Codegen, expression: &RAstExpr) -> STPair {
                 codegen_expression(codegen, box_deref::<RAstExpr>(right));
             codegen_expect_same_type(&left_type, &right_type);
             llvm_emit_line(codegen_llvm_mut(codegen), "  ; assignment");
-            STPair::ST(right_name, Type::Unit)
+            STPair::ST(right_name, RAstType::Unit)
         }
 
         RAstExpr::Binary(operator, left, right) => {
@@ -1895,27 +1864,27 @@ fn codegen_expression(codegen: &mut Codegen, expression: &RAstExpr) -> STPair {
                 }
                 RAstBinaryOp::Eq => STPair::ST(
                     llvm_emit_icmp(codegen, "eq", &left_type, &left_name, &right_name),
-                    Type::Bool,
+                    RAstType::Bool,
                 ),
                 RAstBinaryOp::Ne => STPair::ST(
                     llvm_emit_icmp(codegen, "ne", &left_type, &left_name, &right_name),
-                    Type::Bool,
+                    RAstType::Bool,
                 ),
                 RAstBinaryOp::Gt => STPair::ST(
                     llvm_emit_icmp(codegen, "ugt", &left_type, &left_name, &right_name),
-                    Type::Bool,
+                    RAstType::Bool,
                 ),
                 RAstBinaryOp::Lt => STPair::ST(
                     llvm_emit_icmp(codegen, "ult", &left_type, &left_name, &right_name),
-                    Type::Bool,
+                    RAstType::Bool,
                 ),
                 RAstBinaryOp::Ge => STPair::ST(
                     llvm_emit_icmp(codegen, "uge", &left_type, &left_name, &right_name),
-                    Type::Bool,
+                    RAstType::Bool,
                 ),
                 RAstBinaryOp::Le => STPair::ST(
                     llvm_emit_icmp(codegen, "ule", &left_type, &left_name, &right_name),
-                    Type::Bool,
+                    RAstType::Bool,
                 ),
             }
         }
@@ -1923,16 +1892,15 @@ fn codegen_expression(codegen: &mut Codegen, expression: &RAstExpr) -> STPair {
         RAstExpr::Cast(value, to_type) => {
             let STPair::ST(from_name, from_type): STPair =
                 codegen_expression(codegen, box_deref::<RAstExpr>(value));
-            let to_type: Type = rastType_to_type(to_type);
 
-            match type_get_cast_operation(&from_type, &to_type) {
+            match rAstType_get_cast_operation(&from_type, to_type) {
                 CastOperation::ZeroExtend => STPair::ST(
-                    llvm_emit_zext(codegen, &from_type, &to_type, &from_name),
-                    to_type,
+                    llvm_emit_zext(codegen, &from_type, to_type, &from_name),
+                    rAstType_clone(to_type),
                 ),
                 CastOperation::Truncate => STPair::ST(
-                    llvm_emit_trunc(codegen, &from_type, &to_type, &from_name),
-                    to_type,
+                    llvm_emit_trunc(codegen, &from_type, to_type, &from_name),
+                    rAstType_clone(to_type),
                 ),
                 CastOperation::None => STPair::ST(from_name, from_type),
                 CastOperation::Invalid => codegen_error("invalid cast"),
@@ -1946,12 +1914,19 @@ fn codegen_expression(codegen: &mut Codegen, expression: &RAstExpr) -> STPair {
                 RAstUnaryOp::Reference(mutable) => {
                     let reference: String = llvm_emit_alloca(codegen, &ty, 1);
                     llvm_emit_store(codegen, &ty, &name, &reference);
-                    STPair::ST(reference, Type::Reference(box_new::<Type>(ty), *mutable))
+                    STPair::ST(
+                        reference,
+                        RAstType::Reference(box_new::<RAstType>(ty), *mutable),
+                    )
                 }
                 RAstUnaryOp::Dereference => {
-                    let inner_type: Type = match ty {
-                        Type::Reference(pointed, _) => type_clone(box_deref::<Type>(&pointed)),
-                        Type::RawPointerMut(pointed) => type_clone(box_deref::<Type>(&pointed)),
+                    let inner_type: RAstType = match ty {
+                        RAstType::Reference(pointed, _) => {
+                            rAstType_clone(box_deref::<RAstType>(&pointed))
+                        }
+                        RAstType::RawPointerMut(pointed) => {
+                            rAstType_clone(box_deref::<RAstType>(&pointed))
+                        }
                         _ => codegen_error("cannot dereference this expression"),
                     };
                     let name: String = llvm_emit_load(codegen, &inner_type, &name);
@@ -1961,17 +1936,24 @@ fn codegen_expression(codegen: &mut Codegen, expression: &RAstExpr) -> STPair {
         }
 
         RAstExpr::Literal(literal) => match literal {
-            RAstLiteral::Int(value) => STPair::ST(integer_to_string(*value), Type::Usize),
-            RAstLiteral::Char(value) => STPair::ST(integer_to_string(*value as usize), Type::Char),
-            RAstLiteral::Bool(value) => STPair::ST(integer_to_string(*value as usize), Type::Bool),
+            RAstLiteral::Int(value) => STPair::ST(integer_to_string(*value), RAstType::Usize),
+            RAstLiteral::Char(value) => {
+                STPair::ST(integer_to_string(*value as usize), RAstType::Char)
+            }
+            RAstLiteral::Bool(value) => {
+                STPair::ST(integer_to_string(*value as usize), RAstType::Bool)
+            }
             RAstLiteral::String(_) => STPair::ST(
                 string_new(),
-                Type::Reference(box_new::<Type>(Type::Custom(string_from_str("str"))), false),
+                RAstType::Reference(
+                    box_new::<RAstType>(RAstType::Custom(string_from_str("str"))),
+                    false,
+                ),
             ),
         },
 
         RAstExpr::Path(path) => {
-            let name: String = rastPath_to_string(path);
+            let name: String = rAstPath_to_string(path);
             match symTable_lookup_variable_type(codegen_symtable(codegen), &name) {
                 Option::Some(ty) => STPair::ST(string_new(), ty),
                 Option::None => codegen_error("undefined variable"),
@@ -1979,19 +1961,23 @@ fn codegen_expression(codegen: &mut Codegen, expression: &RAstExpr) -> STPair {
         }
 
         RAstExpr::Call(callee, arguments) => {
-            let function_name: String = rastPath_to_string(callee);
-            let mut argument_types: List<Type> = list_new::<Type>();
+            let function_name: String = rAstPath_to_string(callee);
+            let mut argument_types: List<RAstType> = list_new::<RAstType>();
             let mut i: usize = 0;
             while i < vec_len::<RAstExpr>(arguments) {
                 let argument: &RAstExpr = unwrap::<&RAstExpr>(vec_get::<RAstExpr>(arguments, i));
                 let STPair::ST(_, argument_type): STPair = codegen_expression(codegen, argument);
-                list_append::<Type>(&mut argument_types, argument_type);
+                list_append::<RAstType>(&mut argument_types, argument_type);
                 i = i + 1;
             }
 
             match symTable_lookup_function_signature(codegen_symtable(codegen), &function_name) {
                 Option::Some(FnSignature::Fn(parameter_types, return_type)) => {
-                    if not(list_eq::<Type>(&parameter_types, &argument_types, type_eq)) {
+                    if not(list_eq::<RAstType>(
+                        &parameter_types,
+                        &argument_types,
+                        rAstType_eq,
+                    )) {
                         codegen_error("function call does not match function signature");
                     }
                     llvm_emit_call_comment(codegen_llvm_mut(codegen), &function_name);
@@ -2012,7 +1998,7 @@ fn codegen_expression(codegen: &mut Codegen, expression: &RAstExpr) -> STPair {
                 codegen_expression(codegen, box_deref::<RAstExpr>(condition));
             codegen_expect_bool_type(&condition_type);
             let STPair::ST(_, _): STPair = codegen_block(codegen, body);
-            STPair::ST(string_new(), Type::Unit)
+            STPair::ST(string_new(), RAstType::Unit)
         }
 
         RAstExpr::Match(value, arms) => STPair::ST(
@@ -2023,7 +2009,7 @@ fn codegen_expression(codegen: &mut Codegen, expression: &RAstExpr) -> STPair {
 }
 
 /// Type-check an if expression and return its type.
-fn codegen_if_type(codegen: &mut Codegen, if_expression: &RAstIf) -> Type {
+fn codegen_if_type(codegen: &mut Codegen, if_expression: &RAstIf) -> RAstType {
     let RAstIf::If(condition, then_block, else_branch): &RAstIf = if_expression;
     let STPair::ST(_, condition_type): STPair =
         codegen_expression(codegen, box_deref::<RAstExpr>(condition));
@@ -2032,16 +2018,16 @@ fn codegen_if_type(codegen: &mut Codegen, if_expression: &RAstIf) -> Type {
     let STPair::ST(_, then_type): STPair = codegen_block(codegen, then_block);
     match else_branch {
         Option::Some(else_branch) => {
-            let else_type: Type = codegen_else_type(codegen, else_branch);
+            let else_type: RAstType = codegen_else_type(codegen, else_branch);
             codegen_expect_same_type(&then_type, &else_type);
             then_type
         }
-        Option::None => Type::Unit,
+        Option::None => RAstType::Unit,
     }
 }
 
 /// Type-check an else branch and return its type.
-fn codegen_else_type(codegen: &mut Codegen, else_branch: &RAstElse) -> Type {
+fn codegen_else_type(codegen: &mut Codegen, else_branch: &RAstElse) -> RAstType {
     match else_branch {
         RAstElse::If(nested_if) => codegen_if_type(codegen, box_deref::<RAstIf>(nested_if)),
         RAstElse::Block(block) => stPair_get_type(codegen_block(codegen, block)),
@@ -2049,7 +2035,11 @@ fn codegen_else_type(codegen: &mut Codegen, else_branch: &RAstElse) -> Type {
 }
 
 /// Type-check a match expression and return its type.
-fn codegen_match_type(codegen: &mut Codegen, value: &RAstExpr, arms: &Vec<RAstMatchArm>) -> Type {
+fn codegen_match_type(
+    codegen: &mut Codegen,
+    value: &RAstExpr,
+    arms: &Vec<RAstMatchArm>,
+) -> RAstType {
     if vec_len::<RAstMatchArm>(arms) == 0 {
         codegen_error("match expression requires at least one arm");
     }
@@ -2057,18 +2047,18 @@ fn codegen_match_type(codegen: &mut Codegen, value: &RAstExpr, arms: &Vec<RAstMa
     let STPair::ST(_, matched_type): STPair = codegen_expression(codegen, value);
     let first_arm: &RAstMatchArm = unwrap::<&RAstMatchArm>(vec_get::<RAstMatchArm>(arms, 0));
     let RAstMatchArm::Arm(first_pattern, first_expression): &RAstMatchArm = first_arm;
-    let first_pattern_type: Type =
+    let first_pattern_type: RAstType =
         codegen_pattern_type_for_expression(first_pattern, &matched_type);
     codegen_expect_same_type(&first_pattern_type, &matched_type);
-    let return_type: Type = stPair_get_type(codegen_expression(codegen, first_expression));
+    let return_type: RAstType = stPair_get_type(codegen_expression(codegen, first_expression));
 
     let mut i: usize = 1;
     while i < vec_len::<RAstMatchArm>(arms) {
         let arm: &RAstMatchArm = unwrap::<&RAstMatchArm>(vec_get::<RAstMatchArm>(arms, i));
         let RAstMatchArm::Arm(pattern, expression): &RAstMatchArm = arm;
-        let pattern_type: Type = codegen_pattern_type_for_expression(pattern, &matched_type);
+        let pattern_type: RAstType = codegen_pattern_type_for_expression(pattern, &matched_type);
         codegen_expect_same_type(&pattern_type, &matched_type);
-        let arm_type: Type = stPair_get_type(codegen_expression(codegen, expression));
+        let arm_type: RAstType = stPair_get_type(codegen_expression(codegen, expression));
         codegen_expect_same_type(&return_type, &arm_type);
         i = i + 1;
     }
@@ -2077,12 +2067,17 @@ fn codegen_match_type(codegen: &mut Codegen, value: &RAstExpr, arms: &Vec<RAstMa
 }
 
 /// Infer the type contributed by a pattern in the context of one matched expression type.
-fn codegen_pattern_type_for_expression(pattern: &RAstPattern, expression_type: &Type) -> Type {
+fn codegen_pattern_type_for_expression(
+    pattern: &RAstPattern,
+    expression_type: &RAstType,
+) -> RAstType {
     match pattern {
         RAstPattern::Literal(literal) => rastLiteral_type(literal),
-        RAstPattern::Identifier(_, _) => type_clone(expression_type),
-        RAstPattern::EnumVariant(enum_name, variant, _) => Type::Custom(string_clone(enum_name)),
-        RAstPattern::Wildcard => type_clone(expression_type),
+        RAstPattern::Identifier(_, _) => rAstType_clone(expression_type),
+        RAstPattern::EnumVariant(enum_name, variant, _) => {
+            RAstType::Custom(string_clone(enum_name))
+        }
+        RAstPattern::Wildcard => rAstType_clone(expression_type),
     }
 }
 
@@ -2095,7 +2090,7 @@ fn codegen_pattern_type_for_expression(pattern: &RAstPattern, expression_type: &
 fn llvm_emit_binary(
     codegen: &mut Codegen,
     op: &str,
-    ty: &Type,
+    ty: &RAstType,
     lhs: &String,
     rhs: &String,
 ) -> String {
@@ -2106,7 +2101,7 @@ fn llvm_emit_binary(
     string_push_str(code, " = ");
     string_push_str(code, op);
     string_push(code, ' ');
-    string_push_string(code, &type_to_llvm_name(ty));
+    string_push_string(code, &rAstType_to_llvm_name(ty));
     string_push(code, ' ');
     string_push_string(code, lhs);
     string_push(code, ',');
@@ -2118,35 +2113,35 @@ fn llvm_emit_binary(
 /// Emit an add instruction:
 /// `name` = add `ty` `lhs`,`rhs`
 /// and return `name`.
-fn llvm_emit_add(codegen: &mut Codegen, ty: &Type, lhs: &String, rhs: &String) -> String {
+fn llvm_emit_add(codegen: &mut Codegen, ty: &RAstType, lhs: &String, rhs: &String) -> String {
     llvm_emit_binary(codegen, "add", ty, lhs, rhs)
 }
 
 /// Emit an add instruction:
 /// `name` = add `ty` `lhs`,`rhs`
 /// and return `name`.
-fn llvm_emit_sub(codegen: &mut Codegen, ty: &Type, lhs: &String, rhs: &String) -> String {
+fn llvm_emit_sub(codegen: &mut Codegen, ty: &RAstType, lhs: &String, rhs: &String) -> String {
     llvm_emit_binary(codegen, "sub", ty, lhs, rhs)
 }
 
 /// Emit a mul instruction:
 /// `name` = mul `ty` `lhs`,`rhs`
 /// and return `name`.
-fn llvm_emit_mul(codegen: &mut Codegen, ty: &Type, lhs: &String, rhs: &String) -> String {
+fn llvm_emit_mul(codegen: &mut Codegen, ty: &RAstType, lhs: &String, rhs: &String) -> String {
     llvm_emit_binary(codegen, "mul", ty, lhs, rhs)
 }
 
 /// Emit a divu instruction:
 /// `name` = divu `ty` `lhs`,`rhs`
 /// and return `name`.
-fn llvm_emit_udiv(codegen: &mut Codegen, ty: &Type, lhs: &String, rhs: &String) -> String {
+fn llvm_emit_udiv(codegen: &mut Codegen, ty: &RAstType, lhs: &String, rhs: &String) -> String {
     llvm_emit_binary(codegen, "udiv", ty, lhs, rhs)
 }
 
 /// Emit a remu instruction:
 /// `name` = remu `ty` `lhs`, `rhs`
 /// and return `name`.
-fn llvm_emit_urem(codegen: &mut Codegen, ty: &Type, lhs: &String, rhs: &String) -> String {
+fn llvm_emit_urem(codegen: &mut Codegen, ty: &RAstType, lhs: &String, rhs: &String) -> String {
     llvm_emit_binary(codegen, "urem", ty, lhs, rhs)
 }
 
@@ -2156,7 +2151,7 @@ fn llvm_emit_urem(codegen: &mut Codegen, ty: &Type, lhs: &String, rhs: &String) 
 fn llvm_emit_icmp(
     codegen: &mut Codegen,
     op: &str,
-    ty: &Type,
+    ty: &RAstType,
     lhs: &String,
     rhs: &String,
 ) -> String {
@@ -2167,7 +2162,7 @@ fn llvm_emit_icmp(
     string_push_str(code, " = icmp ");
     string_push_str(code, op);
     string_push(code, ' ');
-    string_push_string(code, &type_to_llvm_name(ty));
+    string_push_string(code, &rAstType_to_llvm_name(ty));
     string_push(code, ' ');
     string_push_string(code, lhs);
     string_push(code, ',');
@@ -2178,11 +2173,11 @@ fn llvm_emit_icmp(
 
 /// Emit a ret instruction:
 /// ret `ty` `value`
-fn llvm_emit_ret_value(codegen: &mut Codegen, ty: &Type, value: &String) {
+fn llvm_emit_ret_value(codegen: &mut Codegen, ty: &RAstType, value: &String) {
     let code: &mut String = codegen_llvm_mut(codegen);
     string_push_str(code, "  ");
     string_push_str(code, "ret ");
-    string_push_string(code, &type_to_llvm_name(ty));
+    string_push_string(code, &rAstType_to_llvm_name(ty));
     string_push(code, ' ');
     string_push_string(code, value);
     string_push(code, '\n');
@@ -2204,8 +2199,8 @@ fn llvm_emit_ret_void(codegen: &mut Codegen) {
 fn llvm_emit_cast(
     codegen: &mut Codegen,
     cast_op: &str,
-    from_type: &Type,
-    to_type: &Type,
+    from_type: &RAstType,
+    to_type: &RAstType,
     value: &String,
 ) -> String {
     let name: String = context_next_temporary(codegen_context_mut(codegen));
@@ -2215,11 +2210,11 @@ fn llvm_emit_cast(
     string_push_str(code, " = ");
     string_push_str(code, cast_op);
     string_push(code, ' ');
-    string_push_string(code, &type_to_llvm_name(from_type));
+    string_push_string(code, &rAstType_to_llvm_name(from_type));
     string_push(code, ' ');
     string_push_string(code, value);
     string_push_str(code, " to ");
-    string_push_string(code, &type_to_llvm_name(to_type));
+    string_push_string(code, &rAstType_to_llvm_name(to_type));
     string_push(code, '\n');
     name
 }
@@ -2229,8 +2224,8 @@ fn llvm_emit_cast(
 /// and return `name`.
 fn llvm_emit_zext(
     codegen: &mut Codegen,
-    from_type: &Type,
-    to_type: &Type,
+    from_type: &RAstType,
+    to_type: &RAstType,
     value: &String,
 ) -> String {
     llvm_emit_cast(codegen, "zext", from_type, to_type, value)
@@ -2241,8 +2236,8 @@ fn llvm_emit_zext(
 /// and return `name`.
 fn llvm_emit_trunc(
     codegen: &mut Codegen,
-    from_type: &Type,
-    to_type: &Type,
+    from_type: &RAstType,
+    to_type: &RAstType,
     value: &String,
 ) -> String {
     llvm_emit_cast(codegen, "trunc", from_type, to_type, value)
@@ -2251,9 +2246,9 @@ fn llvm_emit_trunc(
 /// Emit an alloca instruction:
 /// `name` = alloca `ty`, i64 `num_elements`
 /// and return `name`.
-fn llvm_emit_alloca(codegen: &mut Codegen, ty: &Type, num_elements: usize) -> String {
+fn llvm_emit_alloca(codegen: &mut Codegen, ty: &RAstType, num_elements: usize) -> String {
     let name: String = context_next_temporary(codegen_context_mut(codegen));
-    let llvm_type: String = type_to_llvm_name(ty);
+    let llvm_type: String = rAstType_to_llvm_name(ty);
     let code: &mut String = codegen_llvm_mut(codegen);
     string_push_str(code, "  ");
     string_push_string(code, &name);
@@ -2267,10 +2262,10 @@ fn llvm_emit_alloca(codegen: &mut Codegen, ty: &Type, num_elements: usize) -> St
 
 /// Emit a store instruction:
 /// store `ty` `value`, ptr `pointer`.
-fn llvm_emit_store(codegen: &mut Codegen, ty: &Type, value: &String, pointer: &String) {
+fn llvm_emit_store(codegen: &mut Codegen, ty: &RAstType, value: &String, pointer: &String) {
     let code: &mut String = codegen_llvm_mut(codegen);
     string_push_str(code, "  store ");
-    string_push_string(code, &type_to_llvm_name(ty));
+    string_push_string(code, &rAstType_to_llvm_name(ty));
     string_push(code, ' ');
     string_push_string(code, value);
     string_push(code, ',');
@@ -2281,13 +2276,13 @@ fn llvm_emit_store(codegen: &mut Codegen, ty: &Type, value: &String, pointer: &S
 
 /// Emit a load instruction:
 /// `name` = load `ty`, `ptr` pointer`.
-fn llvm_emit_load(codegen: &mut Codegen, ty: &Type, pointer: &String) -> String {
+fn llvm_emit_load(codegen: &mut Codegen, ty: &RAstType, pointer: &String) -> String {
     let name: String = context_next_temporary(codegen_context_mut(codegen));
     let code: &mut String = codegen_llvm_mut(codegen);
     string_push_str(code, "  ");
     string_push_string(code, &name);
     string_push_str(code, " = load ");
-    string_push_string(code, &type_to_llvm_name(ty));
+    string_push_string(code, &rAstType_to_llvm_name(ty));
     string_push(code, ',');
     string_push_str(code, " ptr ");
     string_push_string(code, pointer);
@@ -4676,47 +4671,47 @@ fn literalToken_eq(left: &Literal, right: &Literal) -> bool {
     }
 }
 
-/// Check two types for equality.
-fn type_eq(a: &Type, b: &Type) -> bool {
+/// Check two Rust AST types for equality.
+fn rAstType_eq(a: &RAstType, b: &RAstType) -> bool {
     match a {
-        Type::U8 => match b {
-            Type::U8 => true,
+        RAstType::U8 => match b {
+            RAstType::U8 => true,
             _ => false,
         },
-        Type::Usize => match b {
-            Type::Usize => true,
+        RAstType::Usize => match b {
+            RAstType::Usize => true,
             _ => false,
         },
-        Type::Bool => match b {
-            Type::Bool => true,
+        RAstType::Bool => match b {
+            RAstType::Bool => true,
             _ => false,
         },
-        Type::Char => match b {
-            Type::Char => true,
+        RAstType::Char => match b {
+            RAstType::Char => true,
             _ => false,
         },
-        Type::Unit => match b {
-            Type::Unit => true,
+        RAstType::Unit => match b {
+            RAstType::Unit => true,
             _ => false,
         },
-        Type::Never => match b {
-            Type::Never => true,
+        RAstType::Never => match b {
+            RAstType::Never => true,
             _ => false,
         },
-        Type::Custom(left) => match b {
-            Type::Custom(right) => string_eq(left, right),
+        RAstType::Custom(left) => match b {
+            RAstType::Custom(right) => string_eq(left, right),
             _ => false,
         },
-        Type::Reference(left, left_mut) => match b {
-            Type::Reference(right, right_mut) => and(
+        RAstType::Reference(left, left_mut) => match b {
+            RAstType::Reference(right, right_mut) => and(
                 *left_mut == *right_mut,
-                type_eq(box_deref::<Type>(left), box_deref::<Type>(right)),
+                rAstType_eq(box_deref::<RAstType>(left), box_deref::<RAstType>(right)),
             ),
             _ => false,
         },
-        Type::RawPointerMut(left) => match b {
-            Type::RawPointerMut(right) => {
-                type_eq(box_deref::<Type>(left), box_deref::<Type>(right))
+        RAstType::RawPointerMut(left) => match b {
+            RAstType::RawPointerMut(right) => {
+                rAstType_eq(box_deref::<RAstType>(left), box_deref::<RAstType>(right))
             }
             _ => false,
         },
@@ -5025,26 +5020,28 @@ fn literalToken_clone(literal: &Literal) -> Literal {
 fn fnSignature_clone(signature: &FnSignature) -> FnSignature {
     match signature {
         FnSignature::Fn(parameter_types, return_type) => FnSignature::Fn(
-            list_clone::<Type>(parameter_types, type_clone),
-            type_clone(return_type),
+            list_clone::<RAstType>(parameter_types, rAstType_clone),
+            rAstType_clone(return_type),
         ),
     }
 }
 
-/// Clone a type value.
-fn type_clone(t: &Type) -> Type {
+/// Clone a Rust AST type value.
+fn rAstType_clone(t: &RAstType) -> RAstType {
     match t {
-        Type::U8 => Type::U8,
-        Type::Usize => Type::Usize,
-        Type::Bool => Type::Bool,
-        Type::Char => Type::Char,
-        Type::Unit => Type::Unit,
-        Type::Never => Type::Never,
-        Type::Custom(name) => Type::Custom(string_clone(name)),
-        Type::Reference(inner, mutable) => {
-            Type::Reference(box_clone::<Type>(inner, type_clone), *mutable)
+        RAstType::U8 => RAstType::U8,
+        RAstType::Usize => RAstType::Usize,
+        RAstType::Bool => RAstType::Bool,
+        RAstType::Char => RAstType::Char,
+        RAstType::Unit => RAstType::Unit,
+        RAstType::Never => RAstType::Never,
+        RAstType::Custom(name) => RAstType::Custom(string_clone(name)),
+        RAstType::Reference(inner, mutable) => {
+            RAstType::Reference(box_clone::<RAstType>(inner, rAstType_clone), *mutable)
         }
-        Type::RawPointerMut(inner) => Type::RawPointerMut(box_clone::<Type>(inner, type_clone)),
+        RAstType::RawPointerMut(inner) => {
+            RAstType::RawPointerMut(box_clone::<RAstType>(inner, rAstType_clone))
+        }
     }
 }
 
