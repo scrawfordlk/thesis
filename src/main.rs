@@ -565,8 +565,7 @@ fn compile(source: &str) -> String {
     let mut codegen: Codegen = codegen_new();
     codegen_language(&mut codegen, &ast);
 
-    let Codegen::Codegen(code, _, _, _): Codegen = codegen;
-    code
+    codegen_into_llvm(codegen)
 }
 
 /// Require and consume the given token.
@@ -1264,42 +1263,63 @@ fn parse_literal(lexer: &mut Lexer) -> RAstLiteral {
 
 /// Type that encapsulates the state during LLVM-IR code generation from an AST.
 enum Codegen {
-    /// llvm code, symbol table, current function return type, llvm context
-    Codegen(String, SymTable, RAstType, Context),
+    /// llvm code, symbol table, current function return type, llvm context, variable slots
+    Codegen(String, SymTable, RAstType, Context, CodegenSlotStack),
 }
 
 fn codegen_new() -> Codegen {
-    Codegen::Codegen(string_new(), symTable_new(), RAstType::Unit, context_new())
+    Codegen::Codegen(
+        string_new(),
+        symTable_new(),
+        RAstType::Unit,
+        context_new(),
+        codegenSlotStack_new(),
+    )
+}
+
+fn codegen_into_llvm(codegen: Codegen) -> String {
+    let Codegen::Codegen(llvm, _, _, _, _): Codegen = codegen;
+    llvm
 }
 
 fn codegen_llvm_mut(codegen: &mut Codegen) -> &mut String {
-    let Codegen::Codegen(llvm, _, _, _): &mut Codegen = codegen;
+    let Codegen::Codegen(llvm, _, _, _, _): &mut Codegen = codegen;
     llvm
 }
 
 fn codegen_symtable(codegen: &Codegen) -> &SymTable {
-    let Codegen::Codegen(_, symtable, _, _): &Codegen = codegen;
+    let Codegen::Codegen(_, symtable, _, _, _): &Codegen = codegen;
     symtable
 }
 
 fn codegen_symtable_mut(codegen: &mut Codegen) -> &mut SymTable {
-    let Codegen::Codegen(_, symtable, _, _): &mut Codegen = codegen;
+    let Codegen::Codegen(_, symtable, _, _, _): &mut Codegen = codegen;
     symtable
 }
 
 fn codegen_current_fn_return_type(codegen: &Codegen) -> &RAstType {
-    let Codegen::Codegen(_, _, return_type, _): &Codegen = codegen;
+    let Codegen::Codegen(_, _, return_type, _, _): &Codegen = codegen;
     return_type
 }
 
 fn codegen_set_current_fn_return_type(codegen: &mut Codegen, ty: RAstType) {
-    let Codegen::Codegen(_, _, return_type, _): &mut Codegen = codegen;
+    let Codegen::Codegen(_, _, return_type, _, _): &mut Codegen = codegen;
     *return_type = ty;
 }
 
 fn codegen_context_mut(codegen: &mut Codegen) -> &mut Context {
-    let Codegen::Codegen(_, _, _, context): &mut Codegen = codegen;
+    let Codegen::Codegen(_, _, _, context, _): &mut Codegen = codegen;
     context
+}
+
+fn codegen_slot_stack(codegen: &Codegen) -> &CodegenSlotStack {
+    let Codegen::Codegen(_, _, _, _, slots): &Codegen = codegen;
+    slots
+}
+
+fn codegen_slot_stack_mut(codegen: &mut Codegen) -> &mut CodegenSlotStack {
+    let Codegen::Codegen(_, _, _, _, slots): &mut Codegen = codegen;
+    slots
 }
 
 fn codegen_expect_same_type(left: &RAstType, right: &RAstType) {
@@ -1347,6 +1367,63 @@ fn context_next_temporary(context: &mut Context) -> String {
     let mut name: String = string_from_str("%.t"); // '.' avoids name clashes with variables
     string_push_string(&mut name, &integer_to_string(id));
     name
+}
+
+/// Manages the variable to virtual register mappings using a stack to handle scopes.
+enum CodegenSlotStack {
+    /// stack, index pointer to the top
+    Stack(Vec<StringMap<String>>, usize),
+}
+
+fn codegenSlotStack_new() -> CodegenSlotStack {
+    CodegenSlotStack::Stack(vec_new::<StringMap<String>>(), 0)
+}
+
+fn codegenSlotStack_push_empty_scope(stack: &mut CodegenSlotStack) {
+    let CodegenSlotStack::Stack(scopes, top_idx): &mut CodegenSlotStack = stack;
+    let new_scope: StringMap<String> = stringMap_new::<String>();
+    if *top_idx < vec_len::<StringMap<String>>(scopes) {
+        vec_set::<StringMap<String>>(scopes, *top_idx, new_scope);
+    } else {
+        vec_push::<StringMap<String>>(scopes, new_scope);
+    }
+    *top_idx = *top_idx + 1;
+}
+
+fn codegenSlotStack_pop(stack: &mut CodegenSlotStack) -> bool {
+    let CodegenSlotStack::Stack(_, top): &mut CodegenSlotStack = stack;
+    if *top == 0 {
+        false
+    } else {
+        *top = *top - 1;
+        true
+    }
+}
+
+fn codegenSlotStack_insert(stack: &mut CodegenSlotStack, name: String, pointer_name: String) {
+    let CodegenSlotStack::Stack(scopes, top): &mut CodegenSlotStack = stack;
+    if *top == 0 {
+        return;
+    }
+    let idx: usize = *top - 1;
+    let scope: &mut StringMap<String> =
+        unwrap::<&mut StringMap<String>>(vec_get_mut::<StringMap<String>>(scopes, idx));
+    stringMap_insert::<String>(scope, name, pointer_name);
+}
+
+fn codegenSlotStack_lookup(stack: &CodegenSlotStack, name: &String) -> Option<String> {
+    let CodegenSlotStack::Stack(scopes, top): &CodegenSlotStack = stack;
+    let mut index: usize = *top;
+    while index > 0 {
+        index = index - 1;
+        let scope: &StringMap<String> =
+            unwrap::<&StringMap<String>>(vec_get::<StringMap<String>>(scopes, index));
+        match stringMap_get::<String>(scope, name) {
+            Option::Some(pointer_name) => return Option::Some(string_clone(pointer_name)),
+            Option::None => {}
+        }
+    }
+    Option::None
 }
 
 /// Data structure that manages global and local symbol tables.
@@ -1716,6 +1793,7 @@ fn codegen_function(codegen: &mut Codegen, function: &RAstFunction) {
     }
 
     symTable_enter_scope(codegen_symtable_mut(codegen));
+    codegenSlotStack_push_empty_scope(codegen_slot_stack_mut(codegen));
     let mut parameter_index: usize = 0;
     while parameter_index < vec_len::<RAstVariable>(parameters) {
         let parameter: &RAstVariable =
@@ -1759,6 +1837,7 @@ fn codegen_function(codegen: &mut Codegen, function: &RAstFunction) {
 
     llvm_emit_line(codegen_llvm_mut(codegen), "}");
     symTable_leave_scope(codegen_symtable_mut(codegen));
+    codegenSlotStack_pop(codegen_slot_stack_mut(codegen));
     codegen_set_current_fn_return_type(codegen, RAstType::Unit);
 }
 
@@ -1766,6 +1845,7 @@ fn codegen_function(codegen: &mut Codegen, function: &RAstFunction) {
 fn codegen_block(codegen: &mut Codegen, block: &RAstBlock) -> STPair {
     let RAstBlock::Block(statements, tail): &RAstBlock = block;
     symTable_enter_scope(codegen_symtable_mut(codegen));
+    codegenSlotStack_push_empty_scope(codegen_slot_stack_mut(codegen));
 
     let mut i: usize = 0;
     while i < vec_len::<RAstStatement>(statements) {
@@ -1790,26 +1870,34 @@ fn codegen_block(codegen: &mut Codegen, block: &RAstBlock) -> STPair {
     };
 
     symTable_leave_scope(codegen_symtable_mut(codegen));
+    codegenSlotStack_pop(codegen_slot_stack_mut(codegen));
     result
 }
 
 /// Emit LLVM-IR for one let binding.
 fn codegen_binding(codegen: &mut Codegen, variable: &RAstVariable, value: &RAstExpr) {
     let RAstVariable::Variable(pattern, binding_type): &RAstVariable = variable;
-    let STPair::ST(value_name, actual_type): STPair = codegen_expression(codegen, value);
+
+    let STPair::ST(rvalue_name, actual_type): STPair = codegen_expression(codegen, value);
     codegen_expect_same_type(binding_type, &actual_type);
 
     match pattern {
-        RAstPattern::Identifier(is_mutable, name) => {
+        RAstPattern::Identifier(is_mutable, lvalue_name) => {
+            let lvalue_pointer: String = llvm_emit_alloca(codegen, binding_type, 1);
+            llvm_emit_store(codegen, binding_type, &rvalue_name, &lvalue_pointer);
+
             symTable_insert_variable(
                 codegen_symtable_mut(codegen),
-                string_clone(name),
+                string_clone(lvalue_name),
                 rAstType_clone(binding_type),
                 *is_mutable,
             );
-            let type_name: String = rAstType_to_llvm_name(binding_type);
-            llvm_emit_let_comment(codegen_llvm_mut(codegen), name, &type_name, *is_mutable);
-            let _ = value_name;
+
+            codegenSlotStack_insert(
+                codegen_slot_stack_mut(codegen),
+                string_clone(lvalue_name),
+                lvalue_pointer,
+            );
         }
         _ => llvm_emit_line(codegen_llvm_mut(codegen), "  ; let pattern"),
     }
@@ -1878,11 +1966,27 @@ fn codegen_expression(codegen: &mut Codegen, expression: &RAstExpr) -> STPair {
             }
         }
 
-        RAstExpr::Unary(operator, value) => {
-            let STPair::ST(name, ty): STPair =
-                codegen_expression(codegen, box_deref::<RAstExpr>(value));
-            match operator {
-                RAstUnaryOp::Reference(mutable) => {
+        RAstExpr::Unary(operator, value) => match operator {
+            RAstUnaryOp::Reference(mutable) => match box_deref::<RAstExpr>(value) {
+                RAstExpr::Path(path) => {
+                    let name: String = rAstPath_to_string(path);
+                    match symTable_lookup_variable_type(codegen_symtable(codegen), &name) {
+                        Option::Some(ty) => {
+                            match codegenSlotStack_lookup(codegen_slot_stack(codegen), &name) {
+                                Option::Some(pointer_name) => STPair::ST(
+                                    pointer_name,
+                                    RAstType::Reference(box_new::<RAstType>(ty), *mutable),
+                                ),
+                                _ => codegen_error("undefined variable"),
+                            }
+                        }
+                        _ => codegen_error("undefined variable"),
+                    }
+                }
+                _ => {
+                    // create a reference to the value of an expression
+                    let STPair::ST(name, ty): STPair =
+                        codegen_expression(codegen, box_deref::<RAstExpr>(value));
                     let reference: String = llvm_emit_alloca(codegen, &ty, 1);
                     llvm_emit_store(codegen, &ty, &name, &reference);
                     STPair::ST(
@@ -1890,21 +1994,24 @@ fn codegen_expression(codegen: &mut Codegen, expression: &RAstExpr) -> STPair {
                         RAstType::Reference(box_new::<RAstType>(ty), *mutable),
                     )
                 }
-                RAstUnaryOp::Dereference => {
-                    let inner_type: RAstType = match ty {
-                        RAstType::Reference(pointed, _) => {
-                            rAstType_clone(box_deref::<RAstType>(&pointed))
-                        }
-                        RAstType::RawPointerMut(pointed) => {
-                            rAstType_clone(box_deref::<RAstType>(&pointed))
-                        }
-                        _ => codegen_error("cannot dereference this expression"),
-                    };
-                    let name: String = llvm_emit_load(codegen, &inner_type, &name);
-                    STPair::ST(name, inner_type)
-                }
+            },
+
+            RAstUnaryOp::Dereference => {
+                let STPair::ST(name, ty): STPair =
+                    codegen_expression(codegen, box_deref::<RAstExpr>(value));
+                let inner_type: RAstType = match ty {
+                    RAstType::Reference(pointed, _) => {
+                        rAstType_clone(box_deref::<RAstType>(&pointed))
+                    }
+                    RAstType::RawPointerMut(pointed) => {
+                        rAstType_clone(box_deref::<RAstType>(&pointed))
+                    }
+                    _ => codegen_error("cannot dereference this expression"),
+                };
+                let name: String = llvm_emit_load(codegen, &inner_type, &name);
+                STPair::ST(name, inner_type)
             }
-        }
+        },
 
         RAstExpr::Literal(literal) => match literal {
             RAstLiteral::Int(value) => STPair::ST(integer_to_string(*value), RAstType::Usize),
@@ -1926,8 +2033,16 @@ fn codegen_expression(codegen: &mut Codegen, expression: &RAstExpr) -> STPair {
         RAstExpr::Path(path) => {
             let name: String = rAstPath_to_string(path);
             match symTable_lookup_variable_type(codegen_symtable(codegen), &name) {
-                Option::Some(ty) => STPair::ST(string_new(), ty),
-                Option::None => codegen_error("undefined variable"),
+                Option::Some(ty) => {
+                    match codegenSlotStack_lookup(codegen_slot_stack(codegen), &name) {
+                        Option::Some(pointer_name) => {
+                            let value_name: String = llvm_emit_load(codegen, &ty, &pointer_name);
+                            STPair::ST(value_name, ty)
+                        }
+                        _ => codegen_error("undefined variable"),
+                    }
+                }
+                _ => codegen_error("undefined variable"),
             }
         }
 
