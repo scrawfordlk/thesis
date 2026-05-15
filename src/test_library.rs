@@ -252,32 +252,6 @@ fn test_symtable_global_insert_and_lookup() {
 }
 
 #[test]
-fn test_symtable_stack_push_pop_top_index() {
-    let mut stack = localSymTableStack_new();
-    match &stack {
-        LocalSymTableStack::Stack(_, top) => assert_eq!(*top, 0),
-    }
-
-    localSymTableStack_push_empty_scope(&mut stack);
-    match &stack {
-        LocalSymTableStack::Stack(_, top) => assert_eq!(*top, 1),
-    }
-
-    localSymTableStack_push_empty_scope(&mut stack);
-    match &stack {
-        LocalSymTableStack::Stack(_, top) => assert_eq!(*top, 2),
-    }
-
-    assert!(localSymTableStack_pop(&mut stack));
-    match &stack {
-        LocalSymTableStack::Stack(_, top) => assert_eq!(*top, 1),
-    }
-
-    assert!(localSymTableStack_pop(&mut stack));
-    assert!(!localSymTableStack_pop(&mut stack));
-}
-
-#[test]
 fn test_symtable_scope_and_variables() {
     let mut symtable = symTable_new();
     assert!(symTable_insert_variable(

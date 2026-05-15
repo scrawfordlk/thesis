@@ -1263,8 +1263,9 @@ fn parse_literal(lexer: &mut Lexer) -> RAstLiteral {
 
 /// Type that encapsulates the state during LLVM-IR code generation from an AST.
 enum Codegen {
-    /// llvm code, symbol table, current function return type, llvm context, variable slots
-    Codegen(String, SymTable, RAstType, Context, CodegenSlotStack),
+    /// llvm code, symbol table, current function return type, llvm context,
+    /// variable-register-mapping
+    Codegen(String, SymTable, RAstType, Context, StringMapStack<String>),
 }
 
 fn codegen_new() -> Codegen {
@@ -1273,7 +1274,7 @@ fn codegen_new() -> Codegen {
         symTable_new(),
         RAstType::Unit,
         context_new(),
-        codegenSlotStack_new(),
+        stringMapStack_new::<String>(),
     )
 }
 
@@ -1312,14 +1313,31 @@ fn codegen_context_mut(codegen: &mut Codegen) -> &mut Context {
     context
 }
 
-fn codegen_slot_stack(codegen: &Codegen) -> &CodegenSlotStack {
-    let Codegen::Codegen(_, _, _, _, slots): &Codegen = codegen;
-    slots
+/// Push a new empty scop onto the stack.
+fn codegen_push_scope(codegen: &mut Codegen) {
+    let Codegen::Codegen(_, _, _, _, slots): &mut Codegen = codegen;
+    stringMapStack_push_empty::<String>(slots);
 }
 
-fn codegen_slot_stack_mut(codegen: &mut Codegen) -> &mut CodegenSlotStack {
+/// Pop the last pushed scope.
+fn codegen_pop_scope(codegen: &mut Codegen) -> bool {
     let Codegen::Codegen(_, _, _, _, slots): &mut Codegen = codegen;
-    slots
+    stringMapStack_pop::<String>(slots)
+}
+
+/// Insert a new variable-register-mapping into the current scope.
+fn codegen_scope_insert(codegen: &mut Codegen, name: String, pointer_name: String) {
+    let Codegen::Codegen(_, _, _, _, slots): &mut Codegen = codegen;
+    let _ = stringMapStack_insert::<String>(slots, name, pointer_name);
+}
+
+/// Lookup the associated virtual register of a variable and return it.
+fn codegen_scope_lookup(codegen: &Codegen, name: &String) -> Option<String> {
+    let Codegen::Codegen(_, _, _, _, slots): &Codegen = codegen;
+    match stringMapStack_lookup::<String>(slots, name) {
+        Option::Some(pointer_name) => Option::Some(string_clone(pointer_name)),
+        Option::None => Option::None,
+    }
 }
 
 fn codegen_expect_same_type(left: &RAstType, right: &RAstType) {
@@ -1369,89 +1387,42 @@ fn context_next_temporary(context: &mut Context) -> String {
     name
 }
 
-/// Manages the variable to virtual register mappings using a stack to handle scopes.
-enum CodegenSlotStack {
-    /// stack, index pointer to the top
-    Stack(Vec<StringMap<String>>, usize),
-}
-
-fn codegenSlotStack_new() -> CodegenSlotStack {
-    CodegenSlotStack::Stack(vec_new::<StringMap<String>>(), 0)
-}
-
-fn codegenSlotStack_push_empty_scope(stack: &mut CodegenSlotStack) {
-    let CodegenSlotStack::Stack(scopes, top_idx): &mut CodegenSlotStack = stack;
-    let new_scope: StringMap<String> = stringMap_new::<String>();
-    if *top_idx < vec_len::<StringMap<String>>(scopes) {
-        vec_set::<StringMap<String>>(scopes, *top_idx, new_scope);
-    } else {
-        vec_push::<StringMap<String>>(scopes, new_scope);
-    }
-    *top_idx = *top_idx + 1;
-}
-
-fn codegenSlotStack_pop(stack: &mut CodegenSlotStack) -> bool {
-    let CodegenSlotStack::Stack(_, top): &mut CodegenSlotStack = stack;
-    if *top == 0 {
-        false
-    } else {
-        *top = *top - 1;
-        true
-    }
-}
-
-fn codegenSlotStack_insert(stack: &mut CodegenSlotStack, name: String, pointer_name: String) {
-    let CodegenSlotStack::Stack(scopes, top): &mut CodegenSlotStack = stack;
-    if *top == 0 {
-        return;
-    }
-    let idx: usize = *top - 1;
-    let scope: &mut StringMap<String> =
-        unwrap::<&mut StringMap<String>>(vec_get_mut::<StringMap<String>>(scopes, idx));
-    stringMap_insert::<String>(scope, name, pointer_name);
-}
-
-fn codegenSlotStack_lookup(stack: &CodegenSlotStack, name: &String) -> Option<String> {
-    let CodegenSlotStack::Stack(scopes, top): &CodegenSlotStack = stack;
-    let mut index: usize = *top;
-    while index > 0 {
-        index = index - 1;
-        let scope: &StringMap<String> =
-            unwrap::<&StringMap<String>>(vec_get::<StringMap<String>>(scopes, index));
-        match stringMap_get::<String>(scope, name) {
-            Option::Some(pointer_name) => return Option::Some(string_clone(pointer_name)),
-            Option::None => {}
-        }
-    }
-    Option::None
-}
-
 /// Data structure that manages global and local symbol tables.
 enum SymTable {
-    Table(StringMap<SymTableGlobalEntry>, LocalSymTableStack),
+    /// global symbol table, local symbol tables
+    Table(
+        StringMap<SymTableGlobalEntry>,
+        StringMapStack<SymTableLocalEntry>,
+    ),
 }
 
 /// Create an empty symbol table.
 fn symTable_new() -> SymTable {
     SymTable::Table(
         stringMap_new::<SymTableGlobalEntry>(),
-        localSymTableStack_new(),
+        stringMapStack_new::<SymTableLocalEntry>(),
     )
 }
 
 /// Check whether a symbol exists in local scopes or globals.
 fn symTable_contains(symtable: &SymTable, name: &String) -> bool {
-    let SymTable::Table(global, local): &SymTable = symtable;
+    let SymTable::Table(global, local_scopes): &SymTable = symtable;
     or(
-        localSymTableStack_contains(local, name),
+        stringMapStack_contains::<SymTableLocalEntry>(local_scopes, name),
         stringMap_contains::<SymTableGlobalEntry>(global, name),
     )
 }
 
 /// Lookup a variable type in local scopes.
 fn symTable_lookup_variable_type(symtable: &SymTable, name: &String) -> Option<RAstType> {
-    let SymTable::Table(_, local_stack): &SymTable = symtable;
-    localSymTableStack_lookup_variable_type(local_stack, name)
+    let SymTable::Table(_, local_scopes): &SymTable = symtable;
+    match stringMapStack_lookup::<SymTableLocalEntry>(local_scopes, name) {
+        Option::Some(entry) => {
+            let SymTableLocalEntry::Variable(variable_type, _) = entry;
+            Option::Some(rAstType_clone(variable_type))
+        }
+        Option::None => Option::None,
+    }
 }
 
 /// Lookup a function signature in the global symbol table.
@@ -1468,14 +1439,14 @@ fn symTable_lookup_function_signature(symtable: &SymTable, name: &String) -> Opt
 
 /// Enter a new local scope.
 fn symTable_enter_scope(symtable: &mut SymTable) {
-    let SymTable::Table(_, localStack): &mut SymTable = symtable;
-    localSymTableStack_push_empty_scope(localStack);
+    let SymTable::Table(_, local_scopes): &mut SymTable = symtable;
+    stringMapStack_push_empty::<SymTableLocalEntry>(local_scopes);
 }
 
 /// Leave the current local scope.
 fn symTable_leave_scope(symtable: &mut SymTable) -> bool {
-    let SymTable::Table(_, local_stack): &mut SymTable = symtable;
-    localSymTableStack_pop(local_stack)
+    let SymTable::Table(_, local_scopes): &mut SymTable = symtable;
+    stringMapStack_pop::<SymTableLocalEntry>(local_scopes)
 }
 
 /// Insert a function into the global symbol table, returning false on duplicate name.
@@ -1515,23 +1486,12 @@ fn symTable_insert_variable(
     variable_type: RAstType,
     mutable: bool,
 ) -> bool {
-    let SymTable::Table(_, local_stack): &mut SymTable = symtable;
-    let LocalSymTableStack::Stack(scopes, top): &mut LocalSymTableStack = local_stack;
-    if *top == 0 {
-        return true;
-    }
-
-    let idx: usize = *top - 1;
-    let scope: &mut StringMap<SymTableLocalEntry> = unwrap::<&mut StringMap<SymTableLocalEntry>>(
-        vec_get_mut::<StringMap<SymTableLocalEntry>>(scopes, idx),
-    );
-    let already_used: bool = stringMap_contains::<SymTableLocalEntry>(scope, &name);
-    stringMap_insert::<SymTableLocalEntry>(
-        scope,
+    let SymTable::Table(_, local_scopes): &mut SymTable = symtable;
+    stringMapStack_insert::<SymTableLocalEntry>(
+        local_scopes,
         name,
         SymTableLocalEntry::Variable(variable_type, mutable),
-    );
-    already_used
+    )
 }
 
 /// Global symbol table entries for functions and enums.
@@ -1544,79 +1504,6 @@ enum SymTableGlobalEntry {
 enum SymTableLocalEntry {
     /// type, is mutable
     Variable(RAstType, bool),
-}
-
-/// Stack of local symbol tables.
-enum LocalSymTableStack {
-    /// stack, index pointer to the top
-    Stack(Vec<StringMap<SymTableLocalEntry>>, usize),
-}
-
-/// Create an empty local symbol table stack.
-fn localSymTableStack_new() -> LocalSymTableStack {
-    LocalSymTableStack::Stack(vec_new::<StringMap<SymTableLocalEntry>>(), 0)
-}
-
-/// Push a new empty local scope (= a local symbol table) onto the stack.
-fn localSymTableStack_push_empty_scope(stack: &mut LocalSymTableStack) {
-    let LocalSymTableStack::Stack(scopes, top_idx): &mut LocalSymTableStack = stack;
-    let new_scope: StringMap<SymTableLocalEntry> = stringMap_new::<SymTableLocalEntry>();
-    if *top_idx == vec_len::<StringMap<SymTableLocalEntry>>(scopes) {
-        vec_push::<StringMap<SymTableLocalEntry>>(scopes, new_scope);
-    } else {
-        vec_set::<StringMap<SymTableLocalEntry>>(scopes, *top_idx, new_scope);
-    }
-    *top_idx = *top_idx + 1;
-}
-
-/// Pop the top local scope from the stack.
-fn localSymTableStack_pop(stack: &mut LocalSymTableStack) -> bool {
-    let LocalSymTableStack::Stack(_, top): &mut LocalSymTableStack = stack;
-    if *top == 0 {
-        false
-    } else {
-        *top = *top - 1;
-        true
-    }
-}
-
-/// Check whether a name exists in any local scope.
-fn localSymTableStack_contains(stack: &LocalSymTableStack, name: &String) -> bool {
-    let LocalSymTableStack::Stack(scopes, top): &LocalSymTableStack = stack;
-    let mut index: usize = *top;
-    while index > 0 {
-        index = index - 1;
-        let scope: &StringMap<SymTableLocalEntry> = unwrap::<&StringMap<SymTableLocalEntry>>(
-            vec_get::<StringMap<SymTableLocalEntry>>(scopes, index),
-        );
-        if stringMap_contains::<SymTableLocalEntry>(scope, name) {
-            return true;
-        }
-    }
-    false
-}
-
-/// Lookup a variable type in any local scope.
-fn localSymTableStack_lookup_variable_type(
-    stack: &LocalSymTableStack,
-    name: &String,
-) -> Option<RAstType> {
-    let LocalSymTableStack::Stack(scopes, top): &LocalSymTableStack = stack;
-    let mut index: usize = *top;
-    while index > 0 {
-        index = index - 1;
-        let scope: &StringMap<SymTableLocalEntry> = unwrap::<&StringMap<SymTableLocalEntry>>(
-            vec_get::<StringMap<SymTableLocalEntry>>(scopes, index),
-        );
-        match stringMap_get::<SymTableLocalEntry>(scope, name) {
-            Option::Some(entry) => {
-                let SymTableLocalEntry::Variable(variable_type, _): &SymTableLocalEntry = entry;
-                return Option::Some(rAstType_clone(variable_type));
-            }
-            Option::None => {}
-        }
-    }
-    Option::None
 }
 
 /// A type that represents the (type) signature of a function.
@@ -1793,7 +1680,7 @@ fn codegen_function(codegen: &mut Codegen, function: &RAstFunction) {
     }
 
     symTable_enter_scope(codegen_symtable_mut(codegen));
-    codegenSlotStack_push_empty_scope(codegen_slot_stack_mut(codegen));
+    codegen_push_scope(codegen);
     let mut parameter_index: usize = 0;
     while parameter_index < vec_len::<RAstVariable>(parameters) {
         let parameter: &RAstVariable =
@@ -1837,7 +1724,7 @@ fn codegen_function(codegen: &mut Codegen, function: &RAstFunction) {
 
     llvm_emit_line(codegen_llvm_mut(codegen), "}");
     symTable_leave_scope(codegen_symtable_mut(codegen));
-    codegenSlotStack_pop(codegen_slot_stack_mut(codegen));
+    codegen_pop_scope(codegen);
     codegen_set_current_fn_return_type(codegen, RAstType::Unit);
 }
 
@@ -1845,7 +1732,7 @@ fn codegen_function(codegen: &mut Codegen, function: &RAstFunction) {
 fn codegen_block(codegen: &mut Codegen, block: &RAstBlock) -> STPair {
     let RAstBlock::Block(statements, tail): &RAstBlock = block;
     symTable_enter_scope(codegen_symtable_mut(codegen));
-    codegenSlotStack_push_empty_scope(codegen_slot_stack_mut(codegen));
+    codegen_push_scope(codegen);
 
     let mut i: usize = 0;
     while i < vec_len::<RAstStatement>(statements) {
@@ -1870,7 +1757,7 @@ fn codegen_block(codegen: &mut Codegen, block: &RAstBlock) -> STPair {
     };
 
     symTable_leave_scope(codegen_symtable_mut(codegen));
-    codegenSlotStack_pop(codegen_slot_stack_mut(codegen));
+    codegen_pop_scope(codegen);
     result
 }
 
@@ -1893,11 +1780,7 @@ fn codegen_binding(codegen: &mut Codegen, variable: &RAstVariable, value: &RAstE
                 *is_mutable,
             );
 
-            codegenSlotStack_insert(
-                codegen_slot_stack_mut(codegen),
-                string_clone(lvalue_name),
-                lvalue_pointer,
-            );
+            codegen_scope_insert(codegen, string_clone(lvalue_name), lvalue_pointer);
         }
         _ => llvm_emit_line(codegen_llvm_mut(codegen), "  ; let pattern"),
     }
@@ -1971,15 +1854,13 @@ fn codegen_expression(codegen: &mut Codegen, expression: &RAstExpr) -> STPair {
                 RAstExpr::Path(path) => {
                     let name: String = rAstPath_to_string(path);
                     match symTable_lookup_variable_type(codegen_symtable(codegen), &name) {
-                        Option::Some(ty) => {
-                            match codegenSlotStack_lookup(codegen_slot_stack(codegen), &name) {
-                                Option::Some(pointer_name) => STPair::ST(
-                                    pointer_name,
-                                    RAstType::Reference(box_new::<RAstType>(ty), *mutable),
-                                ),
-                                _ => codegen_error("undefined variable"),
-                            }
-                        }
+                        Option::Some(ty) => match codegen_scope_lookup(codegen, &name) {
+                            Option::Some(pointer_name) => STPair::ST(
+                                pointer_name,
+                                RAstType::Reference(box_new::<RAstType>(ty), *mutable),
+                            ),
+                            _ => codegen_error("undefined variable"),
+                        },
                         _ => codegen_error("undefined variable"),
                     }
                 }
@@ -2033,15 +1914,13 @@ fn codegen_expression(codegen: &mut Codegen, expression: &RAstExpr) -> STPair {
         RAstExpr::Path(path) => {
             let name: String = rAstPath_to_string(path);
             match symTable_lookup_variable_type(codegen_symtable(codegen), &name) {
-                Option::Some(ty) => {
-                    match codegenSlotStack_lookup(codegen_slot_stack(codegen), &name) {
-                        Option::Some(pointer_name) => {
-                            let value_name: String = llvm_emit_load(codegen, &ty, &pointer_name);
-                            STPair::ST(value_name, ty)
-                        }
-                        _ => codegen_error("undefined variable"),
+                Option::Some(ty) => match codegen_scope_lookup(codegen, &name) {
+                    Option::Some(pointer_name) => {
+                        let value_name: String = llvm_emit_load(codegen, &ty, &pointer_name);
+                        STPair::ST(value_name, ty)
                     }
-                }
+                    _ => codegen_error("undefined variable"),
+                },
                 _ => codegen_error("undefined variable"),
             }
         }
@@ -4482,6 +4361,82 @@ fn stringMap_get<'a, T>(map: &'a StringMap<T>, key: &String) -> Option<&'a T> {
 /// Check whether a key exists.
 fn stringMap_contains<T>(map: &StringMap<T>, key: &String) -> bool {
     match stringMap_get::<T>(map, key) {
+        Option::Some(_) => true,
+        Option::None => false,
+    }
+}
+
+// ----------------------------------------------------------------
+// ---------------------- StringMapStack --------------------------
+// ----------------------------------------------------------------
+// A stack of StringMap<T> which inserts/looks-up by stack order.
+
+/// Stack of StringMap scopes.
+enum StringMapStack<T> {
+    Stack(Vec<StringMap<T>>, usize),
+}
+
+/// Create an empty StringMap stack.
+fn stringMapStack_new<T>() -> StringMapStack<T> {
+    StringMapStack::Stack(vec_new::<StringMap<T>>(), 0)
+}
+
+/// Push a new empty scope.
+fn stringMapStack_push_empty<T>(stack: &mut StringMapStack<T>) {
+    let StringMapStack::Stack(scopes, top) = stack;
+    let new_scope: StringMap<T> = stringMap_new::<T>();
+    if *top == vec_len::<StringMap<T>>(scopes) {
+        vec_push::<StringMap<T>>(scopes, new_scope);
+    } else {
+        vec_set::<StringMap<T>>(scopes, *top, new_scope);
+    }
+    *top = *top + 1;
+}
+
+/// Pop the top scope.
+fn stringMapStack_pop<T>(stack: &mut StringMapStack<T>) -> bool {
+    let StringMapStack::Stack(_, top) = stack;
+    if *top == 0 {
+        false
+    } else {
+        *top = *top - 1;
+        true
+    }
+}
+
+/// Insert into the current scope and return whether the name already existed there.
+fn stringMapStack_insert<T>(stack: &mut StringMapStack<T>, name: String, value: T) -> bool {
+    let StringMapStack::Stack(scopes, top) = stack;
+    if *top == 0 {
+        return true;
+    }
+
+    let idx: usize = *top - 1;
+    let scope: &mut StringMap<T> =
+        unwrap::<&mut StringMap<T>>(vec_get_mut::<StringMap<T>>(scopes, idx));
+    let already_used: bool = stringMap_contains::<T>(scope, &name);
+    stringMap_insert::<T>(scope, name, value);
+    already_used
+}
+
+/// Look up a value in any visible scope.
+fn stringMapStack_lookup<'a, T>(stack: &'a StringMapStack<T>, name: &String) -> Option<&'a T> {
+    let StringMapStack::Stack(scopes, top) = stack;
+    let mut index: usize = *top;
+    while index > 0 {
+        index = index - 1;
+        let scope: &StringMap<T> = unwrap::<&StringMap<T>>(vec_get::<StringMap<T>>(scopes, index));
+        match stringMap_get::<T>(scope, name) {
+            Option::Some(value) => return Option::Some(value),
+            Option::None => {}
+        }
+    }
+    Option::None
+}
+
+/// Check whether a name exists in any visible scope.
+fn stringMapStack_contains<T>(stack: &StringMapStack<T>, name: &String) -> bool {
+    match stringMapStack_lookup::<T>(stack, name) {
         Option::Some(_) => true,
         Option::None => false,
     }
