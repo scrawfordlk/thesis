@@ -2,6 +2,7 @@
 // Note: Tests are written in full Rust (unlike the code in main.rs, which
 // is written in the restricted subset of Rust).
 
+#[cfg(test)]
 mod tests {
     #[allow(unused_imports)]
     use super::*;
