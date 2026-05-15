@@ -1358,6 +1358,49 @@ fn codegen_expect_bool_type(ty: &RAstType) {
     }
 }
 
+fn codegen_assignment_lvalue(codegen: &mut Codegen, expression: &RAstExpr) -> STPair {
+    match expression {
+        RAstExpr::Path(path) => {
+            let name: String = rAstPath_to_string(path);
+            let pointer_name: String = match codegen_scope_lookup(codegen, &name) {
+                Option::Some(pointer_name) => pointer_name,
+                Option::None => codegen_error("undefined variable"),
+            };
+
+            match symTable_lookup_variable(codegen_symtable(codegen), &name) {
+                Option::Some(Variable::Variable(variable_type, mutable)) => {
+                    if not(mutable) {
+                        codegen_error("invalid assignment to immutable variable")
+                    }
+                    STPair::ST(pointer_name, variable_type)
+                }
+                Option::None => codegen_error("undefined variable"),
+            }
+        }
+
+        RAstExpr::Unary(RAstUnaryOp::Dereference, value) => {
+            let STPair::ST(pointer_name, pointer_type): STPair =
+                codegen_expression(codegen, box_deref::<RAstExpr>(value));
+
+            match pointer_type {
+                RAstType::Reference(inner, mutable) => {
+                    if not(mutable) {
+                        codegen_error("invalid assignment using immutable reference");
+                    }
+                    let ty: RAstType = rAstType_clone(box_deref::<RAstType>(&inner));
+                    STPair::ST(pointer_name, ty)
+                }
+                RAstType::RawPointerMut(inner) => {
+                    let ty: RAstType = rAstType_clone(box_deref::<RAstType>(&inner));
+                    STPair::ST(pointer_name, ty)
+                }
+                _ => codegen_error("invalid assignment to an expression"),
+            }
+        }
+        _ => codegen_error("invalid assignment target"),
+    }
+}
+
 /// Manages the context of the LLVM-IR that is currently being generated.
 enum Context {
     /// temporary counter
@@ -1390,17 +1433,14 @@ fn context_next_temporary(context: &mut Context) -> String {
 /// Data structure that manages global and local symbol tables.
 enum SymTable {
     /// global symbol table, local symbol tables
-    Table(
-        StringMap<SymTableGlobalEntry>,
-        StringMapStack<SymTableLocalEntry>,
-    ),
+    Table(StringMap<SymTableGlobalEntry>, StringMapStack<Variable>),
 }
 
 /// Create an empty symbol table.
 fn symTable_new() -> SymTable {
     SymTable::Table(
         stringMap_new::<SymTableGlobalEntry>(),
-        stringMapStack_new::<SymTableLocalEntry>(),
+        stringMapStack_new::<Variable>(),
     )
 }
 
@@ -1408,18 +1448,18 @@ fn symTable_new() -> SymTable {
 fn symTable_contains(symtable: &SymTable, name: &String) -> bool {
     let SymTable::Table(global, local_scopes): &SymTable = symtable;
     or(
-        stringMapStack_contains::<SymTableLocalEntry>(local_scopes, name),
+        stringMapStack_contains::<Variable>(local_scopes, name),
         stringMap_contains::<SymTableGlobalEntry>(global, name),
     )
 }
 
-/// Lookup a variable type in local scopes.
-fn symTable_lookup_variable_type(symtable: &SymTable, name: &String) -> Option<RAstType> {
+/// Lookup a variable in local scopes.
+fn symTable_lookup_variable(symtable: &SymTable, name: &String) -> Option<Variable> {
     let SymTable::Table(_, local_scopes): &SymTable = symtable;
-    match stringMapStack_lookup::<SymTableLocalEntry>(local_scopes, name) {
+    match stringMapStack_lookup::<Variable>(local_scopes, name) {
         Option::Some(entry) => {
-            let SymTableLocalEntry::Variable(variable_type, _) = entry;
-            Option::Some(rAstType_clone(variable_type))
+            let Variable::Variable(variable_type, mutable) = entry;
+            Option::Some(Variable::Variable(rAstType_clone(variable_type), *mutable))
         }
         Option::None => Option::None,
     }
@@ -1440,13 +1480,13 @@ fn symTable_lookup_function_signature(symtable: &SymTable, name: &String) -> Opt
 /// Enter a new local scope.
 fn symTable_enter_scope(symtable: &mut SymTable) {
     let SymTable::Table(_, local_scopes): &mut SymTable = symtable;
-    stringMapStack_push_empty::<SymTableLocalEntry>(local_scopes);
+    stringMapStack_push_empty::<Variable>(local_scopes);
 }
 
 /// Leave the current local scope.
 fn symTable_leave_scope(symtable: &mut SymTable) -> bool {
     let SymTable::Table(_, local_scopes): &mut SymTable = symtable;
-    stringMapStack_pop::<SymTableLocalEntry>(local_scopes)
+    stringMapStack_pop::<Variable>(local_scopes)
 }
 
 /// Insert a function into the global symbol table, returning false on duplicate name.
@@ -1487,10 +1527,10 @@ fn symTable_insert_variable(
     mutable: bool,
 ) -> bool {
     let SymTable::Table(_, local_scopes): &mut SymTable = symtable;
-    stringMapStack_insert::<SymTableLocalEntry>(
+    stringMapStack_insert::<Variable>(
         local_scopes,
         name,
-        SymTableLocalEntry::Variable(variable_type, mutable),
+        Variable::Variable(variable_type, mutable),
     )
 }
 
@@ -1500,8 +1540,8 @@ enum SymTableGlobalEntry {
     Enum(List<RAstType>),
 }
 
-/// Local symbol table entries for variables.
-enum SymTableLocalEntry {
+/// Local variable entry.
+enum Variable {
     /// type, is mutable
     Variable(RAstType, bool),
 }
@@ -1800,12 +1840,14 @@ fn codegen_expression(codegen: &mut Codegen, expression: &RAstExpr) -> STPair {
         },
 
         RAstExpr::Assign(left, right) => {
-            let STPair::ST(_, left_type): STPair =
-                codegen_expression(codegen, box_deref::<RAstExpr>(left));
             let STPair::ST(right_name, right_type): STPair =
                 codegen_expression(codegen, box_deref::<RAstExpr>(right));
+
+            let STPair::ST(pointer_name, left_type): STPair =
+                codegen_assignment_lvalue(codegen, box_deref::<RAstExpr>(left));
+
             codegen_expect_same_type(&left_type, &right_type);
-            llvm_emit_line(codegen_llvm_mut(codegen), "  ; assignment");
+            llvm_emit_store(codegen, &left_type, &right_name, &pointer_name);
             STPair::ST(right_name, RAstType::Unit)
         }
 
@@ -1850,17 +1892,26 @@ fn codegen_expression(codegen: &mut Codegen, expression: &RAstExpr) -> STPair {
         }
 
         RAstExpr::Unary(operator, value) => match operator {
-            RAstUnaryOp::Reference(mutable) => match box_deref::<RAstExpr>(value) {
+            RAstUnaryOp::Reference(mutable_ref) => match box_deref::<RAstExpr>(value) {
                 RAstExpr::Path(path) => {
                     let name: String = rAstPath_to_string(path);
-                    match symTable_lookup_variable_type(codegen_symtable(codegen), &name) {
-                        Option::Some(ty) => match codegen_scope_lookup(codegen, &name) {
-                            Option::Some(pointer_name) => STPair::ST(
-                                pointer_name,
-                                RAstType::Reference(box_new::<RAstType>(ty), *mutable),
-                            ),
-                            _ => codegen_error("undefined variable"),
-                        },
+                    match symTable_lookup_variable(codegen_symtable(codegen), &name) {
+                        Option::Some(Variable::Variable(ty, mutable_var)) => {
+                            match codegen_scope_lookup(codegen, &name) {
+                                Option::Some(pointer_name) => {
+                                    if and(*mutable_ref, not(mutable_var)) {
+                                        codegen_error(
+                                            "cannot take mutable reference to immutable variable",
+                                        );
+                                    }
+                                    STPair::ST(
+                                        pointer_name,
+                                        RAstType::Reference(box_new::<RAstType>(ty), *mutable_ref),
+                                    )
+                                }
+                                _ => codegen_error("undefined variable"),
+                            }
+                        }
                         _ => codegen_error("undefined variable"),
                     }
                 }
@@ -1872,7 +1923,7 @@ fn codegen_expression(codegen: &mut Codegen, expression: &RAstExpr) -> STPair {
                     llvm_emit_store(codegen, &ty, &name, &reference);
                     STPair::ST(
                         reference,
-                        RAstType::Reference(box_new::<RAstType>(ty), *mutable),
+                        RAstType::Reference(box_new::<RAstType>(ty), *mutable_ref),
                     )
                 }
             },
@@ -1913,14 +1964,16 @@ fn codegen_expression(codegen: &mut Codegen, expression: &RAstExpr) -> STPair {
 
         RAstExpr::Path(path) => {
             let name: String = rAstPath_to_string(path);
-            match symTable_lookup_variable_type(codegen_symtable(codegen), &name) {
-                Option::Some(ty) => match codegen_scope_lookup(codegen, &name) {
-                    Option::Some(pointer_name) => {
-                        let value_name: String = llvm_emit_load(codegen, &ty, &pointer_name);
-                        STPair::ST(value_name, ty)
+            match symTable_lookup_variable(codegen_symtable(codegen), &name) {
+                Option::Some(Variable::Variable(ty, _)) => {
+                    match codegen_scope_lookup(codegen, &name) {
+                        Option::Some(pointer_name) => {
+                            let value_name: String = llvm_emit_load(codegen, &ty, &pointer_name);
+                            STPair::ST(value_name, ty)
+                        }
+                        _ => codegen_error("undefined variable"),
                     }
-                    _ => codegen_error("undefined variable"),
-                },
+                }
                 _ => codegen_error("undefined variable"),
             }
         }

@@ -262,7 +262,7 @@ fn test_symtable_scope_and_variables() {
     ));
     assert!(!symTable_contains(&symtable, &string_from_str("x")));
     assert!(matches!(
-        symTable_lookup_variable_type(&symtable, &string_from_str("x")),
+        symTable_lookup_variable(&symtable, &string_from_str("x")),
         Option::None
     ));
 
@@ -275,8 +275,8 @@ fn test_symtable_scope_and_variables() {
     ));
     assert!(symTable_contains(&symtable, &string_from_str("x")));
     assert!(matches!(
-        symTable_lookup_variable_type(&symtable, &string_from_str("x")),
-        Option::Some(RAstType::U8)
+        symTable_lookup_variable(&symtable, &string_from_str("x")),
+        Option::Some(Variable::Variable(RAstType::U8, true))
     ));
 
     symTable_enter_scope(&mut symtable);
@@ -287,17 +287,17 @@ fn test_symtable_scope_and_variables() {
         false
     ));
     assert!(matches!(
-        symTable_lookup_variable_type(&symtable, &string_from_str("x")),
-        Option::Some(RAstType::Usize)
+        symTable_lookup_variable(&symtable, &string_from_str("x")),
+        Option::Some(Variable::Variable(RAstType::Usize, false))
     ));
     assert!(symTable_leave_scope(&mut symtable));
     assert!(matches!(
-        symTable_lookup_variable_type(&symtable, &string_from_str("x")),
-        Option::Some(RAstType::U8)
+        symTable_lookup_variable(&symtable, &string_from_str("x")),
+        Option::Some(Variable::Variable(RAstType::U8, true))
     ));
     assert!(symTable_leave_scope(&mut symtable));
     assert!(matches!(
-        symTable_lookup_variable_type(&symtable, &string_from_str("x")),
+        symTable_lookup_variable(&symtable, &string_from_str("x")),
         Option::None
     ));
     assert!(!symTable_leave_scope(&mut symtable));
