@@ -1829,201 +1829,227 @@ fn codegen_binding(codegen: &mut Codegen, variable: &RAstVariable, value: &RAstE
 /// Emit LLVM-IR for one expression and return the resulting value/type pair.
 fn codegen_expression(codegen: &mut Codegen, expression: &RAstExpr) -> STPair {
     match expression {
-        RAstExpr::Return(returned) => match returned {
-            Option::Some(value) => {
-                let STPair::ST(name, ty): STPair =
-                    codegen_expression(codegen, box_deref::<RAstExpr>(value));
-                codegen_expect_same_type(&ty, codegen_current_fn_return_type(codegen));
-                STPair::ST(name, ty)
-            }
-            Option::None => STPair::ST(string_new(), RAstType::Unit),
-        },
-
-        RAstExpr::Assign(left, right) => {
-            let STPair::ST(right_name, right_type): STPair =
-                codegen_expression(codegen, box_deref::<RAstExpr>(right));
-
-            let STPair::ST(pointer_name, left_type): STPair =
-                codegen_assignment_lvalue(codegen, box_deref::<RAstExpr>(left));
-
-            codegen_expect_same_type(&left_type, &right_type);
-            llvm_emit_store(codegen, &left_type, &right_name, &pointer_name);
-            STPair::ST(right_name, RAstType::Unit)
-        }
-
-        RAstExpr::Binary(operator, left, right) => {
-            let STPair::ST(left_name, left_type): STPair =
-                codegen_expression(codegen, box_deref::<RAstExpr>(left));
-            let STPair::ST(right_name, right_type): STPair =
-                codegen_expression(codegen, box_deref::<RAstExpr>(right));
-            codegen_expect_same_type(&left_type, &right_type);
-
-            match operator {
-                RAstBinaryOp::Arithmetic(op) => {
-                    codegen_expect_numeric_type(&left_type);
-                    let name: String =
-                        llvm_emit_binary(codegen, op, &left_type, &left_name, &right_name);
-                    STPair::ST(name, left_type)
-                }
-                RAstBinaryOp::Comparison(op) => STPair::ST(
-                    llvm_emit_icmp(codegen, op, &left_type, &left_name, &right_name),
-                    RAstType::Bool,
-                ),
-            }
-        }
-
+        RAstExpr::Return(returned) => codegen_return(codegen, returned),
+        RAstExpr::Assign(left, right) => codegen_assignment(
+            codegen,
+            box_deref::<RAstExpr>(left),
+            box_deref::<RAstExpr>(right),
+        ),
+        RAstExpr::Binary(operator, left, right) => codegen_binary_op(
+            codegen,
+            operator,
+            box_deref::<RAstExpr>(left),
+            box_deref::<RAstExpr>(right),
+        ),
         RAstExpr::Cast(value, to_type) => {
-            let STPair::ST(from_name, from_type): STPair =
-                codegen_expression(codegen, box_deref::<RAstExpr>(value));
-            let to_type: RAstType = rAstType_clone(to_type);
-
-            match rAstType_get_cast_operation(&from_type, &to_type) {
-                CastOperation::ZeroExtend => STPair::ST(
-                    llvm_emit_zext(codegen, &from_type, &to_type, &from_name),
-                    to_type,
-                ),
-                CastOperation::Truncate => STPair::ST(
-                    llvm_emit_trunc(codegen, &from_type, &to_type, &from_name),
-                    to_type,
-                ),
-                CastOperation::None => STPair::ST(from_name, to_type),
-                CastOperation::Invalid => codegen_error("invalid cast"),
-            }
+            codegen_cast(codegen, box_deref::<RAstExpr>(value), to_type)
         }
-
-        RAstExpr::Unary(operator, value) => match operator {
-            RAstUnaryOp::Reference(mutable_ref) => match box_deref::<RAstExpr>(value) {
-                RAstExpr::Path(path) => {
-                    let name: String = rAstPath_to_string(path);
-                    match symTable_lookup_variable(codegen_symtable(codegen), &name) {
-                        Option::Some(Variable::Variable(ty, mutable_var)) => {
-                            match codegen_scope_lookup(codegen, &name) {
-                                Option::Some(pointer_name) => {
-                                    if and(*mutable_ref, not(mutable_var)) {
-                                        codegen_error(
-                                            "cannot take mutable reference to immutable variable",
-                                        );
-                                    }
-                                    STPair::ST(
-                                        pointer_name,
-                                        RAstType::Reference(box_new::<RAstType>(ty), *mutable_ref),
-                                    )
-                                }
-                                _ => codegen_error("undefined variable"),
-                            }
-                        }
-                        _ => codegen_error("undefined variable"),
-                    }
-                }
-                _ => {
-                    // create a reference to the value of an expression
-                    let STPair::ST(name, ty): STPair =
-                        codegen_expression(codegen, box_deref::<RAstExpr>(value));
-                    let reference: String = llvm_emit_alloca(codegen, &ty, 1);
-                    llvm_emit_store(codegen, &ty, &name, &reference);
-                    STPair::ST(
-                        reference,
-                        RAstType::Reference(box_new::<RAstType>(ty), *mutable_ref),
-                    )
-                }
-            },
-
-            RAstUnaryOp::Dereference => {
-                let STPair::ST(name, ty): STPair =
-                    codegen_expression(codegen, box_deref::<RAstExpr>(value));
-                let inner_type: RAstType = match ty {
-                    RAstType::Reference(pointed, _) => {
-                        rAstType_clone(box_deref::<RAstType>(&pointed))
-                    }
-                    RAstType::RawPointerMut(pointed) => {
-                        rAstType_clone(box_deref::<RAstType>(&pointed))
-                    }
-                    _ => codegen_error("cannot dereference this expression"),
-                };
-                let name: String = llvm_emit_load(codegen, &inner_type, &name);
-                STPair::ST(name, inner_type)
-            }
-        },
-
-        RAstExpr::Literal(literal) => match literal {
-            RAstLiteral::Int(value) => STPair::ST(integer_to_string(*value), RAstType::Usize),
-            RAstLiteral::Char(value) => {
-                STPair::ST(integer_to_string(*value as usize), RAstType::Char)
-            }
-            RAstLiteral::Bool(value) => {
-                STPair::ST(integer_to_string(*value as usize), RAstType::Bool)
-            }
-            RAstLiteral::String(_) => STPair::ST(
-                string_new(),
-                RAstType::Reference(
-                    box_new::<RAstType>(RAstType::Custom(string_from_str("str"))),
-                    false,
-                ),
-            ),
-        },
-
-        RAstExpr::Path(path) => {
-            let name: String = rAstPath_to_string(path);
-            match symTable_lookup_variable(codegen_symtable(codegen), &name) {
-                Option::Some(Variable::Variable(ty, _)) => {
-                    match codegen_scope_lookup(codegen, &name) {
-                        Option::Some(pointer_name) => {
-                            let value_name: String = llvm_emit_load(codegen, &ty, &pointer_name);
-                            STPair::ST(value_name, ty)
-                        }
-                        _ => codegen_error("undefined variable"),
-                    }
-                }
-                _ => codegen_error("undefined variable"),
-            }
+        RAstExpr::Unary(operator, value) => {
+            codegen_unary_op(codegen, operator, box_deref::<RAstExpr>(value))
         }
-
-        RAstExpr::Call(callee, arguments) => {
-            let function_name: String = rAstPath_to_string(callee);
-            let mut argument_types: List<RAstType> = list_new::<RAstType>();
-            let mut i: usize = 0;
-            while i < vec_len::<RAstExpr>(arguments) {
-                let argument: &RAstExpr = unwrap::<&RAstExpr>(vec_get::<RAstExpr>(arguments, i));
-                let STPair::ST(_, argument_type): STPair = codegen_expression(codegen, argument);
-                list_append::<RAstType>(&mut argument_types, argument_type);
-                i = i + 1;
-            }
-
-            match symTable_lookup_function_signature(codegen_symtable(codegen), &function_name) {
-                Option::Some(FnSignature::Fn(parameter_types, return_type)) => {
-                    if not(list_eq::<RAstType>(
-                        &parameter_types,
-                        &argument_types,
-                        rAstType_eq,
-                    )) {
-                        codegen_error("function call does not match function signature");
-                    }
-                    llvm_emit_call_comment(codegen_llvm_mut(codegen), &function_name);
-                    STPair::ST(string_new(), return_type)
-                }
-                Option::None => codegen_error("call to undefined function"),
-            }
-        }
-
+        RAstExpr::Literal(literal) => codegen_literal(literal),
+        RAstExpr::Path(path) => codegen_path_expression(codegen, path),
+        RAstExpr::Call(callee, arguments) => codegen_call(codegen, callee, arguments),
         RAstExpr::Block(_, block) => codegen_block(codegen, block),
-
-        RAstExpr::If(if_expression) => {
-            STPair::ST(string_new(), codegen_if_type(codegen, if_expression))
-        }
-
+        RAstExpr::If(if_expression) => codegen_if(codegen, if_expression),
         RAstExpr::While(condition, body) => {
-            let STPair::ST(_, condition_type): STPair =
-                codegen_expression(codegen, box_deref::<RAstExpr>(condition));
-            codegen_expect_bool_type(&condition_type);
-            let STPair::ST(_, _): STPair = codegen_block(codegen, body);
-            STPair::ST(string_new(), RAstType::Unit)
+            codegen_while(codegen, box_deref::<RAstExpr>(condition), body)
         }
+        RAstExpr::Match(value, arms) => codegen_match(codegen, box_deref::<RAstExpr>(value), arms),
+    }
+}
 
-        RAstExpr::Match(value, arms) => STPair::ST(
-            string_new(),
-            codegen_match_type(codegen, box_deref::<RAstExpr>(value), arms),
+/// Emit LLVM-IR for a `return` expression.
+fn codegen_return(codegen: &mut Codegen, returned: &Option<Box<RAstExpr>>) -> STPair {
+    match returned {
+        Option::Some(value) => {
+            let STPair::ST(name, ty): STPair =
+                codegen_expression(codegen, box_deref::<RAstExpr>(value));
+            codegen_expect_same_type(&ty, codegen_current_fn_return_type(codegen));
+            STPair::ST(name, ty)
+        }
+        Option::None => STPair::ST(string_new(), RAstType::Unit),
+    }
+}
+
+/// Emit LLVM-IR for an assignment expression.
+fn codegen_assignment(codegen: &mut Codegen, left: &RAstExpr, right: &RAstExpr) -> STPair {
+    let STPair::ST(right_name, right_type): STPair = codegen_expression(codegen, right);
+    let STPair::ST(pointer_name, left_type): STPair = codegen_assignment_lvalue(codegen, left);
+
+    codegen_expect_same_type(&left_type, &right_type);
+    llvm_emit_store(codegen, &left_type, &right_name, &pointer_name);
+    STPair::ST(right_name, RAstType::Unit)
+}
+
+/// Emit LLVM-IR for a binary expression.
+fn codegen_binary_op(
+    codegen: &mut Codegen,
+    operator: &RAstBinaryOp,
+    left: &RAstExpr,
+    right: &RAstExpr,
+) -> STPair {
+    let STPair::ST(left_name, left_type): STPair = codegen_expression(codegen, left);
+    let STPair::ST(right_name, right_type): STPair = codegen_expression(codegen, right);
+    codegen_expect_same_type(&left_type, &right_type);
+
+    match operator {
+        RAstBinaryOp::Arithmetic(op) => {
+            codegen_expect_numeric_type(&left_type);
+            let name: String = llvm_emit_binary(codegen, op, &left_type, &left_name, &right_name);
+            STPair::ST(name, left_type)
+        }
+        RAstBinaryOp::Comparison(op) => STPair::ST(
+            llvm_emit_icmp(codegen, op, &left_type, &left_name, &right_name),
+            RAstType::Bool,
         ),
     }
+}
+
+/// Emit LLVM-IR for a cast expression.
+fn codegen_cast(codegen: &mut Codegen, value: &RAstExpr, to_type: &RAstType) -> STPair {
+    let STPair::ST(from_name, from_type): STPair = codegen_expression(codegen, value);
+    let to_type: RAstType = rAstType_clone(to_type);
+
+    match rAstType_get_cast_operation(&from_type, &to_type) {
+        CastOperation::ZeroExtend => STPair::ST(
+            llvm_emit_zext(codegen, &from_type, &to_type, &from_name),
+            to_type,
+        ),
+        CastOperation::Truncate => STPair::ST(
+            llvm_emit_trunc(codegen, &from_type, &to_type, &from_name),
+            to_type,
+        ),
+        CastOperation::None => STPair::ST(from_name, to_type),
+        CastOperation::Invalid => codegen_error("invalid cast"),
+    }
+}
+
+/// Emit LLVM-IR for a unary expression.
+fn codegen_unary_op(codegen: &mut Codegen, operator: &RAstUnaryOp, value: &RAstExpr) -> STPair {
+    match operator {
+        RAstUnaryOp::Reference(mutable_ref) => match value {
+            RAstExpr::Path(path) => {
+                let name: String = rAstPath_to_string(path);
+                match symTable_lookup_variable(codegen_symtable(codegen), &name) {
+                    Option::Some(Variable::Variable(ty, mutable_var)) => {
+                        match codegen_scope_lookup(codegen, &name) {
+                            Option::Some(pointer_name) => {
+                                if and(*mutable_ref, not(mutable_var)) {
+                                    codegen_error(
+                                        "cannot take mutable reference to immutable variable",
+                                    );
+                                }
+                                STPair::ST(
+                                    pointer_name,
+                                    RAstType::Reference(box_new::<RAstType>(ty), *mutable_ref),
+                                )
+                            }
+                            _ => codegen_error("undefined variable"),
+                        }
+                    }
+                    _ => codegen_error("undefined variable"),
+                }
+            }
+            _ => {
+                let STPair::ST(name, ty): STPair = codegen_expression(codegen, value);
+                let reference: String = llvm_emit_alloca(codegen, &ty, 1);
+                llvm_emit_store(codegen, &ty, &name, &reference);
+                STPair::ST(
+                    reference,
+                    RAstType::Reference(box_new::<RAstType>(ty), *mutable_ref),
+                )
+            }
+        },
+
+        RAstUnaryOp::Dereference => {
+            let STPair::ST(name, ty): STPair = codegen_expression(codegen, value);
+            let inner_type: RAstType = match ty {
+                RAstType::Reference(pointed, _) => rAstType_clone(box_deref::<RAstType>(&pointed)),
+                RAstType::RawPointerMut(pointed) => rAstType_clone(box_deref::<RAstType>(&pointed)),
+                _ => codegen_error("cannot dereference this expression"),
+            };
+            let name: String = llvm_emit_load(codegen, &inner_type, &name);
+            STPair::ST(name, inner_type)
+        }
+    }
+}
+
+/// Emit LLVM-IR for a literal expression.
+fn codegen_literal(literal: &RAstLiteral) -> STPair {
+    match literal {
+        RAstLiteral::Int(value) => STPair::ST(integer_to_string(*value), RAstType::Usize),
+        RAstLiteral::Char(value) => STPair::ST(integer_to_string(*value as usize), RAstType::Char),
+        RAstLiteral::Bool(value) => STPair::ST(integer_to_string(*value as usize), RAstType::Bool),
+        RAstLiteral::String(_) => STPair::ST(
+            string_new(),
+            RAstType::Reference(
+                box_new::<RAstType>(RAstType::Custom(string_from_str("str"))),
+                false,
+            ),
+        ),
+    }
+}
+
+/// Emit LLVM-IR for a path expression.
+fn codegen_path_expression(codegen: &mut Codegen, path: &RAstPath) -> STPair {
+    let name: String = rAstPath_to_string(path);
+    match symTable_lookup_variable(codegen_symtable(codegen), &name) {
+        Option::Some(Variable::Variable(ty, _)) => match codegen_scope_lookup(codegen, &name) {
+            Option::Some(pointer_name) => {
+                let value_name: String = llvm_emit_load(codegen, &ty, &pointer_name);
+                STPair::ST(value_name, ty)
+            }
+            _ => codegen_error("undefined variable"),
+        },
+        _ => codegen_error("undefined variable"),
+    }
+}
+
+/// Emit LLVM-IR for a function call expression.
+fn codegen_call(codegen: &mut Codegen, callee: &RAstPath, arguments: &Vec<RAstExpr>) -> STPair {
+    let function_name: String = rAstPath_to_string(callee);
+    let mut argument_types: List<RAstType> = list_new::<RAstType>();
+    let mut i: usize = 0;
+    while i < vec_len::<RAstExpr>(arguments) {
+        let argument: &RAstExpr = unwrap::<&RAstExpr>(vec_get::<RAstExpr>(arguments, i));
+        let STPair::ST(_, argument_type): STPair = codegen_expression(codegen, argument);
+        list_append::<RAstType>(&mut argument_types, argument_type);
+        i = i + 1;
+    }
+
+    match symTable_lookup_function_signature(codegen_symtable(codegen), &function_name) {
+        Option::Some(FnSignature::Fn(parameter_types, return_type)) => {
+            if not(list_eq::<RAstType>(
+                &parameter_types,
+                &argument_types,
+                rAstType_eq,
+            )) {
+                codegen_error("function call does not match function signature");
+            }
+            llvm_emit_call_comment(codegen_llvm_mut(codegen), &function_name);
+            STPair::ST(string_new(), return_type)
+        }
+        Option::None => codegen_error("call to undefined function"),
+    }
+}
+
+/// Emit LLVM-IR for an if expression.
+fn codegen_if(codegen: &mut Codegen, if_expression: &RAstIf) -> STPair {
+    STPair::ST(string_new(), codegen_if_type(codegen, if_expression))
+}
+
+/// Emit LLVM-IR for a while expression.
+fn codegen_while(codegen: &mut Codegen, condition: &RAstExpr, body: &RAstBlock) -> STPair {
+    let STPair::ST(_, condition_type): STPair = codegen_expression(codegen, condition);
+    codegen_expect_bool_type(&condition_type);
+    let STPair::ST(_, _): STPair = codegen_block(codegen, body);
+    STPair::ST(string_new(), RAstType::Unit)
+}
+
+/// Emit LLVM-IR for a match expression.
+fn codegen_match(codegen: &mut Codegen, value: &RAstExpr, arms: &Vec<RAstMatchArm>) -> STPair {
+    STPair::ST(string_new(), codegen_match_type(codegen, value, arms))
 }
 
 /// Type-check an if expression and return its type.
