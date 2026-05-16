@@ -1422,13 +1422,24 @@ fn context_increment_counter(context: &mut Context) {
     *counter = *counter + 1;
 }
 
-/// Get the next available virtual register name.
+/// Get a unique virtual register name.
 fn context_next_temporary(context: &mut Context) -> String {
     let id: usize = context_get_counter(context);
     context_increment_counter(context);
-    let mut name: String = string_from_str("%.t"); // '.' avoids name clashes with variables
+    let mut name: String = string_from_str("%t");
     string_push_string(&mut name, &integer_to_string(id));
     name
+}
+
+/// Get a unique basic block label with a given suffix:
+fn context_next_label(context: &mut Context, suffix: &str) -> String {
+    let id: usize = context_get_counter(context);
+    context_increment_counter(context);
+    let mut label: String = string_from_str("l");
+    string_push_string(&mut label, &integer_to_string(id));
+    string_push(&mut label, '.');
+    string_push_str(&mut label, suffix);
+    label
 }
 
 /// Data structure that manages global and local symbol tables.
