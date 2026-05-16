@@ -2225,6 +2225,42 @@ fn llvm_emit_ret_void(codegen: &mut Codegen) {
     string_push_str(code, "  ret void\n");
 }
 
+/// Emit a label:
+/// `label`:
+fn llvm_emit_label(codegen: &mut Codegen, label: &String) {
+    let code: &mut String = codegen_llvm_mut(codegen);
+    string_push(code, '\n');
+    string_push_string(code, label);
+    string_push_str(code, ":\n");
+}
+
+/// Emit an unconditional branch:
+/// br label %`target_label`
+fn llvm_emit_br(codegen: &mut Codegen, target_label: &String) {
+    let code: &mut String = codegen_llvm_mut(codegen);
+    string_push_str(code, "  br label %");
+    string_push_string(code, target_label);
+    string_push(code, '\n');
+}
+
+/// Emit a conditional branch:
+/// br i1 `condition`, label %`then_label`, label %`else_label`
+fn llvm_emit_br_conditional(
+    codegen: &mut Codegen,
+    condition: &String,
+    then_label: &String,
+    else_label: &String,
+) {
+    let code: &mut String = codegen_llvm_mut(codegen);
+    string_push_str(code, "  br i1 ");
+    string_push_string(code, condition);
+    string_push_str(code, ", label %");
+    string_push_string(code, then_label);
+    string_push_str(code, ", label %");
+    string_push_string(code, else_label);
+    string_push(code, '\n');
+}
+
 /// Emit a cast instruction of the following form:
 /// `name` = `op` `from_type` `value` to `to_type`
 /// where `op` can be one of the following: `zext`, `trunc`
