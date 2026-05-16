@@ -2051,10 +2051,34 @@ fn codegen_if(codegen: &mut Codegen, if_expression: &RAstIf) -> STPair {
 
 /// Emit LLVM-IR for a while expression.
 fn codegen_while(codegen: &mut Codegen, condition: &RAstExpr, body: &RAstBlock) -> STPair {
-    let STPair::ST(_, condition_type): STPair = codegen_expression(codegen, condition);
+    let entry_label: String = context_next_label(codegen_context_mut(codegen), "while.entry");
+    let body_label: String = context_next_label(codegen_context_mut(codegen), "while.body");
+    let end_label: String = context_next_label(codegen_context_mut(codegen), "while.end");
+
+    // jump from current block to while-entry block
+    llvm_emit_br(codegen, &entry_label);
+    // start entry block
+    llvm_emit_label(codegen, &entry_label);
+
+    let STPair::ST(condition_name, condition_type): STPair = codegen_expression(codegen, condition);
     codegen_expect_bool_type(&condition_type);
-    let STPair::ST(_, _): STPair = codegen_block(codegen, body);
-    STPair::ST(string_new(), RAstType::Unit)
+
+    // conditionally execute body or skip body
+    llvm_emit_br_conditional(codegen, &condition_name, &body_label, &end_label);
+
+    // start body block
+    llvm_emit_label(codegen, &body_label);
+
+    let STPair::ST(_, ty): STPair = codegen_block(codegen, body);
+    codegen_expect_same_type(&RAstType::Unit, &ty);
+
+    // jump back to entry to reevaluate condition
+    llvm_emit_br(codegen, &entry_label);
+
+    // start block of rest of instructions
+    llvm_emit_label(codegen, &end_label);
+
+    STPair::ST(string_new(), RAstType::Unit) // while always returns unit
 }
 
 /// Emit LLVM-IR for a match expression.
