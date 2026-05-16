@@ -1622,7 +1622,6 @@ fn codegen_language(codegen: &mut Codegen, ast: &RAst) {
 /// Emit LLVM-IR for one enum definition.
 fn codegen_enum(codegen: &mut Codegen, enum_item: &RAstEnum) {
     let RAstEnum::Enum(enum_name, variants): &RAstEnum = enum_item;
-    llvm_emit_enum_comment(codegen_llvm_mut(codegen), enum_name);
 
     let mut lowered_variants: List<RAstType> = list_new::<RAstType>();
     let mut i: usize = 0;
@@ -1673,7 +1672,7 @@ fn codegen_function(codegen: &mut Codegen, function: &RAstFunction) {
         } else {
             rAstType_to_llvm_name(&function_return_type)
         };
-    llvm_emit_function_header(
+    codegen_emit_function_header(
         codegen_llvm_mut(codegen),
         function_name,
         &llvm_return_type_name,
@@ -1730,7 +1729,7 @@ fn codegen_function(codegen: &mut Codegen, function: &RAstFunction) {
         }
     }
 
-    llvm_emit_line(codegen_llvm_mut(codegen), "}");
+    codegen_emit_line(codegen_llvm_mut(codegen), "}");
     symTable_leave_scope(codegen_symtable_mut(codegen));
     codegen_pop_scope(codegen);
     codegen_set_current_fn_return_type(codegen, RAstType::Unit);
@@ -1777,8 +1776,8 @@ fn codegen_binding(codegen: &mut Codegen, variable: &RAstVariable, value: &RAstE
 
     match pattern {
         RAstPattern::Identifier(is_mutable, lvalue_name) => {
-            let lvalue_pointer: String = llvm_emit_alloca(codegen, binding_type, 1);
-            llvm_emit_store(codegen, binding_type, &rvalue_name, &lvalue_pointer);
+            let lvalue_pointer: String = codegen_emit_alloca(codegen, binding_type, 1);
+            codegen_emit_store(codegen, binding_type, &rvalue_name, &lvalue_pointer);
 
             symTable_insert_variable(
                 codegen_symtable_mut(codegen),
@@ -1789,7 +1788,7 @@ fn codegen_binding(codegen: &mut Codegen, variable: &RAstVariable, value: &RAstE
 
             codegen_scope_insert(codegen, string_clone(lvalue_name), lvalue_pointer);
         }
-        _ => llvm_emit_line(codegen_llvm_mut(codegen), "  ; let pattern"),
+        _ => codegen_emit_line(codegen_llvm_mut(codegen), "  ; let pattern"),
     }
 }
 
@@ -1845,7 +1844,7 @@ fn codegen_assignment(codegen: &mut Codegen, left: &RAstExpr, right: &RAstExpr) 
     let STPair::ST(pointer_name, left_type): STPair = codegen_assignment_lvalue(codegen, left);
 
     codegen_expect_same_type(&left_type, &right_type);
-    llvm_emit_store(codegen, &left_type, &right_name, &pointer_name);
+    codegen_emit_store(codegen, &left_type, &right_name, &pointer_name);
     STPair::ST(right_name, RAstType::Unit)
 }
 
@@ -1906,11 +1905,12 @@ fn codegen_binary_op(
     match operator {
         RAstBinaryOp::Arithmetic(op) => {
             codegen_expect_numeric_type(&left_type);
-            let name: String = llvm_emit_binary(codegen, op, &left_type, &left_name, &right_name);
+            let name: String =
+                codegen_emit_binary(codegen, op, &left_type, &left_name, &right_name);
             STPair::ST(name, left_type)
         }
         RAstBinaryOp::Comparison(op) => STPair::ST(
-            llvm_emit_icmp(codegen, op, &left_type, &left_name, &right_name),
+            codegen_emit_icmp(codegen, op, &left_type, &left_name, &right_name),
             RAstType::Bool,
         ),
     }
@@ -1923,11 +1923,11 @@ fn codegen_cast(codegen: &mut Codegen, value: &RAstExpr, to_type: &RAstType) -> 
 
     match rAstType_get_cast_operation(&from_type, &to_type) {
         CastOperation::ZeroExtend => STPair::ST(
-            llvm_emit_zext(codegen, &from_type, &to_type, &from_name),
+            codegen_emit_zext(codegen, &from_type, &to_type, &from_name),
             to_type,
         ),
         CastOperation::Truncate => STPair::ST(
-            llvm_emit_trunc(codegen, &from_type, &to_type, &from_name),
+            codegen_emit_trunc(codegen, &from_type, &to_type, &from_name),
             to_type,
         ),
         CastOperation::None => STPair::ST(from_name, to_type),
@@ -1963,8 +1963,8 @@ fn codegen_unary_op(codegen: &mut Codegen, operator: &RAstUnaryOp, value: &RAstE
             }
             _ => {
                 let STPair::ST(name, ty): STPair = codegen_expression(codegen, value);
-                let reference: String = llvm_emit_alloca(codegen, &ty, 1);
-                llvm_emit_store(codegen, &ty, &name, &reference);
+                let reference: String = codegen_emit_alloca(codegen, &ty, 1);
+                codegen_emit_store(codegen, &ty, &name, &reference);
                 STPair::ST(
                     reference,
                     RAstType::Reference(box_new::<RAstType>(ty), *mutable_ref),
@@ -1979,7 +1979,7 @@ fn codegen_unary_op(codegen: &mut Codegen, operator: &RAstUnaryOp, value: &RAstE
                 RAstType::RawPointerMut(pointed) => rAstType_clone(box_deref::<RAstType>(&pointed)),
                 _ => codegen_error("cannot dereference this expression"),
             };
-            let name: String = llvm_emit_load(codegen, &inner_type, &name);
+            let name: String = codegen_emit_load(codegen, &inner_type, &name);
             STPair::ST(name, inner_type)
         }
     }
@@ -2007,7 +2007,7 @@ fn codegen_path_expression(codegen: &mut Codegen, path: &RAstPath) -> STPair {
     match symTable_lookup_variable(codegen_symtable(codegen), &name) {
         Option::Some(Variable::Variable(ty, _)) => match codegen_scope_lookup(codegen, &name) {
             Option::Some(pointer_name) => {
-                let value_name: String = llvm_emit_load(codegen, &ty, &pointer_name);
+                let value_name: String = codegen_emit_load(codegen, &ty, &pointer_name);
                 STPair::ST(value_name, ty)
             }
             _ => codegen_error("undefined variable"),
@@ -2037,7 +2037,6 @@ fn codegen_call(codegen: &mut Codegen, callee: &RAstPath, arguments: &Vec<RAstEx
             )) {
                 codegen_error("function call does not match function signature");
             }
-            llvm_emit_call_comment(codegen_llvm_mut(codegen), &function_name);
             STPair::ST(string_new(), return_type)
         }
         Option::None => codegen_error("call to undefined function"),
@@ -2074,27 +2073,27 @@ fn codegen_while(codegen: &mut Codegen, condition: &RAstExpr, body: &RAstBlock) 
     let end_label: String = context_next_label(codegen_context_mut(codegen), "while.end");
 
     // jump from current block to while-entry block
-    llvm_emit_br(codegen, &entry_label);
+    codegen_emit_br(codegen, &entry_label);
     // start entry block
-    llvm_emit_label(codegen, &entry_label);
+    codegen_emit_label(codegen, &entry_label);
 
     let STPair::ST(condition_name, condition_type): STPair = codegen_expression(codegen, condition);
     codegen_expect_bool_type(&condition_type);
 
     // conditionally execute body or skip body
-    llvm_emit_br_conditional(codegen, &condition_name, &body_label, &end_label);
+    codegen_emit_br_conditional(codegen, &condition_name, &body_label, &end_label);
 
     // start body block
-    llvm_emit_label(codegen, &body_label);
+    codegen_emit_label(codegen, &body_label);
 
     let STPair::ST(_, ty): STPair = codegen_block(codegen, body);
     codegen_expect_same_type(&RAstType::Unit, &ty);
 
     // jump back to entry to reevaluate condition
-    llvm_emit_br(codegen, &entry_label);
+    codegen_emit_br(codegen, &entry_label);
 
     // start block of rest of instructions
-    llvm_emit_label(codegen, &end_label);
+    codegen_emit_label(codegen, &end_label);
 
     STPair::ST(string_new(), RAstType::Unit) // while always returns unit
 }
@@ -2140,11 +2139,13 @@ fn codegen_pattern_type_for_expression(
     }
 }
 
+// ---------------------------- Code Emission ---------------------------------
+
 /// Emit a binary instruction of the following form:
 /// `name` = `op` `ty` `lhs`,`rhs`
 /// where `op` can be one of the following: `add`, `sub`, `mul`, `udiv`, `urem`
 /// and return `name`.
-fn llvm_emit_binary(
+fn codegen_emit_binary(
     codegen: &mut Codegen,
     op: &RAstArithmeticOp,
     ty: &RAstType,
@@ -2179,7 +2180,7 @@ fn llvm_emit_binary(
 /// `name` = icmp `op` `ty` `lhs`,`rhs`
 /// where `op` can be one of the following: `eq`, `ne`, `gt`, `lt`, `ge`, `le`
 /// and return `name`.
-fn llvm_emit_icmp(
+fn codegen_emit_icmp(
     codegen: &mut Codegen,
     op: &RAstComparisonOp,
     ty: &RAstType,
@@ -2213,7 +2214,7 @@ fn llvm_emit_icmp(
 
 /// Emit a ret instruction:
 /// ret `ty` `value`
-fn llvm_emit_ret_value(codegen: &mut Codegen, ty: &RAstType, value: &String) {
+fn codegen_emit_ret_value(codegen: &mut Codegen, ty: &RAstType, value: &String) {
     let code: &mut String = codegen_llvm_mut(codegen);
     string_push_str(code, "  ");
     string_push_str(code, "ret ");
@@ -2225,14 +2226,14 @@ fn llvm_emit_ret_value(codegen: &mut Codegen, ty: &RAstType, value: &String) {
 
 /// Emit a ret void instruction:
 /// ret void
-fn llvm_emit_ret_void(codegen: &mut Codegen) {
+fn codegen_emit_ret_void(codegen: &mut Codegen) {
     let code: &mut String = codegen_llvm_mut(codegen);
     string_push_str(code, "  ret void\n");
 }
 
 /// Emit a label:
 /// `label`:
-fn llvm_emit_label(codegen: &mut Codegen, label: &String) {
+fn codegen_emit_label(codegen: &mut Codegen, label: &String) {
     let code: &mut String = codegen_llvm_mut(codegen);
     string_push(code, '\n');
     string_push_string(code, label);
@@ -2241,7 +2242,7 @@ fn llvm_emit_label(codegen: &mut Codegen, label: &String) {
 
 /// Emit an unconditional branch:
 /// br label %`target_label`
-fn llvm_emit_br(codegen: &mut Codegen, target_label: &String) {
+fn codegen_emit_br(codegen: &mut Codegen, target_label: &String) {
     let code: &mut String = codegen_llvm_mut(codegen);
     string_push_str(code, "  br label %");
     string_push_string(code, target_label);
@@ -2250,7 +2251,7 @@ fn llvm_emit_br(codegen: &mut Codegen, target_label: &String) {
 
 /// Emit a conditional branch:
 /// br i1 `condition`, label %`then_label`, label %`else_label`
-fn llvm_emit_br_conditional(
+fn codegen_emit_br_conditional(
     codegen: &mut Codegen,
     condition: &String,
     then_label: &String,
@@ -2270,7 +2271,7 @@ fn llvm_emit_br_conditional(
 /// `name` = `op` `from_type` `value` to `to_type`
 /// where `op` can be one of the following: `zext`, `trunc`
 /// and return `name`.
-fn llvm_emit_cast(
+fn codegen_emit_cast(
     codegen: &mut Codegen,
     op: &str,
     from_type: &RAstType,
@@ -2296,31 +2297,31 @@ fn llvm_emit_cast(
 /// Emit a zext instruction:
 /// `name` = zext `from_type` `value` to `to_type`
 /// and return `name`.
-fn llvm_emit_zext(
+fn codegen_emit_zext(
     codegen: &mut Codegen,
     from_type: &RAstType,
     to_type: &RAstType,
     value: &String,
 ) -> String {
-    llvm_emit_cast(codegen, "zext", from_type, to_type, value)
+    codegen_emit_cast(codegen, "zext", from_type, to_type, value)
 }
 
 /// Emit a trunc instruction:
 /// `name` = trunc `from_type` `value` to `to_type`
 /// and return `name`.
-fn llvm_emit_trunc(
+fn codegen_emit_trunc(
     codegen: &mut Codegen,
     from_type: &RAstType,
     to_type: &RAstType,
     value: &String,
 ) -> String {
-    llvm_emit_cast(codegen, "trunc", from_type, to_type, value)
+    codegen_emit_cast(codegen, "trunc", from_type, to_type, value)
 }
 
 /// Emit an alloca instruction:
 /// `name` = alloca `ty`, i64 `num_elements`
 /// and return `name`.
-fn llvm_emit_alloca(codegen: &mut Codegen, ty: &RAstType, num_elements: usize) -> String {
+fn codegen_emit_alloca(codegen: &mut Codegen, ty: &RAstType, num_elements: usize) -> String {
     let name: String = context_next_temporary(codegen_context_mut(codegen));
     let llvm_type: String = rAstType_to_llvm_name(ty);
     let code: &mut String = codegen_llvm_mut(codegen);
@@ -2336,7 +2337,7 @@ fn llvm_emit_alloca(codegen: &mut Codegen, ty: &RAstType, num_elements: usize) -
 
 /// Emit a store instruction:
 /// store `ty` `value`, ptr `pointer`.
-fn llvm_emit_store(codegen: &mut Codegen, ty: &RAstType, value: &String, pointer: &String) {
+fn codegen_emit_store(codegen: &mut Codegen, ty: &RAstType, value: &String, pointer: &String) {
     let code: &mut String = codegen_llvm_mut(codegen);
     string_push_str(code, "  store ");
     string_push_string(code, &rAstType_to_llvm_name(ty));
@@ -2350,7 +2351,7 @@ fn llvm_emit_store(codegen: &mut Codegen, ty: &RAstType, value: &String, pointer
 
 /// Emit a load instruction:
 /// `name` = load `ty`, `ptr` pointer`.
-fn llvm_emit_load(codegen: &mut Codegen, ty: &RAstType, pointer: &String) -> String {
+fn codegen_emit_load(codegen: &mut Codegen, ty: &RAstType, pointer: &String) -> String {
     let name: String = context_next_temporary(codegen_context_mut(codegen));
     let code: &mut String = codegen_llvm_mut(codegen);
     string_push_str(code, "  ");
@@ -2362,6 +2363,32 @@ fn llvm_emit_load(codegen: &mut Codegen, ty: &RAstType, pointer: &String) -> Str
     string_push_string(code, pointer);
     string_push(code, '\n');
     name
+}
+
+/// Append raw text to the LLVM-IR output buffer.
+fn codegen_emit_str(llvm: &mut String, str: &str) {
+    string_push_str(llvm, str);
+}
+
+/// Append a single newline to the LLVM-IR output buffer.
+fn codegen_emit_newline(llvm: &mut String) {
+    string_push(llvm, '\n');
+}
+
+/// Append one full LLVM-IR line to the output buffer.
+fn codegen_emit_line(llvm: &mut String, text: &str) {
+    codegen_emit_str(llvm, text);
+    codegen_emit_newline(llvm);
+}
+
+/// Emit a function header.
+fn codegen_emit_function_header(llvm: &mut String, fn_name: &String, return_type_name: &String) {
+    codegen_emit_str(llvm, "define ");
+    string_push_string(llvm, return_type_name);
+    codegen_emit_str(llvm, " @");
+    string_push_string(llvm, fn_name);
+    codegen_emit_line(llvm, "() {");
+    codegen_emit_line(llvm, "entry:");
 }
 
 // -----------------------------------------------------------------
@@ -3933,70 +3960,6 @@ fn llvm_eval_value(
 // ------------------------- Library -------------------------------
 // -----------------------------------------------------------------
 // -----------------------------------------------------------------
-
-// ------------------------- LLVM-IR -------------------------------
-
-/// Append raw text to the LLVM-IR output buffer.
-fn llvm_emit_str(llvm: &mut String, str: &str) {
-    string_push_str(llvm, str);
-}
-
-/// Append a String value to the LLVM-IR output buffer.
-fn llvm_emit_string(llvm: &mut String, string: &String) {
-    string_push_string(llvm, string);
-}
-
-/// Append a single newline to the LLVM-IR output buffer.
-fn llvm_emit_newline(llvm: &mut String) {
-    string_push(llvm, '\n');
-}
-
-/// Append one full LLVM-IR line to the output buffer.
-fn llvm_emit_line(llvm: &mut String, text: &str) {
-    llvm_emit_str(llvm, text);
-    llvm_emit_newline(llvm);
-}
-
-/// Emit a function header.
-fn llvm_emit_function_header(llvm: &mut String, fn_name: &String, return_type_name: &String) {
-    llvm_emit_str(llvm, "define ");
-    llvm_emit_string(llvm, return_type_name);
-    llvm_emit_str(llvm, " @");
-    llvm_emit_string(llvm, fn_name);
-    llvm_emit_line(llvm, "() {");
-    llvm_emit_line(llvm, "entry:");
-}
-
-/// Emit an enum comment line.
-fn llvm_emit_enum_comment(llvm: &mut String, enum_name: &String) {
-    llvm_emit_str(llvm, "; enum ");
-    llvm_emit_string(llvm, enum_name);
-    llvm_emit_newline(llvm);
-}
-
-/// Emit a let-binding comment line.
-fn llvm_emit_let_comment(
-    llvm: &mut String,
-    variable_name: &String,
-    type_name: &String,
-    is_mutable: bool,
-) {
-    llvm_emit_str(llvm, "  ; let ");
-    if is_mutable {
-        llvm_emit_str(llvm, "mut ");
-    }
-    llvm_emit_string(llvm, variable_name);
-    llvm_emit_str(llvm, ": ");
-    llvm_emit_string(llvm, type_name);
-    llvm_emit_newline(llvm);
-}
-
-/// Emit a function-call comment line.
-fn llvm_emit_call_comment(llvm: &mut String, function_name: &String) {
-    llvm_emit_str(llvm, "  ; call ");
-    llvm_emit_string(llvm, function_name);
-    llvm_emit_newline(llvm);
-}
 
 // -------------------------- Error --------------------------------
 
