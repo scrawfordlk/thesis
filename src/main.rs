@@ -873,14 +873,15 @@ fn parse_block(lexer: &mut Lexer) -> RAstBlock {
         } else {
             let expression: RAstExpr = parse_expression(lexer);
 
-            if lexer_try_consume(lexer, &Token::SemiColon) {
-                let expr_statement = RAstStatement::Expression(box_new::<RAstExpr>(expression));
-                vec_push::<RAstStatement>(&mut statements, expr_statement);
-            } else {
+            if lexer_current_token_eq(lexer, &Token::RBrace) {
                 // end of block with expression as return value
-                expect_token(lexer, &Token::RBrace);
+                lexer_next_token(lexer);
                 tail = Option::Some(box_new::<RAstExpr>(expression));
                 return RAstBlock::Block(statements, tail);
+            } else {
+                lexer_try_consume(lexer, &Token::SemiColon); // optional semi-colon
+                let expr_statement = RAstStatement::Expression(box_new::<RAstExpr>(expression));
+                vec_push::<RAstStatement>(&mut statements, expr_statement);
             }
         }
     }
