@@ -1731,7 +1731,6 @@ fn codegen_function(codegen: &mut Codegen, function: &RAstFunction) {
 
         match pattern {
             RAstPattern::Identifier(is_mutable, name) => {
-                llvm_emit_let_comment(codegen_llvm_mut(codegen), name, &type_name, *is_mutable);
                 if symTable_insert_variable(
                     codegen_symtable_mut(codegen),
                     string_clone(name),
@@ -1786,7 +1785,6 @@ fn codegen_block(codegen: &mut Codegen, block: &RAstBlock) -> STPair {
             RAstStatement::Expression(expression) => {
                 let STPair::ST(_, _): STPair =
                     codegen_expression(codegen, box_deref::<RAstExpr>(expression));
-                llvm_emit_line(codegen_llvm_mut(codegen), "");
             }
         }
         i = i + 1;
