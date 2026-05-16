@@ -1342,6 +1342,14 @@ fn codegen_scope_lookup(codegen: &Codegen, name: &String) -> Option<String> {
 }
 
 fn codegen_expect_same_type(left: &RAstType, right: &RAstType) {
+    // Never is a special type that indicates the value is unreachable, so it matches every type
+    if or(
+        rAstType_eq(left, &RAstType::Never),
+        rAstType_eq(right, &RAstType::Never),
+    ) {
+        return;
+    }
+
     if not(rAstType_eq(left, right)) {
         codegen_error("type mismatch");
     }
@@ -1716,16 +1724,17 @@ fn codegen_function(codegen: &mut Codegen, function: &RAstFunction) {
     let STPair::ST(value_name, block_type): STPair = codegen_block(codegen, body);
     codegen_expect_same_type(&block_type, &function_return_type);
 
-    match &function_return_type {
+    match &block_type {
         RAstType::Unit => {
             if is_main {
-                llvm_emit_ret_value(codegen, &RAstType::Usize, &string_from_str("0"));
+                codegen_emit_ret_value(codegen, &RAstType::Usize, &string_from_str("0"));
             } else {
-                llvm_emit_ret_void(codegen);
+                codegen_emit_ret_void(codegen);
             }
         }
+        RAstType::Never => {} // if Never, the block never evaluates to the end, so we can ignore its result
         _ => {
-            llvm_emit_ret_value(codegen, &block_type, &value_name);
+            codegen_emit_ret_value(codegen, &block_type, &value_name);
         }
     }
 
@@ -1742,6 +1751,7 @@ fn codegen_block(codegen: &mut Codegen, block: &RAstBlock) -> STPair {
     codegen_push_scope(codegen);
 
     let mut i: usize = 0;
+    let mut block_type: RAstType = RAstType::Unit;
     while i < vec_len::<RAstStatement>(statements) {
         let statement: &RAstStatement =
             unwrap::<&RAstStatement>(vec_get::<RAstStatement>(statements, i));
@@ -1749,22 +1759,34 @@ fn codegen_block(codegen: &mut Codegen, block: &RAstBlock) -> STPair {
             RAstStatement::Let(variable, value) => {
                 codegen_binding(codegen, variable, box_deref::<RAstExpr>(value));
             }
+
             RAstStatement::Expression(expression) => {
-                let STPair::ST(_, _): STPair =
+                // expression is only used for its side-effects, so we can discard the result
+                let STPair::ST(_, ty): STPair =
                     codegen_expression(codegen, box_deref::<RAstExpr>(expression));
+
+                if rAstType_eq(&ty, &RAstType::Never) {
+                    // the rest of the block becomes unreachable, so the block type becomes Never
+                    block_type = RAstType::Never;
+                }
             }
         }
         i = i + 1;
     }
 
-    let result: STPair = match tail {
+    let STPair::ST(name, mut ty) = match tail {
         Option::Some(expression) => codegen_expression(codegen, box_deref::<RAstExpr>(expression)),
         Option::None => STPair::ST(string_new(), RAstType::Unit),
     };
 
+    if rAstType_eq(&block_type, &RAstType::Never) {
+        // set type of block to Never to indicate that it doesn't return normally
+        ty = RAstType::Never;
+    }
+
     symTable_leave_scope(codegen_symtable_mut(codegen));
     codegen_pop_scope(codegen);
-    result
+    STPair::ST(name, ty)
 }
 
 /// Emit LLVM-IR for one let binding.
@@ -1825,17 +1847,27 @@ fn codegen_expression(codegen: &mut Codegen, expression: &RAstExpr) -> STPair {
     }
 }
 
-/// Emit LLVM-IR for a `return` expression.
+/// Emit LLVM-IR for a return expression.
+/// `return` always evaluates to type Never.
 fn codegen_return(codegen: &mut Codegen, returned: &Option<Box<RAstExpr>>) -> STPair {
     match returned {
-        Option::Some(value) => {
+        // return <expression>
+        Option::Some(expression) => {
             let STPair::ST(name, ty): STPair =
-                codegen_expression(codegen, box_deref::<RAstExpr>(value));
+                codegen_expression(codegen, box_deref::<RAstExpr>(expression));
             codegen_expect_same_type(&ty, codegen_current_fn_return_type(codegen));
-            STPair::ST(name, ty)
+
+            codegen_emit_ret_value(codegen, &ty, &name);
         }
-        Option::None => STPair::ST(string_new(), RAstType::Unit),
+
+        // return;
+        Option::None => {
+            codegen_expect_same_type(&RAstType::Unit, codegen_current_fn_return_type(codegen));
+            codegen_emit_ret_void(codegen);
+        }
     }
+
+    STPair::ST(string_new(), RAstType::Never)
 }
 
 /// Emit LLVM-IR for an assignment expression.
