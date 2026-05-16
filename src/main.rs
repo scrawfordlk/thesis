@@ -1314,7 +1314,7 @@ fn codegen_context_mut(codegen: &mut Codegen) -> &mut Context {
     context
 }
 
-/// Push a new empty scop onto the stack.
+/// Push a new empty scope onto the stack.
 fn codegen_push_scope(codegen: &mut Codegen) {
     let Codegen::Codegen(_, _, _, _, slots): &mut Codegen = codegen;
     stringMapStack_push_empty::<String>(slots);
@@ -2882,6 +2882,14 @@ fn llvmParser_value_has_type(parser: &LlvmParser, value: &LlvmValue, expected: &
     }
 }
 
+/// Return true if the current token indicates the start of a new instruction.
+fn llvmParser_is_instruction_start(parser: &mut LlvmParser) -> bool {
+    match llvmParser_current_token(parser) {
+        LlvmToken::RBrace | LlvmToken::Identifier(_) => false,
+        _ => true,
+    }
+}
+
 enum LlvmAST {
     AST(StringMap<LlvmFunction>),
 }
@@ -3241,14 +3249,8 @@ fn llvmParser_parse_block(parser: &mut LlvmParser) -> InstructionBlock {
     // TODO: insert into symbol table
 
     let mut instructions: Vec<Instruction> = vec_new::<Instruction>();
-    let mut is_terminator: bool = false;
-
-    while not(is_terminator) {
+    while llvmParser_is_instruction_start(parser) {
         let instruction: Instruction = llvmParser_parse_instruction(parser);
-        match &instruction {
-            Instruction::Terminator(_) => is_terminator = true,
-            _ => is_terminator = false,
-        }
         vec_push::<Instruction>(&mut instructions, instruction);
     }
 
