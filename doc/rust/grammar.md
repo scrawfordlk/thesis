@@ -71,7 +71,7 @@ arm -> pattern "=>" expression ","
 pattern -> literal
 | [ "mut" ] identifier
 | identifier "::" identifier [ "(" pattern { "," pattern } [ "," ] ")" ] )
-| "\_"
+| "_"
 
 call -> identifier "(" [ expression { "," expression } [ "," ] ] ")"
 ```
