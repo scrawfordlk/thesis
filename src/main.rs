@@ -1359,49 +1359,6 @@ fn codegen_expect_bool_type(ty: &RAstType) {
     }
 }
 
-fn codegen_assignment_lvalue(codegen: &mut Codegen, expression: &RAstExpr) -> STPair {
-    match expression {
-        RAstExpr::Path(path) => {
-            let name: String = rAstPath_to_string(path);
-            let pointer_name: String = match codegen_scope_lookup(codegen, &name) {
-                Option::Some(pointer_name) => pointer_name,
-                Option::None => codegen_error("undefined variable"),
-            };
-
-            match symTable_lookup_variable(codegen_symtable(codegen), &name) {
-                Option::Some(Variable::Variable(variable_type, mutable)) => {
-                    if not(mutable) {
-                        codegen_error("invalid assignment to immutable variable")
-                    }
-                    STPair::ST(pointer_name, variable_type)
-                }
-                Option::None => codegen_error("undefined variable"),
-            }
-        }
-
-        RAstExpr::Unary(RAstUnaryOp::Dereference, value) => {
-            let STPair::ST(pointer_name, pointer_type): STPair =
-                codegen_expression(codegen, box_deref::<RAstExpr>(value));
-
-            match pointer_type {
-                RAstType::Reference(inner, mutable) => {
-                    if not(mutable) {
-                        codegen_error("invalid assignment using immutable reference");
-                    }
-                    let ty: RAstType = rAstType_clone(box_deref::<RAstType>(&inner));
-                    STPair::ST(pointer_name, ty)
-                }
-                RAstType::RawPointerMut(inner) => {
-                    let ty: RAstType = rAstType_clone(box_deref::<RAstType>(&inner));
-                    STPair::ST(pointer_name, ty)
-                }
-                _ => codegen_error("invalid assignment to an expression"),
-            }
-        }
-        _ => codegen_error("invalid assignment target"),
-    }
-}
-
 /// Manages the context of the LLVM-IR that is currently being generated.
 enum Context {
     /// temporary counter
@@ -1892,6 +1849,49 @@ fn codegen_assignment(codegen: &mut Codegen, left: &RAstExpr, right: &RAstExpr) 
     STPair::ST(right_name, RAstType::Unit)
 }
 
+fn codegen_assignment_lvalue(codegen: &mut Codegen, expression: &RAstExpr) -> STPair {
+    match expression {
+        RAstExpr::Path(path) => {
+            let name: String = rAstPath_to_string(path);
+            let pointer_name: String = match codegen_scope_lookup(codegen, &name) {
+                Option::Some(pointer_name) => pointer_name,
+                Option::None => codegen_error("undefined variable"),
+            };
+
+            match symTable_lookup_variable(codegen_symtable(codegen), &name) {
+                Option::Some(Variable::Variable(variable_type, mutable)) => {
+                    if not(mutable) {
+                        codegen_error("invalid assignment to immutable variable")
+                    }
+                    STPair::ST(pointer_name, variable_type)
+                }
+                Option::None => codegen_error("undefined variable"),
+            }
+        }
+
+        RAstExpr::Unary(RAstUnaryOp::Dereference, value) => {
+            let STPair::ST(pointer_name, pointer_type): STPair =
+                codegen_expression(codegen, box_deref::<RAstExpr>(value));
+
+            match pointer_type {
+                RAstType::Reference(inner, mutable) => {
+                    if not(mutable) {
+                        codegen_error("invalid assignment using immutable reference");
+                    }
+                    let ty: RAstType = rAstType_clone(box_deref::<RAstType>(&inner));
+                    STPair::ST(pointer_name, ty)
+                }
+                RAstType::RawPointerMut(inner) => {
+                    let ty: RAstType = rAstType_clone(box_deref::<RAstType>(&inner));
+                    STPair::ST(pointer_name, ty)
+                }
+                _ => codegen_error("invalid assignment to an expression"),
+            }
+        }
+        _ => codegen_error("invalid assignment target"),
+    }
+}
+
 /// Emit LLVM-IR for a binary expression.
 fn codegen_binary_op(
     codegen: &mut Codegen,
@@ -2046,7 +2046,25 @@ fn codegen_call(codegen: &mut Codegen, callee: &RAstPath, arguments: &Vec<RAstEx
 
 /// Emit LLVM-IR for an if expression.
 fn codegen_if(codegen: &mut Codegen, if_expression: &RAstIf) -> STPair {
-    STPair::ST(string_new(), codegen_if_type(codegen, if_expression))
+    let RAstIf::If(condition, then_block, else_branch): &RAstIf = if_expression;
+    let STPair::ST(_, condition_type): STPair =
+        codegen_expression(codegen, box_deref::<RAstExpr>(condition));
+    codegen_expect_bool_type(&condition_type);
+
+    let STPair::ST(_, then_type): STPair = codegen_block(codegen, then_block);
+    let ty: RAstType = match else_branch {
+        Option::Some(else_branch) => {
+            let STPair::ST(_, else_type): STPair = match else_branch {
+                RAstElse::If(nested_if) => codegen_if(codegen, box_deref::<RAstIf>(nested_if)),
+                RAstElse::Block(block) => codegen_block(codegen, block),
+            };
+            codegen_expect_same_type(&then_type, &else_type);
+            then_type
+        }
+        Option::None => RAstType::Unit,
+    };
+
+    STPair::ST(string_new(), ty)
 }
 
 /// Emit LLVM-IR for a while expression.
@@ -2083,41 +2101,6 @@ fn codegen_while(codegen: &mut Codegen, condition: &RAstExpr, body: &RAstBlock) 
 
 /// Emit LLVM-IR for a match expression.
 fn codegen_match(codegen: &mut Codegen, value: &RAstExpr, arms: &Vec<RAstMatchArm>) -> STPair {
-    STPair::ST(string_new(), codegen_match_type(codegen, value, arms))
-}
-
-/// Type-check an if expression and return its type.
-fn codegen_if_type(codegen: &mut Codegen, if_expression: &RAstIf) -> RAstType {
-    let RAstIf::If(condition, then_block, else_branch): &RAstIf = if_expression;
-    let STPair::ST(_, condition_type): STPair =
-        codegen_expression(codegen, box_deref::<RAstExpr>(condition));
-    codegen_expect_bool_type(&condition_type);
-
-    let STPair::ST(_, then_type): STPair = codegen_block(codegen, then_block);
-    match else_branch {
-        Option::Some(else_branch) => {
-            let else_type: RAstType = codegen_else_type(codegen, else_branch);
-            codegen_expect_same_type(&then_type, &else_type);
-            then_type
-        }
-        Option::None => RAstType::Unit,
-    }
-}
-
-/// Type-check an else branch and return its type.
-fn codegen_else_type(codegen: &mut Codegen, else_branch: &RAstElse) -> RAstType {
-    match else_branch {
-        RAstElse::If(nested_if) => codegen_if_type(codegen, box_deref::<RAstIf>(nested_if)),
-        RAstElse::Block(block) => stPair_get_type(codegen_block(codegen, block)),
-    }
-}
-
-/// Type-check a match expression and return its type.
-fn codegen_match_type(
-    codegen: &mut Codegen,
-    value: &RAstExpr,
-    arms: &Vec<RAstMatchArm>,
-) -> RAstType {
     if vec_len::<RAstMatchArm>(arms) == 0 {
         codegen_error("match expression requires at least one arm");
     }
@@ -2141,7 +2124,7 @@ fn codegen_match_type(
         i = i + 1;
     }
 
-    return_type
+    STPair::ST(string_new(), return_type)
 }
 
 /// Infer the type contributed by a pattern in the context of one matched expression type.
@@ -2152,9 +2135,7 @@ fn codegen_pattern_type_for_expression(
     match pattern {
         RAstPattern::Literal(literal) => rastLiteral_type(literal),
         RAstPattern::Identifier(_, _) => rAstType_clone(expression_type),
-        RAstPattern::EnumVariant(enum_name, variant, _) => {
-            RAstType::Custom(string_clone(enum_name))
-        }
+        RAstPattern::EnumVariant(enum_name, _, _) => RAstType::Custom(string_clone(enum_name)),
         RAstPattern::Wildcard => rAstType_clone(expression_type),
     }
 }
